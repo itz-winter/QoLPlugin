@@ -1,0 +1,367 @@
+name: KelpylandiaPlugin
+version: '${project.version}'
+main: com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin
+api-version: '1.16'
+author: Kelpwing
+description: Combined multichat and moderation plugin for Kelpylandia
+depend: [LuckPerms]
+softdepend: [PlaceholderAPI]
+
+commands:
+  # Chat Commands
+  channel:
+    description: Channel management command
+    usage: /channel <subcommand>
+    aliases: [ch]
+    permission: kelpylandia.channel.use
+  multichat:
+    description: MultiChat admin command
+    usage: /multichat <subcommand>
+    permission: kelpylandia.admin
+    
+  # Moderation Commands
+  kelpylandiaReload:
+    description: Reload the plugin configuration
+    usage: /kelpylandiaReload
+    permission: kelpylandia.reload
+    aliases: [kpreload, kreload]
+    permission-message: "You don't have permission to use this command."
+  mute:
+    description: Mute a player.
+    usage: /mute <player> [duration] [reason]
+    permission: kelpylandia.mod.mute
+    permission-message: "You don't have permission to use this command."
+  warn:
+    description: Warn a player.
+    usage: /warn <player> [reason]
+    permission: kelpylandia.mod.warn
+    permission-message: "You don't have permission to use this command."
+  kick:
+    description: Kick a player.
+    usage: /kick <player> [reason]
+    permission: kelpylandia.mod.kick
+    permission-message: "You don't have permission to use this command."
+  ban:
+    description: Ban a player.
+    usage: /ban <player> [duration] [reason]
+    permission: kelpylandia.mod.ban
+    permission-message: "You don't have permission to use this command."
+  ipban:
+    description: Ban a player's IP.
+    usage: /ipban <player> [duration] [reason]
+    permission: kelpylandia.mod.ipban
+    permission-message: "You don't have permission to use this command."
+  warns:
+    description: View a player's warnings.
+    usage: /warns <player>
+    permission: kelpylandia.mod.warns
+    permission-message: "You don't have permission to use this command."
+  hist:
+    description: View a player's punishment history.
+    usage: /hist <player>
+    permission: kelpylandia.mod.history
+    permission-message: "You don't have permission to use this command."
+  unban:
+    description: Unban a player.
+    usage: /unban <player>
+    permission: kelpylandia.mod.unban
+    permission-message: "You don't have permission to use this command."
+  unwarn:
+    description: Remove a warning from a player.
+    usage: /unwarn <player>
+    permission: kelpylandia.mod.unwarn
+    permission-message: "You don't have permission to use this command."
+  unmute:
+    description: Unmute a player.
+    usage: /unmute <player>
+    permission: kelpylandia.mod.unmute
+    permission-message: "You don't have permission to use this command."
+  vanish:
+    description: Toggle vanish mode for moderation.
+    usage: /vanish [player]
+    permission: kelpylandia.vanish
+    aliases: [v]
+    permission-message: "You don't have permission to use this command."
+  invsee:
+    description: View and modify another player's inventory in real-time.
+    usage: /invsee <player> [inv|armor|ender]
+    permission: kelpylandia.invsee
+    aliases: [inv, openinv]
+    permission-message: "You don't have permission to use this command."
+  pvp:
+    description: Toggle your PvP status on or off.
+    usage: /pvp [on|off|status]
+    permission: kelpylandia.pvp
+    aliases: [pvptoggle]
+    
+  # Home Commands
+  home:
+    description: Teleport to a home.
+    usage: /home [name]
+    permission: kelpylandia.homes
+  homes:
+    description: List or browse your homes.
+    usage: /homes
+    permission: kelpylandia.homes
+  sethome:
+    description: Set a home at your current location.
+    usage: /sethome [name]
+    permission: kelpylandia.homes
+  delhome:
+    description: Delete a home.
+    usage: /delhome <name>
+    permission: kelpylandia.homes
+    aliases: [removehome, remhome]
+    
+  # Teleport Request Commands
+  tpa:
+    description: Send a teleport request to a player.
+    usage: /tpa <player>
+    permission: kelpylandia.tpa
+    aliases: [tpask]
+  tpahere:
+    description: Request a player to teleport to you.
+    usage: /tpahere <player>
+    permission: kelpylandia.tpa.here
+  tpaccept:
+    description: Accept a pending teleport request.
+    usage: /tpaccept [player]
+    permission: kelpylandia.tpa
+    aliases: [tpyes]
+  tpdeny:
+    description: Deny a pending teleport request.
+    usage: /tpdeny [player]
+    permission: kelpylandia.tpa
+    aliases: [tpno]
+  tpcancel:
+    description: Cancel your outgoing teleport request.
+    usage: /tpcancel
+    permission: kelpylandia.tpa
+  back:
+    description: Teleport to your previous location.
+    usage: /back
+    permission: kelpylandia.back
+    aliases: [return]
+  dback:
+    description: Teleport to your last death location.
+    usage: /dback
+    permission: kelpylandia.dback
+    aliases: [deathback, dreturn]
+  workbench:
+    description: Open a virtual crafting table.
+    usage: /workbench [player]
+    permission: kelpylandia.workbench.craft
+    aliases: [wb, craft]
+  enderchest:
+    description: Open your ender chest (or another player's).
+    usage: /enderchest [player]
+    permission: kelpylandia.workbench.enderchest
+    aliases: [ec, echest]
+  anvil:
+    description: Open a virtual anvil.
+    usage: /anvil [player]
+    permission: kelpylandia.workbench.anvil
+  grindstone:
+    description: Open a virtual grindstone.
+    usage: /grindstone [player]
+    permission: kelpylandia.workbench.grindstone
+    aliases: [gstone]
+  stonecutter:
+    description: Open a virtual stonecutter.
+    usage: /stonecutter [player]
+    permission: kelpylandia.workbench.stonecutter
+    aliases: [scutter]
+  smithingtable:
+    description: Open a virtual smithing table.
+    usage: /smithingtable [player]
+    permission: kelpylandia.workbench.smithing
+    aliases: [smithing]
+  cartographytable:
+    description: Open a virtual cartography table.
+    usage: /cartographytable [player]
+    permission: kelpylandia.workbench.cartography
+    aliases: [cartography]
+  loom:
+    description: Open a virtual loom.
+    usage: /loom [player]
+    permission: kelpylandia.workbench.loom
+
+permissions:
+  kelpylandia.*:
+    description: Grants all permissions
+    default: op
+    children:
+      kelpylandia.admin: true
+      kelpylandia.mod.*: true
+      kelpylandia.channel.*: true
+      kelpylandia.pvp: true
+      kelpylandia.homes: true
+      kelpylandia.tpa: true
+      kelpylandia.tpa.here: true
+      kelpylandia.teleport.bypass.cooldown: true
+      kelpylandia.back: true
+      kelpylandia.dback: true
+      kelpylandia.back.bypass.cooldown: true
+      kelpylandia.workbench.*: true
+      
+  kelpylandia.admin:
+    description: Allows admin commands
+    default: op
+    
+  kelpylandia.reload:
+    description: Allows reloading the plugin configuration
+    default: op
+    
+  kelpylandia.mod.*:
+    description: Grants all moderation permissions
+    default: op
+    children:
+      kelpylandia.mod.mute: true
+      kelpylandia.mod.warn: true
+      kelpylandia.mod.kick: true
+      kelpylandia.mod.ban: true
+      kelpylandia.mod.ipban: true
+      kelpylandia.mod.warns: true
+      kelpylandia.mod.history: true
+      kelpylandia.mod.unban: true
+      kelpylandia.mod.unwarn: true
+      kelpylandia.mod.unmute: true
+      kelpylandia.vanish: true
+      kelpylandia.vanish.others: true
+      kelpylandia.vanish.see: true
+      kelpylandia.invsee: true
+      
+  kelpylandia.mod.basic:
+    description: Basic moderation permissions
+    default: false
+    children:
+      kelpylandia.mod.mute: true
+      kelpylandia.mod.warn: true
+      kelpylandia.mod.kick: true
+      kelpylandia.mod.warns: true
+      kelpylandia.mod.history: true
+      kelpylandia.mod.unmute: true
+      kelpylandia.mod.unwarn: true
+      
+  kelpylandia.mod.advanced:
+    description: Advanced moderation permissions
+    default: false
+    children:
+      kelpylandia.mod.ban: true
+      kelpylandia.mod.ipban: true
+      kelpylandia.mod.unban: true
+      
+  kelpylandia.channel.*:
+    description: Grants all channel permissions
+    default: false
+    children:
+      kelpylandia.channel.use: true
+      kelpylandia.channel.admin: true
+      
+  kelpylandia.channel.use:
+    description: Allows basic channel usage
+    default: true
+    
+  kelpylandia.channel.admin:
+    description: Allows channel administration
+    default: op
+    
+  kelpylandia.vanish:
+    description: Allows vanishing and unvanishing
+    default: op
+    
+  kelpylandia.vanish.others:
+    description: Allows vanishing other players
+    default: op
+    
+  kelpylandia.vanish.see:
+    description: Allows seeing vanished players
+    default: op
+    
+  kelpylandia.invsee:
+    description: Allows viewing and modifying other players' inventories
+    default: op
+    
+  kelpylandia.pvp:
+    description: Allows toggling PvP status
+    default: true
+    
+  # Home Permissions
+  kelpylandia.homes:
+    description: Allows using home commands
+    default: true
+    
+  # TPA Permissions
+  kelpylandia.tpa:
+    description: Allows sending and receiving teleport requests
+    default: true
+    
+  kelpylandia.tpa.here:
+    description: Allows using /tpahere to request others teleport to you
+    default: true
+    
+  kelpylandia.teleport.bypass.cooldown:
+    description: Bypass teleport cooldown
+    default: op
+
+  # Workbench Permissions
+  kelpylandia.workbench.*:
+    description: Grants all workbench permissions
+    default: true
+    children:
+      kelpylandia.workbench.craft: true
+      kelpylandia.workbench.enderchest: true
+      kelpylandia.workbench.anvil: true
+      kelpylandia.workbench.grindstone: true
+      kelpylandia.workbench.stonecutter: true
+      kelpylandia.workbench.smithing: true
+      kelpylandia.workbench.cartography: true
+      kelpylandia.workbench.loom: true
+
+  kelpylandia.workbench.craft:
+    description: Allows opening a virtual crafting table
+    default: true
+
+  kelpylandia.workbench.enderchest:
+    description: Allows opening your ender chest
+    default: true
+
+  kelpylandia.workbench.anvil:
+    description: Allows opening a virtual anvil
+    default: true
+
+  kelpylandia.workbench.grindstone:
+    description: Allows opening a virtual grindstone
+    default: true
+
+  kelpylandia.workbench.stonecutter:
+    description: Allows opening a virtual stonecutter
+    default: true
+
+  kelpylandia.workbench.smithing:
+    description: Allows opening a virtual smithing table
+    default: true
+
+  kelpylandia.workbench.cartography:
+    description: Allows opening a virtual cartography table
+    default: true
+
+  kelpylandia.workbench.loom:
+    description: Allows opening a virtual loom
+    default: true
+
+  kelpylandia.workbench.others:
+    description: Allows opening workbenches for other players
+    default: op
+
+  kelpylandia.back:
+    description: Allows using /back to return to previous location
+    default: true
+
+  kelpylandia.dback:
+    description: Allows using /dback to return to death location
+    default: true
+
+  kelpylandia.back.bypass.cooldown:
+    description: Bypass the back command cooldown
+    default: op

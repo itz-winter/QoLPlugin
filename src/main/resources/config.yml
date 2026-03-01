@@ -1,0 +1,255 @@
+# KelpylandiaPlugin Configuration File
+# Combined chat and moderation system for Kelpylandia
+
+# ===== CHAT SYSTEM CONFIGURATION =====
+
+# Channel Configurations
+channels:
+  global:
+    display-name: "Global"
+    format: "&2[G]&r {prefix}{displayname}&r: {message}"
+    permission: "kelpylandia.channel.global"
+    proximity: false
+    proximity-distance: 0.0
+    discord-enabled: true
+    discord-channel: ''
+    default: true
+    
+  local:
+    display-name: "Local"
+    format: "&e[L]&r {prefix}{displayname}&r: {message}"
+    permission: "kelpylandia.channel.local"
+    proximity: true
+    proximity-distance: 50.0
+    discord-enabled: false
+    discord-channel: ''
+    default: false
+    
+  admin:
+    display-name: "Admin"
+    format: "&c[A]&r {prefix}{displayname}&r: {message}"
+    permission: "kelpylandia.channel.admin"
+    proximity: false
+    proximity-distance: 0.0
+    discord-enabled: true
+    discord-channel: ''
+    default: false
+
+# Discord Bot Integration Settings
+discord:
+  enabled: true
+  bot-token: "your-bot-token-here"
+  # Channel for moderation actions
+  moderation-channel-id: "your-moderation-channel-id"
+  # Channel for general chat (global) 
+  chat-channel-id: "your-chat-channel-id"
+  # Channel for console logs and server events
+  console-channel-id: "your-console-channel-id"
+  # Role ID required to use Discord slash moderation commands
+  moderation-role-id: "your-moderator-role-id"
+  # Role ID for admin commands (rules, echo, restart, etc.)
+  admin-role-id: "your-admin-role-id"
+  # Role to ping when server starts
+  server-start-ping-role-id: "your-server-start-role-id"
+  
+  # Webhook Configuration
+  webhooks:
+    # Whether to reuse existing webhooks instead of creating new ones
+    reuse-existing: true
+    # Delete webhooks when plugin disables (not recommended)
+    cleanup-on-disable: false
+  
+  # Server Event Broadcasting
+  events:
+    # Broadcast join/leave messages to global chat
+    broadcast-joins: true
+    broadcast-leaves: true
+    broadcast-advancements: true
+    broadcast-achievements: true
+    # Send server events to console channel
+    console-logging: true
+    
+    # Use embeds for events (like DiscordSRV)
+    use-embeds: true
+    
+    # Server lifecycle events
+    server-start: true
+    server-stop: true
+    server-restart: true
+  
+  # Channel topic updates (updates every 10 minutes)
+  channel-topics:
+    enabled: true
+    update-interval: 600  # 10 minutes in seconds
+    channels:
+      # Example: "channel-id": "Server: {server_name} | Players: {online_players}/{max_players} | TPS: {tps}"
+      # "123456789012345678": "Kelpylandia | Online: {online_players} | TPS: {tps} | Memory: {memory_used}MB/{memory_max}MB"
+    
+    # Console channel topic (special case - includes server info)
+    console-channel-topic: "TPS: {tps} | Memory: {memory_used}MB/{memory_max}MB | Version: {server_version}"
+  
+  # Embed styling (colors in hex format)
+  embeds:
+    join-color: "#00FF00"      # Green
+    leave-color: "#FF0000"     # Red  
+    advancement-color: "#FFFF00"  # Yellow
+    achievement-color: "#FFA500"  # Orange
+    punishment-color: "#FF4500"   # Red-Orange
+    server-start-color: "#00FF00"  # Green
+    server-stop-color: "#FF0000"   # Red
+    server-restart-color: "#FFA500" # Orange
+  
+  formats:
+    # How Minecraft messages appear in Discord
+    minecraft-to-discord: "{message}"
+    
+    # How Discord messages appear in Minecraft  
+    discord-to-minecraft: "&b[Discord] &r{user}&r: {message}"
+    
+    # Enable debug logging for Discord relay issues
+    debug-relay: true
+    
+    # Username format for webhook messages
+    username-format: "{displayname}"
+    # Avatar URL template (uses player UUID)
+    avatar-url: "https://mc-heads.net/avatar/{uuid}/64"
+    
+    # Event formats for Discord
+    join: "{player} joined the game"
+    leave: "{player} left the game"
+    advancement: "**{player}** has made the advancement **{advancement}**!"
+    achievement: "**{player}** has completed the achievement **{achievement}**!"
+    
+    # Server lifecycle event formats
+    server-start: ":white_check_mark: **Server has started**"
+    server-stop: ":warning: **Server restarting...**"
+    server-restart: ":warning: **Server restarting...**"
+    
+    # Server lifecycle event descriptions
+    server-start-description: ""
+    server-stop-description: ""
+    server-restart-description: ""
+    
+    # Moderation action format for Discord
+    moderation-format: |
+      **Action:** {action}
+      **Staff:** {staff_name}
+      **Player:** {player_name}
+      **Reason:** {reason}
+      **Duration:** {duration}
+      **Server:** {server_name}
+
+# Join/Leave Message Configuration
+join-leave:
+  # Enable custom join/leave messages
+  enabled: true
+  # Custom join message format (matches Minecraft default style)
+  join-message: '&r[&a+&r] {player}'
+  # Custom leave message format (matches Minecraft default style)
+  leave-message: '&r[&c-&r] {player}'
+  # Hide default Minecraft join/leave messages
+  hide-default: true
+  # Join/leave messages are broadcast to all players regardless of channel
+
+# ===== MODERATION SYSTEM CONFIGURATION =====
+
+# Broadcast Configuration for moderation actions
+broadcast:
+  enabled: true
+  formats:
+    ban: "&c------------------------\n&cAction - BAN\n&cStaff Member - {staff_name}\n&cPunished Player - {player_name}\n&cReason - {reason}\n&cDuration - {duration}\n&c------------------------"
+    kick: "&c------------------------\n&cAction - KICK\n&cStaff Member - {staff_name}\n&cPunished Player - {player_name}\n&cReason - {reason}\n&cDuration - N/A\n&c------------------------"
+    mute: "&c------------------------\n&cAction - MUTE\n&cStaff Member - {staff_name}\n&cPunished Player - {player_name}\n&cReason - {reason}\n&cDuration - {duration}\n&c------------------------"
+    warn: "&c------------------------\n&cAction - WARN\n&cStaff Member - {staff_name}\n&cPunished Player - {player_name}\n&cReason - {reason}\n&cDuration - 30 days\n&c------------------------"
+    ipban: "&c------------------------\n&cAction - IPBAN\n&cStaff Member - {staff_name}\n&cPunished Player - {player_name}\n&cReason - {reason}\n&cDuration - {duration}\n&c------------------------"
+    unban: "&a------------------------\n&aAction - UNBAN\n&aStaff Member - {staff_name}\n&aUnbanned Player - {player_name}\n&aReason - {reason}\n&aDuration - N/A\n&a------------------------"
+    unmute: "&a------------------------\n&aAction - UNMUTE\n&aStaff Member - {staff_name}\n&aUnmuted Player - {player_name}\n&aReason - {reason}\n&aDuration - N/A\n&a------------------------"
+    unwarn: "&a------------------------\n&aAction - UNWARN\n&aStaff Member - {staff_name}\n&aPlayer - {player_name}\n&aReason - {reason}\n&aDuration - N/A\n&a------------------------"
+
+# Colors Configuration for messages
+colors:
+  primary: "YELLOW"
+  secondary: "WHITE"
+  error: "RED"
+  success: "GREEN"
+
+# Plugin Settings
+settings:
+  warn-expiry: 2592000  # 30 days in seconds
+  check-updates: true
+  server-name: ""
+
+# Server Rules (for /rules Discord command)
+rules:
+  title: "Rules"
+  description: "Please follow these rules to ensure a fun experience for everyone!"
+  rules-list:
+    - "1. Be respectful to all players and staff members"
+    - "2. No griefing, stealing, or destroying other players' builds"
+    - "3. No cheating, hacking, or using exploits"
+    - "4. Keep chat family-friendly and appropriate"
+    - "5. No spamming in chat or Discord"
+    - "6. Follow staff instructions and decisions"
+    - "7. Report any issues or rule violations to staff"
+    - "8. Have fun and enjoy your time on the server!"
+  footer: "Breaking these rules may result in warnings, mutes, kicks, or bans."
+
+# ===== HOMES CONFIGURATION =====
+homes:
+  # Enable the homes system (/home, /homes, /sethome, /delhome)
+  enabled: true
+  # Default maximum homes per player (can be overridden with kelpylandia.homes.max.<n> permission)
+  max-homes: 12
+  # Use interactive GUI inventory for /homes (false = text list)
+  use-gui: true
+
+# ===== TELEPORT REQUEST CONFIGURATION =====
+teleport:
+  # Enable the TPA system (/tpa, /tpahere, /tpaccept, /tpdeny, /tpcancel)
+  enabled: true
+  # Cooldown between teleports in seconds
+  cooldown: 2
+  # Invulnerability duration in seconds after teleporting (0 to disable)
+  invulnerability: 4
+  # How long a TPA request lasts before expiring in seconds
+  request-timeout: 120
+
+# ===== BACK COMMANDS =====
+# /back returns to your previous location before teleporting
+# /dback returns to your last death location
+back:
+  enabled: true
+  cooldown: 3
+
+# ===== WORKBENCH COMMANDS =====
+# Open virtual workbench inventories via commands (like EssentialsX)
+# Set enabled to false to disable all workbench commands (avoids conflicts)
+# Individual workbench types can also be toggled independently
+workbenches:
+  enabled: true
+  craft: true
+  enderchest: true
+  anvil: true
+  grindstone: true
+  stonecutter: true
+  smithing: true
+  cartography: true
+  loom: true
+
+# ===== AVAILABLE PLACEHOLDERS =====
+# Chat placeholders:
+# {channel} - Channel display name
+# {player} - Player name
+# {displayname} - Player display name
+# {message} - Chat message
+# {prefix} - Player prefix (from LuckPerms)
+# {suffix} - Player suffix (from LuckPerms)
+# Any PlaceholderAPI placeholder is also supported
+
+# Moderation placeholders:
+# {action} - The moderation action performed
+# {staff_name} - Name of the staff member
+# {player_name} - Name of the punished player
+# {reason} - Reason for the punishment
+# {duration} - Duration of the punishment
+# {server_name} - Server name
