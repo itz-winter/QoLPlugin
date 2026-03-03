@@ -317,17 +317,26 @@ public class KelpylandiaPlugin extends JavaPlugin {
             
             String pluginPrefix = getDescription().getName().toLowerCase();
             for (String name : commandNames) {
-                // Remove the command and its plugin-prefixed alias
-                knownCommands.remove(name.toLowerCase());
-                knownCommands.remove(pluginPrefix + ":" + name.toLowerCase());
+                String lowerName = name.toLowerCase();
                 
-                // Also remove any aliases defined in plugin.yml
-                org.bukkit.command.PluginCommand cmd = getCommand(name);
-                if (cmd != null && cmd.getAliases() != null) {
+                // Look up the command object BEFORE removing anything
+                org.bukkit.command.Command cmd = knownCommands.get(lowerName);
+                if (cmd == null) {
+                    cmd = knownCommands.get(pluginPrefix + ":" + lowerName);
+                }
+                
+                // Collect all keys to remove: main name, prefixed name, and all aliases
+                knownCommands.remove(lowerName);
+                knownCommands.remove(pluginPrefix + ":" + lowerName);
+                
+                if (cmd != null) {
+                    // Remove all aliases from the map
                     for (String alias : cmd.getAliases()) {
                         knownCommands.remove(alias.toLowerCase());
                         knownCommands.remove(pluginPrefix + ":" + alias.toLowerCase());
                     }
+                    // Formally unregister so the command is fully released
+                    cmd.unregister(commandMap);
                 }
             }
         } catch (Exception e) {
