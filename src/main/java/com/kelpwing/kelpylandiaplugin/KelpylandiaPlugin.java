@@ -30,9 +30,15 @@ import com.kelpwing.kelpylandiaplugin.utils.VersionHelper;
 import com.kelpwing.kelpylandiaplugin.placeholders.KpauPlaceholders;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandMap;
+import org.bukkit.command.CommandExecutor;
+import org.bukkit.command.PluginCommand;
+import org.bukkit.command.TabCompleter;
+import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -86,27 +92,18 @@ public class KelpylandiaPlugin extends JavaPlugin {
             homeManager = new HomeManager(this);
             homeGUI = new HomeGUI(this);
             getLogger().info("Homes system enabled!");
-        } else {
-            unregisterCommands("sethome", "delhome", "home", "homes");
-            getLogger().info("Homes system disabled — commands released to other plugins.");
         }
         
         // Initialize teleport system
         if (getConfig().getBoolean("teleport.enabled", true)) {
             tpaManager = new TpaManager(this);
             getLogger().info("Teleport request system enabled!");
-        } else {
-            unregisterCommands("tpa", "tpahere", "tpaccept", "tpdeny", "tpcancel");
-            getLogger().info("Teleport system disabled — commands released to other plugins.");
         }
         
         // Initialize back system
         if (getConfig().getBoolean("back.enabled", true)) {
             backManager = new BackManager(this);
             getLogger().info("Back system enabled!");
-        } else {
-            unregisterCommands("back", "dback");
-            getLogger().info("Back system disabled — commands released to other plugins.");
         }
         
         // Initialize integrations
@@ -168,13 +165,10 @@ public class KelpylandiaPlugin extends JavaPlugin {
             HomeCommand homeCmd = new HomeCommand(this);
             HomesCommand homesCmd = new HomesCommand(this);
             
-            getCommand("sethome").setExecutor(setHomeCmd);
-            getCommand("sethome").setTabCompleter(setHomeCmd);
-            getCommand("delhome").setExecutor(delHomeCmd);
-            getCommand("delhome").setTabCompleter(delHomeCmd);
-            getCommand("home").setExecutor(homeCmd);
-            getCommand("home").setTabCompleter(homeCmd);
-            getCommand("homes").setExecutor(homesCmd);
+            registerCommand("sethome", setHomeCmd, "Set a home at your current location.", "/sethome [name]", "kelpylandia.homes");
+            registerCommand("delhome", delHomeCmd, "Delete a home.", "/delhome <name>", "kelpylandia.homes", "removehome", "remhome");
+            registerCommand("home", homeCmd, "Teleport to a home.", "/home [name]", "kelpylandia.homes");
+            registerCommand("homes", homesCmd, "List or browse your homes.", "/homes", "kelpylandia.homes");
             
             // Register HomeGUI as listener for inventory clicks
             getServer().getPluginManager().registerEvents(homeGUI, this);
@@ -188,16 +182,11 @@ public class KelpylandiaPlugin extends JavaPlugin {
             TpDenyCommand tpDenyCmd = new TpDenyCommand(this);
             TpCancelCommand tpCancelCmd = new TpCancelCommand(this);
             
-            getCommand("tpa").setExecutor(tpaCmd);
-            getCommand("tpa").setTabCompleter(tpaCmd);
-            getCommand("tpahere").setExecutor(tpaHereCmd);
-            getCommand("tpahere").setTabCompleter(tpaHereCmd);
-            getCommand("tpaccept").setExecutor(tpAcceptCmd);
-            getCommand("tpaccept").setTabCompleter(tpAcceptCmd);
-            getCommand("tpdeny").setExecutor(tpDenyCmd);
-            getCommand("tpdeny").setTabCompleter(tpDenyCmd);
-            getCommand("tpcancel").setExecutor(tpCancelCmd);
-            getCommand("tpcancel").setTabCompleter(tpCancelCmd);
+            registerCommand("tpa", tpaCmd, "Send a teleport request to a player.", "/tpa <player>", "kelpylandia.tpa", "tpask");
+            registerCommand("tpahere", tpaHereCmd, "Request a player to teleport to you.", "/tpahere <player>", "kelpylandia.tpa.here");
+            registerCommand("tpaccept", tpAcceptCmd, "Accept a pending teleport request.", "/tpaccept [player]", "kelpylandia.tpa", "tpyes");
+            registerCommand("tpdeny", tpDenyCmd, "Deny a pending teleport request.", "/tpdeny [player]", "kelpylandia.tpa", "tpno");
+            registerCommand("tpcancel", tpCancelCmd, "Cancel your outgoing teleport request.", "/tpcancel", "kelpylandia.tpa");
             
             // Register teleport listener for invulnerability + quit cleanup
             getServer().getPluginManager().registerEvents(new TeleportListener(this), this);
@@ -208,8 +197,8 @@ public class KelpylandiaPlugin extends JavaPlugin {
             BackCommand backCmd = new BackCommand(this);
             DeathBackCommand dbackCmd = new DeathBackCommand(this);
             
-            getCommand("back").setExecutor(backCmd);
-            getCommand("dback").setExecutor(dbackCmd);
+            registerCommand("back", backCmd, "Teleport to your previous location.", "/back", "kelpylandia.back", "return");
+            registerCommand("dback", dbackCmd, "Teleport to your last death location.", "/dback", "kelpylandia.dback", "deathback", "dreturn");
             
             // Register back listener for teleport/death tracking
             getServer().getPluginManager().registerEvents(new BackListener(this), this);
@@ -218,17 +207,15 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register workbench commands
         if (getConfig().getBoolean("workbenches.enabled", true)) {
             WorkbenchCommand wbCmd = new WorkbenchCommand(this);
-            String[] wbCommands = {"workbench", "enderchest", "anvil", "grindstone", "stonecutter", "smithingtable", "cartographytable", "loom"};
-            for (String cmd : wbCommands) {
-                if (getCommand(cmd) != null) {
-                    getCommand(cmd).setExecutor(wbCmd);
-                    getCommand(cmd).setTabCompleter(wbCmd);
-                }
-            }
+            registerCommand("workbench", wbCmd, "Open a virtual crafting table.", "/workbench [player]", "kelpylandia.workbench.craft", "wb", "craft");
+            registerCommand("enderchest", wbCmd, "Open your ender chest (or another player's).", "/enderchest [player]", "kelpylandia.workbench.enderchest", "ec", "echest");
+            registerCommand("anvil", wbCmd, "Open a virtual anvil.", "/anvil [player]", "kelpylandia.workbench.anvil");
+            registerCommand("grindstone", wbCmd, "Open a virtual grindstone.", "/grindstone [player]", "kelpylandia.workbench.grindstone", "gstone");
+            registerCommand("stonecutter", wbCmd, "Open a virtual stonecutter.", "/stonecutter [player]", "kelpylandia.workbench.stonecutter", "scutter");
+            registerCommand("smithingtable", wbCmd, "Open a virtual smithing table.", "/smithingtable [player]", "kelpylandia.workbench.smithing", "smithing");
+            registerCommand("cartographytable", wbCmd, "Open a virtual cartography table.", "/cartographytable [player]", "kelpylandia.workbench.cartography", "cartography");
+            registerCommand("loom", wbCmd, "Open a virtual loom.", "/loom [player]", "kelpylandia.workbench.loom");
             getLogger().info("Workbench commands enabled!");
-        } else {
-            unregisterCommands("workbench", "enderchest", "anvil", "grindstone", "stonecutter", "smithingtable", "cartographytable", "loom");
-            getLogger().info("Workbench commands disabled — commands released to other plugins.");
         }
         
         // Initialize Discord integration if enabled
@@ -301,46 +288,33 @@ public class KelpylandiaPlugin extends JavaPlugin {
     }
     
     /**
-     * Unregisters commands from the Bukkit command map so other plugins can claim them.
-     * Used when a feature is disabled in config to avoid intercepting commands meant for other plugins.
+     * Dynamically registers a command at runtime via the Bukkit command map.
+     * Used for optional features so commands are only registered when the feature is enabled,
+     * avoiding conflicts with other plugins that provide the same commands.
      */
-    private void unregisterCommands(String... commandNames) {
+    private void registerCommand(String name, CommandExecutor executor, String description, String usage, String permission, String... aliases) {
         try {
+            Constructor<PluginCommand> constructor = PluginCommand.class.getDeclaredConstructor(String.class, Plugin.class);
+            constructor.setAccessible(true);
+            PluginCommand cmd = constructor.newInstance(name, this);
+            
+            cmd.setExecutor(executor);
+            if (executor instanceof TabCompleter) {
+                cmd.setTabCompleter((TabCompleter) executor);
+            }
+            cmd.setDescription(description);
+            cmd.setUsage(usage);
+            cmd.setPermission(permission);
+            if (aliases.length > 0) {
+                cmd.setAliases(Arrays.asList(aliases));
+            }
+            
             Field commandMapField = Bukkit.getServer().getClass().getDeclaredField("commandMap");
             commandMapField.setAccessible(true);
             CommandMap commandMap = (CommandMap) commandMapField.get(Bukkit.getServer());
-            
-            Field knownCommandsField = commandMap.getClass().getSuperclass().getDeclaredField("knownCommands");
-            knownCommandsField.setAccessible(true);
-            @SuppressWarnings("unchecked")
-            Map<String, org.bukkit.command.Command> knownCommands = (Map<String, org.bukkit.command.Command>) knownCommandsField.get(commandMap);
-            
-            String pluginPrefix = getDescription().getName().toLowerCase();
-            for (String name : commandNames) {
-                String lowerName = name.toLowerCase();
-                
-                // Look up the command object BEFORE removing anything
-                org.bukkit.command.Command cmd = knownCommands.get(lowerName);
-                if (cmd == null) {
-                    cmd = knownCommands.get(pluginPrefix + ":" + lowerName);
-                }
-                
-                // Collect all keys to remove: main name, prefixed name, and all aliases
-                knownCommands.remove(lowerName);
-                knownCommands.remove(pluginPrefix + ":" + lowerName);
-                
-                if (cmd != null) {
-                    // Remove all aliases from the map
-                    for (String alias : cmd.getAliases()) {
-                        knownCommands.remove(alias.toLowerCase());
-                        knownCommands.remove(pluginPrefix + ":" + alias.toLowerCase());
-                    }
-                    // Formally unregister so the command is fully released
-                    cmd.unregister(commandMap);
-                }
-            }
+            commandMap.register(getDescription().getName().toLowerCase(), cmd);
         } catch (Exception e) {
-            getLogger().warning("Could not unregister commands: " + e.getMessage());
+            getLogger().warning("Could not register command /" + name + ": " + e.getMessage());
         }
     }
     
