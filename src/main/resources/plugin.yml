@@ -200,7 +200,28 @@ permissions:
     
   # Home Permissions
   kelpylandia.homes:
-    description: Allows using home commands
+    description: Grants all home permissions
+    default: true
+    children:
+      kelpylandia.homes.teleport: true
+      kelpylandia.homes.set: true
+      kelpylandia.homes.delete: true
+      kelpylandia.homes.list: true
+
+  kelpylandia.homes.teleport:
+    description: Allows using /home to teleport to homes
+    default: true
+
+  kelpylandia.homes.set:
+    description: Allows using /sethome to create homes
+    default: true
+
+  kelpylandia.homes.delete:
+    description: Allows using /delhome to delete homes
+    default: true
+
+  kelpylandia.homes.list:
+    description: Allows using /homes to list homes
     default: true
     
   # TPA Permissions
