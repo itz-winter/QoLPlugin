@@ -4,6 +4,7 @@ import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
 import com.kelpwing.kelpylandiaplugin.chat.ChannelManager;
 import com.kelpwing.kelpylandiaplugin.chat.Channel;
+import com.kelpwing.kelpylandiaplugin.moderation.commands.VanishCommand;
 import com.kelpwing.kelpylandiaplugin.utils.VersionHelper;
 import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.advancement.Advancement;
@@ -32,6 +33,17 @@ public class PlayerEventListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        
+        // Skip vanished players — VanishCommand fires fake join events for DiscordSRV;
+        // VanishCommand handles the in-game broadcast itself, so we must not duplicate it.
+        VanishCommand vc = plugin.getVanishCommand();
+        if (vc != null && vc.isVanished(player)) {
+            // Still suppress default join message
+            if (plugin.getConfig().getBoolean("join-leave.hide-default", true)) {
+                event.setJoinMessage(null);
+            }
+            return;
+        }
         
         // Handle custom join messages
         if (plugin.getConfig().getBoolean("join-leave.enabled", true)) {
@@ -72,6 +84,17 @@ public class PlayerEventListener implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         
+        // Skip vanished players — VanishCommand fires fake quit events for DiscordSRV,
+        // and VanishListener handles suppressing the real quit when a vanished player logs out.
+        VanishCommand vc = plugin.getVanishCommand();
+        if (vc != null && vc.isVanished(player)) {
+            // Suppress default quit message
+            if (plugin.getConfig().getBoolean("join-leave.hide-default", true)) {
+                event.setQuitMessage(null);
+            }
+            return;
+        }
+        
         // Handle custom leave messages
         if (plugin.getConfig().getBoolean("join-leave.enabled", true)) {
             // Hide default message
@@ -110,6 +133,12 @@ public class PlayerEventListener implements Listener {
     public void onPlayerAdvancement(PlayerAdvancementDoneEvent event) {
         Player player = event.getPlayer();
         Advancement advancement = event.getAdvancement();
+        
+        // Skip vanished players — don't broadcast their advancements
+        VanishCommand vc = plugin.getVanishCommand();
+        if (vc != null && vc.isVanished(player)) {
+            return;
+        }
         
         // Skip recipe advancements and other hidden ones
         if (advancement.getKey().getNamespace().equals("minecraft") && 
@@ -155,6 +184,12 @@ public class PlayerEventListener implements Listener {
     public void onStatisticIncrement(PlayerStatisticIncrementEvent event) {
         Player player = event.getPlayer();
         Statistic statistic = event.getStatistic();
+        
+        // Skip vanished players
+        VanishCommand vc2 = plugin.getVanishCommand();
+        if (vc2 != null && vc2.isVanished(player)) {
+            return;
+        }
         
         // Handle certain milestone achievements
         if (discord != null && discord.isEnabled() && 

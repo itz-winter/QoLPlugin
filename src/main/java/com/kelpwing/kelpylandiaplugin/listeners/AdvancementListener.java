@@ -2,6 +2,7 @@ package com.kelpwing.kelpylandiaplugin.listeners;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
+import com.kelpwing.kelpylandiaplugin.moderation.commands.VanishCommand;
 import com.kelpwing.kelpylandiaplugin.utils.VersionHelper;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -20,6 +21,12 @@ public class AdvancementListener implements Listener {
     @EventHandler
     public void onPlayerAdvancement(PlayerAdvancementDoneEvent event) {
         Player player = event.getPlayer();
+        
+        // Skip vanished players — don't broadcast their advancements to Discord
+        VanishCommand vc = plugin.getVanishCommand();
+        if (vc != null && vc.isVanished(player)) {
+            return;
+        }
         
         // Only broadcast if advancement is displayed to players
         if (!VersionHelper.hasAdvancementDisplay(event.getAdvancement())) {

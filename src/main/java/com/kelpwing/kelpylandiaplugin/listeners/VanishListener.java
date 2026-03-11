@@ -3,6 +3,7 @@ package com.kelpwing.kelpylandiaplugin.listeners;
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.moderation.commands.VanishCommand;
 import com.kelpwing.kelpylandiaplugin.utils.VanishManager;
+import org.bukkit.GameMode;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
@@ -12,16 +13,25 @@ import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerToggleSneakEvent;
 import org.bukkit.ChatColor;
-import github.scarsz.discordsrv.DiscordSRV;
-import github.scarsz.discordsrv.dependencies.jda.api.entities.TextChannel;
-import github.scarsz.discordsrv.util.DiscordUtil;
+
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
 
 public class VanishListener implements Listener {
 
     private final KelpylandiaPlugin plugin;
     private final VanishManager vanishManager;
     private final VanishCommand vanishCommand;
+    
+    /** Tracks the last time each player pressed shift (for double-shift detection). */
+    private final Map<UUID, Long> lastSneakTime = new HashMap<>();
+    /** Stores the gamemode the player had before switching to spectator. */
+    private final Map<UUID, GameMode> savedGameMode = new HashMap<>();
+    /** Double-shift threshold in milliseconds. */
+    private static final long DOUBLE_SHIFT_MS = 400;
 
     public VanishListener(KelpylandiaPlugin plugin, VanishCommand vanishCommand) {
         this.plugin = plugin;
@@ -100,6 +110,38 @@ public class VanishListener implements Listener {
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerToggleSneak(PlayerToggleSneakEvent event) {
+        Player player = event.getPlayer();
+        if (!vanishCommand.isVanished(player)) return;
+        
+        // Only detect shift-down (isSneaking = true means they started sneaking)
+        if (!event.isSneaking()) return;
+        
+        UUID uuid = player.getUniqueId();
+        long now = System.currentTimeMillis();
+        Long last = lastSneakTime.get(uuid);
+        lastSneakTime.put(uuid, now);
+        
+        if (last != null && (now - last) <= DOUBLE_SHIFT_MS) {
+            // Double-shift detected — toggle between spectator and saved gamemode
+            lastSneakTime.remove(uuid); // reset so triple-shift doesn't re-trigger
+            
+            if (player.getGameMode() == GameMode.SPECTATOR) {
+                // Restore saved gamemode
+                GameMode restored = savedGameMode.getOrDefault(uuid, GameMode.SURVIVAL);
+                savedGameMode.remove(uuid);
+                player.setGameMode(restored);
+                player.sendMessage(ChatColor.GREEN + "Returned to " + ChatColor.GOLD + restored.name() + ChatColor.GREEN + " mode.");
+            } else {
+                // Save current gamemode and switch to spectator
+                savedGameMode.put(uuid, player.getGameMode());
+                player.setGameMode(GameMode.SPECTATOR);
+                player.sendMessage(ChatColor.LIGHT_PURPLE + "Switched to " + ChatColor.GOLD + "SPECTATOR" + ChatColor.LIGHT_PURPLE + " mode. Double-shift again to return.");
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         
@@ -109,8 +151,14 @@ public class VanishListener implements Listener {
         // Clean up vanish data
         if (wasVanished) {
             vanishCommand.removeVanishedPlayer(player);
+            // Restore gamemode if in spectator from vanish toggle
+            GameMode saved = savedGameMode.remove(player.getUniqueId());
+            if (saved != null && player.getGameMode() == GameMode.SPECTATOR) {
+                player.setGameMode(saved);
+            }
         }
         vanishManager.cleanup(player);
+        lastSneakTime.remove(player.getUniqueId());
         
         // Clean up PvP data
         if (plugin.getPvpCommand() != null) {
@@ -121,63 +169,5 @@ public class VanishListener implements Listener {
         if (wasVanished) {
             event.setQuitMessage(null);
         }
-    }
-    
-    /**
-     * Send fake join message when player unvanishes
-     */
-    public void sendFakeJoinMessage(Player player) {
-        // Get join message format from config
-        String joinMessage = plugin.getConfig().getString("join-leave.join-message", "&7[&a+&7]&r {player}");
-        joinMessage = ChatColor.translateAlternateColorCodes('&', joinMessage.replace("{player}", player.getName()));
-
-        // Broadcast to all players including the vanished player
-        plugin.getServer().broadcastMessage(joinMessage);
-
-        // Send to DiscordSRV global channel
-        String discordJoinFormat = plugin.getConfig().getString("discord.formats.join", "**{player}** joined Kelpy Land!");
-        String discordMessage = discordJoinFormat.replace("{player}", player.getName());
-        try {
-            if (DiscordSRV.getPlugin() != null) {
-                TextChannel mainChannel = DiscordSRV.getPlugin().getDestinationTextChannelForGameChannelName("global");
-                if (mainChannel != null) {
-                    DiscordUtil.sendMessage(mainChannel, discordMessage);
-                }
-            }
-        } catch (Exception e) {
-            plugin.getLogger().warning("Could not send fake join to DiscordSRV: " + e.getMessage());
-        }
-
-        // Log fake join
-        plugin.getLogger().info("[FAKE JOIN] " + player.getName() + " (unvanished)");
-    }
-    
-    /**
-     * Send fake leave message when player vanishes
-     */
-    public void sendFakeLeaveMessage(Player player) {
-        // Get leave message format from config
-        String leaveMessage = plugin.getConfig().getString("join-leave.leave-message", "&7[&c-&7]&r {player}");
-        leaveMessage = ChatColor.translateAlternateColorCodes('&', leaveMessage.replace("{player}", player.getName()));
-
-        // Broadcast to all players including the vanished player
-        plugin.getServer().broadcastMessage(leaveMessage);
-
-        // Send to DiscordSRV global channel
-        String discordLeaveFormat = plugin.getConfig().getString("discord.formats.leave", "**{player}** left Kelpy Land!");
-        String discordMessage = discordLeaveFormat.replace("{player}", player.getName());
-        try {
-            if (DiscordSRV.getPlugin() != null) {
-                TextChannel mainChannel = DiscordSRV.getPlugin().getDestinationTextChannelForGameChannelName("global");
-                if (mainChannel != null) {
-                    DiscordUtil.sendMessage(mainChannel, discordMessage);
-                }
-            }
-        } catch (Exception e) {
-            plugin.getLogger().warning("Could not send fake leave to DiscordSRV: " + e.getMessage());
-        }
-
-        // Log fake leave
-        plugin.getLogger().info("[FAKE LEAVE] " + player.getName() + " (vanished)");
     }
 }

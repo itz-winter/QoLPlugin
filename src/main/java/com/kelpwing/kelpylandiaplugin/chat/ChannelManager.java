@@ -1,7 +1,7 @@
 package com.kelpwing.kelpylandiaplugin.chat;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
-import org.bukkit.Bukkit; // Add this import
+import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import org.bukkit.configuration.ConfigurationSection;
 
@@ -14,12 +14,15 @@ public class ChannelManager {
     private final Map<String, Channel> channels;
     private final Map<UUID, String> playerChannels;
     private final Map<UUID, Set<String>> playerMutedChannels;
+    /** Maps an alias (e.g. "l") to a channel name (e.g. "local"). */
+    private final Map<String, String> channelAliases;
     
     public ChannelManager(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
         this.channels = new ConcurrentHashMap<>();
         this.playerChannels = new ConcurrentHashMap<>();
         this.playerMutedChannels = new ConcurrentHashMap<>();
+        this.channelAliases = new ConcurrentHashMap<>();
         
         loadChannelsFromConfig();
     }
@@ -48,6 +51,20 @@ public class ChannelManager {
                 );
                 
                 channels.put(channelName.toLowerCase(), channel);
+                
+                // Read aliases (e.g. alias: "l" or aliases: ["l", "loc"])
+                if (channelSection.contains("alias")) {
+                    String alias = channelSection.getString("alias", "").toLowerCase();
+                    if (!alias.isEmpty()) {
+                        channelAliases.put(alias, channelName.toLowerCase());
+                    }
+                }
+                if (channelSection.contains("aliases")) {
+                    List<String> aliases = channelSection.getStringList("aliases");
+                    for (String alias : aliases) {
+                        channelAliases.put(alias.toLowerCase(), channelName.toLowerCase());
+                    }
+                }
             }
         }
         
@@ -113,7 +130,16 @@ public class ChannelManager {
     }
     
     public Channel getChannel(String name) {
-        return channels.get(name.toLowerCase());
+        Channel ch = channels.get(name.toLowerCase());
+        if (ch != null) return ch;
+        // Try to resolve via alias
+        String resolved = channelAliases.get(name.toLowerCase());
+        return resolved != null ? channels.get(resolved) : null;
+    }
+    
+    /** Returns the mapping of alias -> channel name. */
+    public Map<String, String> getChannelAliases() {
+        return Collections.unmodifiableMap(channelAliases);
     }
     
     public Collection<Channel> getChannels() {
@@ -239,6 +265,7 @@ public class ChannelManager {
     
     public void reloadChannels() {
         channels.clear();
+        channelAliases.clear();
         plugin.reloadConfig();
         loadChannelsFromConfig();
     }

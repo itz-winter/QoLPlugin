@@ -14,6 +14,7 @@ channels:
     discord-enabled: true
     discord-channel: ''
     default: true
+    alias: "g"
     
   local:
     display-name: "Local"
@@ -24,6 +25,7 @@ channels:
     discord-enabled: false
     discord-channel: ''
     default: false
+    alias: "l"
     
   admin:
     display-name: "Admin"
@@ -34,6 +36,7 @@ channels:
     discord-enabled: true
     discord-channel: ''
     default: false
+    alias: "a"
 
 # Discord Bot Integration Settings
 discord:
@@ -220,6 +223,116 @@ teleport:
 back:
   enabled: true
   cooldown: 3
+
+# ===== SPAWN COMMAND =====
+# /spawn teleports to the main world's spawn point
+spawn:
+  enabled: true
+
+# ===== GAMEMODE COMMANDS =====
+# Shortcut gamemode commands: /gm, /gmc, /gms, /gma, /gmsp
+# Set enabled to false to disable all gamemode commands (avoids conflicts with other plugins)
+gamemode:
+  enabled: true
+
+# ===== NICKNAME COMMAND =====
+# /nick [nickname] - Set or reset your display name
+# Set enabled to false to disable the nick command (avoids conflicts with other plugins)
+nickname:
+  enabled: true
+
+# ===== ENCHANT COMMAND =====
+# /enchant <enchantment> [level] - Enchant the item in your hand
+# Set enabled to false to disable the enchant command (avoids conflicts with other plugins)
+enchant:
+  enabled: true
+
+# ===== AFK SYSTEM =====
+# /afk - Toggle AFK status. Players are auto-marked AFK after the idle time.
+# Set enabled to false to disable the AFK system
+afk:
+  enabled: true
+  # Seconds of inactivity before a player is automatically marked AFK (0 to disable auto-AFK)
+  auto-afk-seconds: 300
+
+# ===== MESSAGING SYSTEM =====
+# /w, /r, /wt - Private messaging, reply, whisper target
+# Set enabled to false to disable all messaging commands
+messaging:
+  enabled: true
+  # Format shown to the SENDER of a private message
+  # Placeholders: {sender} = sender display name, {receiver} = receiver display name, {message} = the message
+  format-sender: "&c[Me -> {receiver}]:&7 {message}"
+  # Format shown to the RECEIVER of a private message
+  format-receiver: "&c[{sender} -> Me]:&7 {message}"
+
+# ===== SUICIDE COMMAND =====
+# /suicide - Kill yourself
+# Set enabled to false to disable the suicide command
+suicide:
+  enabled: true
+
+# ===== SKULL COMMAND =====
+# /skull [username] - Get a player's head as an item
+# Set enabled to false to disable the skull command
+skull:
+  enabled: true
+
+# ===== REPAIR COMMAND =====
+# /repair [hand|helmet|chestplate|pants|boots|offhand|all] [user] - Repair item durability
+# Set enabled to false to disable the repair command
+repair:
+  enabled: true
+
+# ===== SUDO COMMAND =====
+# /sudo <user> <command or message> - Force a player to run a command or say something
+# Set enabled to false to disable the sudo command
+sudo:
+  enabled: true
+
+# ===== SPY COMMANDS =====
+# /ss /socialspy - Toggle social spy (see all private messages and channel chat)
+# /cs /commandspy - Toggle command spy (see all commands other players run)
+# Set enabled to false to disable both spy commands
+spy:
+  enabled: true
+
+# ===== FLY COMMAND =====
+# /fly [user] - Toggle flight mode (use * to target all players)
+# Set enabled to false to disable the fly command
+fly:
+  enabled: true
+
+# ===== GOD COMMAND =====
+# /god [user] - Toggle god mode / invincibility (use * to target all players)
+# Set enabled to false to disable the god command
+god:
+  enabled: true
+
+# ===== HEAL COMMAND =====
+# /heal [user] - Heal a player to full health (use * to target all players)
+# Set enabled to false to disable the heal command
+heal:
+  enabled: true
+
+# ===== STARVE COMMAND =====
+# /starve [user] - Set a player's hunger to zero (use * to target all players)
+# Set enabled to false to disable the starve command
+starve:
+  enabled: true
+
+# ===== FEED COMMAND =====
+# /feed [user] - Fill a player's food bar (use * to target all players)
+# Set enabled to false to disable the feed command
+feed:
+  enabled: true
+
+# ===== FLY/WALK SPEED COMMANDS =====
+# /flyspeed <speed> [user] - Set fly speed (0-10, default 1)
+# /walkspeed <speed> [user] - Set walk speed (0-10, default 2)
+# Set enabled to false to disable both speed commands
+flyspeed:
+  enabled: true
 
 # ===== WORKBENCH COMMANDS =====
 # Open virtual workbench inventories via commands (like EssentialsX)

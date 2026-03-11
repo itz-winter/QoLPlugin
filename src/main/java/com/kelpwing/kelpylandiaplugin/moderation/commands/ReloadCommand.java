@@ -40,10 +40,10 @@ public class ReloadCommand implements CommandExecutor {
                 plugin.getDiscordIntegration().initialize();
             }
             
-            // Reload channel manager if available
+            // Reload channels from config
             if (plugin.getChannelManager() != null) {
-                // Just log that channels would be reloaded - method may not exist
-                plugin.getLogger().info("Channel manager configuration updated");
+                plugin.getChannelManager().reloadChannels();
+                plugin.getLogger().info("Channels reloaded from config.");
             }
             
             // Send success message

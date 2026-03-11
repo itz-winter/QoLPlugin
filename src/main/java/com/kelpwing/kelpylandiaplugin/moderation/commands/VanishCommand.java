@@ -2,6 +2,7 @@ package com.kelpwing.kelpylandiaplugin.moderation.commands;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
+import com.kelpwing.kelpylandiaplugin.utils.LevelManager;
 import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -10,8 +11,8 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.potion.PotionEffect;
-import org.bukkit.potion.PotionEffectType;
+import org.bukkit.event.player.PlayerJoinEvent;
+import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -21,10 +22,13 @@ public class VanishCommand implements CommandExecutor {
 
     private final KelpylandiaPlugin plugin;
     private final Set<UUID> vanishedPlayers;
+    /** Whether DiscordSRV is present on this server (checked once at construction). */
+    private final boolean hasDiscordSRV;
     
     public VanishCommand(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
         this.vanishedPlayers = new HashSet<>();
+        this.hasDiscordSRV = Bukkit.getPluginManager().getPlugin("DiscordSRV") != null;
     }
 
     @Override
@@ -80,15 +84,14 @@ public class VanishCommand implements CommandExecutor {
         plugin.getLogger().info("Vanishing player: " + player.getName());
         vanishedPlayers.add(player.getUniqueId());
         
-        // Hide player from all online players
+        // Hide player from all online players (respecting vanish levels)
         for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
-            if (!onlinePlayer.hasPermission("kelpylandia.vanish.see")) {
+            if (onlinePlayer.equals(player)) continue;
+            if (!onlinePlayer.hasPermission("kelpylandia.vanish.see")
+                    || !LevelManager.canObserve(onlinePlayer, player, "vanish")) {
                 onlinePlayer.hidePlayer(plugin, player);
             }
         }
-        
-        // Apply invisibility effect
-        player.addPotionEffect(new PotionEffect(PotionEffectType.INVISIBILITY, Integer.MAX_VALUE, 0, false, false));
         
         // Prevent item pickup
         plugin.getVanishManager().setCanPickupItems(player, false);
@@ -114,9 +117,6 @@ public class VanishCommand implements CommandExecutor {
             onlinePlayer.showPlayer(plugin, player);
         }
         
-        // Remove invisibility effect
-        player.removePotionEffect(PotionEffectType.INVISIBILITY);
-        
         // Restore item pickup
         plugin.getVanishManager().setCanPickupItems(player, true);
         
@@ -133,77 +133,97 @@ public class VanishCommand implements CommandExecutor {
     }
 
     private void sendFakeLeaveMessage(Player player) {
-        // Debug logging
-        plugin.getLogger().info("Attempting to send fake leave message for " + player.getName());
+        plugin.getLogger().info("Sending fake leave for " + player.getName());
         
-        // Send fake leave message to Minecraft
+        // Broadcast the in-game leave message ourselves
         if (plugin.getConfig().getBoolean("join-leave.enabled", true)) {
             String leaveMessage = plugin.getConfig().getString("join-leave.leave-message", "&e{player} left the game");
             leaveMessage = PlaceholderAPI.setPlaceholders(player, leaveMessage);
             leaveMessage = leaveMessage.replace("{player}", player.getName());
             leaveMessage = leaveMessage.replace("{displayname}", player.getDisplayName());
-            
-            plugin.getLogger().info("Leave message format: " + leaveMessage);
-            
-            // Broadcast to ALL players (including the vanished player)
             plugin.getServer().broadcastMessage(ChatColor.translateAlternateColorCodes('&', leaveMessage));
-            plugin.getLogger().info("Sent fake leave message to all players");
-        } else {
-            plugin.getLogger().info("Join-leave messages are disabled in config");
         }
         
-        // Send fake leave message to Discord
-        DiscordIntegration discord = plugin.getDiscordIntegration();
-        if (discord != null && discord.isEnabled() && 
-            plugin.getConfig().getBoolean("discord.events.broadcast-leaves", true)) {
-            
-            if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
-                discord.sendPlayerLeaveEmbed(player);
-            } else {
-                String discordMessage = plugin.getConfig().getString("discord.formats.leave", "{player} left the game");
-                discordMessage = discordMessage.replace("{player}", player.getName());
-                discord.sendToGlobalChat(discordMessage);
+        // Fire a fake PlayerQuitEvent so DiscordSRV (and any other plugin) picks it up
+        if (hasDiscordSRV) {
+            PlayerQuitEvent fakeQuit = new PlayerQuitEvent(player, null); // null = suppress default quit message
+            Bukkit.getPluginManager().callEvent(fakeQuit);
+            plugin.getLogger().info("[VANISH] Fired fake PlayerQuitEvent for DiscordSRV");
+        } else {
+            // No DiscordSRV — use our own Discord integration as fallback
+            DiscordIntegration discord = plugin.getDiscordIntegration();
+            if (discord != null && discord.isEnabled() && 
+                plugin.getConfig().getBoolean("discord.events.broadcast-leaves", true)) {
+                
+                if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
+                    discord.sendPlayerLeaveEmbed(player);
+                } else {
+                    String discordMessage = plugin.getConfig().getString("discord.formats.leave", "{player} left the game");
+                    discordMessage = discordMessage.replace("{player}", player.getName());
+                    discord.sendToGlobalChat(discordMessage);
+                }
             }
         }
     }
 
     private void sendFakeJoinMessage(Player player) {
-        // Debug logging
-        plugin.getLogger().info("Attempting to send fake join message for " + player.getName());
+        plugin.getLogger().info("Sending fake join for " + player.getName());
         
-        // Send fake join message to Minecraft
+        // Broadcast the in-game join message ourselves
         if (plugin.getConfig().getBoolean("join-leave.enabled", true)) {
             String joinMessage = plugin.getConfig().getString("join-leave.join-message", "&e{player} joined the game");
             joinMessage = PlaceholderAPI.setPlaceholders(player, joinMessage);
             joinMessage = joinMessage.replace("{player}", player.getName());
             joinMessage = joinMessage.replace("{displayname}", player.getDisplayName());
-            
-            plugin.getLogger().info("Join message format: " + joinMessage);
-            
-            // Broadcast to ALL players (including the vanished player)
             plugin.getServer().broadcastMessage(ChatColor.translateAlternateColorCodes('&', joinMessage));
-            plugin.getLogger().info("Sent fake join message to all players");
-        } else {
-            plugin.getLogger().info("Join-leave messages are disabled in config");
         }
         
-        // Send fake join message to Discord
-        DiscordIntegration discord = plugin.getDiscordIntegration();
-        if (discord != null && discord.isEnabled() && 
-            plugin.getConfig().getBoolean("discord.events.broadcast-joins", true)) {
-            
-            if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
-                discord.sendPlayerJoinEmbed(player);
-            } else {
-                String discordMessage = plugin.getConfig().getString("discord.formats.join", "{player} joined the game");
-                discordMessage = discordMessage.replace("{player}", player.getName());
-                discord.sendToGlobalChat(discordMessage);
+        // Fire a fake PlayerJoinEvent so DiscordSRV (and any other plugin) picks it up
+        if (hasDiscordSRV) {
+            PlayerJoinEvent fakeJoin = new PlayerJoinEvent(player, null); // null = suppress default join message
+            Bukkit.getPluginManager().callEvent(fakeJoin);
+            plugin.getLogger().info("[VANISH] Fired fake PlayerJoinEvent for DiscordSRV");
+        } else {
+            // No DiscordSRV — use our own Discord integration as fallback
+            DiscordIntegration discord = plugin.getDiscordIntegration();
+            if (discord != null && discord.isEnabled() && 
+                plugin.getConfig().getBoolean("discord.events.broadcast-joins", true)) {
+                
+                if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
+                    discord.sendPlayerJoinEmbed(player);
+                } else {
+                    String discordMessage = plugin.getConfig().getString("discord.formats.join", "{player} joined the game");
+                    discordMessage = discordMessage.replace("{player}", player.getName());
+                    discord.sendToGlobalChat(discordMessage);
+                }
             }
         }
     }
 
     public boolean isVanished(Player player) {
         return vanishedPlayers.contains(player.getUniqueId());
+    }
+
+    /**
+     * Silently vanish a player without broadcasting fake leave messages.
+     * Used by state persistence to restore vanish on login.
+     */
+    public void silentVanish(Player player) {
+        vanishedPlayers.add(player.getUniqueId());
+        
+        for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
+            if (onlinePlayer.equals(player)) continue;
+            if (!onlinePlayer.hasPermission("kelpylandia.vanish.see")
+                    || !LevelManager.canObserve(onlinePlayer, player, "vanish")) {
+                onlinePlayer.hidePlayer(plugin, player);
+            }
+        }
+        
+        plugin.getVanishManager().setCanPickupItems(player, false);
+        plugin.getVanishManager().showVanishScoreboard(player);
+        
+        player.sendMessage(ChatColor.GREEN + "Your vanish state has been restored.");
+        plugin.getLogger().info("Restored vanish for " + player.getName());
     }
 
     public Set<UUID> getVanishedPlayers() {

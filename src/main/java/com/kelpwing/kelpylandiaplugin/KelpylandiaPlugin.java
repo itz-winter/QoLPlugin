@@ -3,9 +3,31 @@ package com.kelpwing.kelpylandiaplugin;
 import com.kelpwing.kelpylandiaplugin.chat.ChannelManager;
 import com.kelpwing.kelpylandiaplugin.chat.commands.ChatCommand;
 import com.kelpwing.kelpylandiaplugin.chat.commands.ChannelCommand;
+import com.kelpwing.kelpylandiaplugin.chat.commands.ChannelAliasCommand;
 import com.kelpwing.kelpylandiaplugin.chat.listeners.ChatListener;
+import com.kelpwing.kelpylandiaplugin.commands.GamemodeCommand;
+import com.kelpwing.kelpylandiaplugin.commands.NickCommand;
 import com.kelpwing.kelpylandiaplugin.commands.PvpCommand;
+import com.kelpwing.kelpylandiaplugin.commands.SpawnCommand;
 import com.kelpwing.kelpylandiaplugin.commands.WorkbenchCommand;
+import com.kelpwing.kelpylandiaplugin.commands.EnchantCommand;
+import com.kelpwing.kelpylandiaplugin.commands.AfkCommand;
+import com.kelpwing.kelpylandiaplugin.commands.MsgCommand;
+import com.kelpwing.kelpylandiaplugin.commands.ReplyCommand;
+import com.kelpwing.kelpylandiaplugin.commands.WhisperToggleCommand;
+import com.kelpwing.kelpylandiaplugin.commands.SuicideCommand;
+import com.kelpwing.kelpylandiaplugin.commands.SkullCommand;
+import com.kelpwing.kelpylandiaplugin.commands.RepairCommand;
+import com.kelpwing.kelpylandiaplugin.commands.SudoCommand;
+import com.kelpwing.kelpylandiaplugin.commands.SocialSpyCommand;
+import com.kelpwing.kelpylandiaplugin.commands.CommandSpyCommand;
+import com.kelpwing.kelpylandiaplugin.commands.FlyCommand;
+import com.kelpwing.kelpylandiaplugin.commands.GodCommand;
+import com.kelpwing.kelpylandiaplugin.commands.HealCommand;
+import com.kelpwing.kelpylandiaplugin.commands.StarveCommand;
+import com.kelpwing.kelpylandiaplugin.commands.FeedCommand;
+import com.kelpwing.kelpylandiaplugin.commands.FlySpeedCommand;
+import com.kelpwing.kelpylandiaplugin.listeners.SpyListener;
 import com.kelpwing.kelpylandiaplugin.homes.HomeGUI;
 import com.kelpwing.kelpylandiaplugin.homes.HomeManager;
 import com.kelpwing.kelpylandiaplugin.homes.commands.DelHomeCommand;
@@ -15,6 +37,9 @@ import com.kelpwing.kelpylandiaplugin.homes.commands.SetHomeCommand;
 import com.kelpwing.kelpylandiaplugin.moderation.commands.*;
 import com.kelpwing.kelpylandiaplugin.moderation.listeners.PlayerListener;
 import com.kelpwing.kelpylandiaplugin.listeners.ConsoleListener;
+import com.kelpwing.kelpylandiaplugin.listeners.NickListener;
+import com.kelpwing.kelpylandiaplugin.listeners.AfkListener;
+import com.kelpwing.kelpylandiaplugin.listeners.MsgListener;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
 import com.kelpwing.kelpylandiaplugin.integrations.LuckPermsIntegration;
 import com.kelpwing.kelpylandiaplugin.integrations.PlaceholderAPIIntegration;
@@ -25,7 +50,11 @@ import com.kelpwing.kelpylandiaplugin.teleport.BackManager;
 import com.kelpwing.kelpylandiaplugin.teleport.BackListener;
 import com.kelpwing.kelpylandiaplugin.teleport.commands.*;
 import com.kelpwing.kelpylandiaplugin.utils.FileManager;
+import com.kelpwing.kelpylandiaplugin.utils.NickManager;
+import com.kelpwing.kelpylandiaplugin.utils.AfkManager;
 import com.kelpwing.kelpylandiaplugin.utils.VanishManager;
+import com.kelpwing.kelpylandiaplugin.utils.SpyManager;
+import com.kelpwing.kelpylandiaplugin.utils.PlayerStateManager;
 import com.kelpwing.kelpylandiaplugin.utils.VersionHelper;
 import com.kelpwing.kelpylandiaplugin.placeholders.KpauPlaceholders;
 import org.bukkit.Bukkit;
@@ -65,6 +94,13 @@ public class KelpylandiaPlugin extends JavaPlugin {
     private HomeGUI homeGUI;
     private TpaManager tpaManager;
     private BackManager backManager;
+    private NickManager nickManager;
+    private AfkManager afkManager;
+    private MsgCommand msgCommand;
+    private SpyManager spyManager;
+    private GodCommand godCommand;
+    private VanishCommand vanishCommand;
+    private PlayerStateManager playerStateManager;
     
     @Override
     public void onEnable() {
@@ -83,6 +119,9 @@ public class KelpylandiaPlugin extends JavaPlugin {
         
         // Initialize vanish manager
         vanishManager = new VanishManager(this);
+        
+        // Initialize player state manager (state persistence)
+        playerStateManager = new PlayerStateManager(this);
         
         // Initialize channel manager
         channelManager = new ChannelManager(this);
@@ -124,8 +163,18 @@ public class KelpylandiaPlugin extends JavaPlugin {
         getCommand("channel").setExecutor(new ChatCommand(this));
         getCommand("multichat").setExecutor(new ChannelCommand(this));
         
+        // Register channel alias commands (e.g. /l for local, /g for global)
+        for (Map.Entry<String, String> entry : channelManager.getChannelAliases().entrySet()) {
+            String alias = entry.getKey();
+            String channelName = entry.getValue();
+            registerCommand(alias, new ChannelAliasCommand(this, channelName), 
+                "Switch to the " + channelName + " channel.", "/" + alias, 
+                "kelpylandia.channel.use");
+            getLogger().info("Registered channel alias: /" + alias + " -> " + channelName);
+        }
+        
         // Register moderation commands
-        VanishCommand vanishCommand = new VanishCommand(this);
+        vanishCommand = new VanishCommand(this);
         InvseeCommand invseeCommand = new InvseeCommand(this);
         MuteCommand muteCommand = new MuteCommand(this);
         BanCommand banCommand = new BanCommand(this);
@@ -204,6 +253,24 @@ public class KelpylandiaPlugin extends JavaPlugin {
             getServer().getPluginManager().registerEvents(new BackListener(this), this);
         }
         
+        // Register spawn command
+        if (getConfig().getBoolean("spawn.enabled", true)) {
+            SpawnCommand spawnCmd = new SpawnCommand(this);
+            registerCommand("spawn", spawnCmd, "Teleport to the world spawn point.", "/spawn [player]", "kelpylandia.spawn");
+            getLogger().info("Spawn command enabled!");
+        }
+        
+        // Register gamemode commands
+        if (getConfig().getBoolean("gamemode.enabled", true)) {
+            GamemodeCommand gmCmd = new GamemodeCommand(this);
+            registerCommand("gm", gmCmd, "Change your gamemode.", "/gm <mode> [player]", "kelpylandia.gamemode.*", "gamemode");
+            registerCommand("gmc", gmCmd, "Switch to creative mode.", "/gmc [player]", "kelpylandia.gamemode.creative");
+            registerCommand("gms", gmCmd, "Switch to survival mode.", "/gms [player]", "kelpylandia.gamemode.survival");
+            registerCommand("gma", gmCmd, "Switch to adventure mode.", "/gma [player]", "kelpylandia.gamemode.adventure");
+            registerCommand("gmsp", gmCmd, "Switch to spectator mode.", "/gmsp [player]", "kelpylandia.gamemode.spectator");
+            getLogger().info("Gamemode commands enabled!");
+        }
+        
         // Register workbench commands
         if (getConfig().getBoolean("workbenches.enabled", true)) {
             WorkbenchCommand wbCmd = new WorkbenchCommand(this);
@@ -216,6 +283,126 @@ public class KelpylandiaPlugin extends JavaPlugin {
             registerCommand("cartographytable", wbCmd, "Open a virtual cartography table.", "/cartographytable [player]", "kelpylandia.workbench.cartography", "cartography");
             registerCommand("loom", wbCmd, "Open a virtual loom.", "/loom [player]", "kelpylandia.workbench.loom");
             getLogger().info("Workbench commands enabled!");
+        }
+        
+        // Register nickname command
+        if (getConfig().getBoolean("nickname.enabled", true)) {
+            nickManager = new NickManager(this);
+            NickCommand nickCmd = new NickCommand(this);
+            registerCommand("nick", nickCmd, "Set or reset your nickname.", "/nick [nickname] OR /nick <player> [nickname]", "kelpylandia.nickname", "nickname");
+            getServer().getPluginManager().registerEvents(new NickListener(this), this);
+            getLogger().info("Nickname command enabled!");
+        }
+        
+        // Register enchant command
+        if (getConfig().getBoolean("enchant.enabled", true)) {
+            EnchantCommand enchantCmd = new EnchantCommand(this);
+            registerCommand("enchant", enchantCmd, "Enchant the item in your hand.", "/enchant <enchantment> [level]", "kelpylandia.enchant");
+            getLogger().info("Enchant command enabled!");
+        }
+        
+        // Register AFK system
+        if (getConfig().getBoolean("afk.enabled", true)) {
+            afkManager = new AfkManager(this);
+            AfkCommand afkCmd = new AfkCommand(this);
+            registerCommand("afk", afkCmd, "Toggle your AFK status.", "/afk", "kelpylandia.afk");
+            getServer().getPluginManager().registerEvents(new AfkListener(this), this);
+            getLogger().info("AFK system enabled!");
+        }
+        
+        // Register messaging commands (/w, /r, /wt)
+        if (getConfig().getBoolean("messaging.enabled", true)) {
+            msgCommand = new MsgCommand(this);
+            ReplyCommand replyCmd = new ReplyCommand(this);
+            WhisperToggleCommand wtCmd = new WhisperToggleCommand(this);
+            
+            registerCommand("w", msgCommand, "Send a private message.", "/w <player> <message>", "kelpylandia.msg", "msg", "tell", "whisper");
+            registerCommand("r", replyCmd, "Reply to the last private message.", "/r <message>", "kelpylandia.msg.reply", "reply");
+            registerCommand("wt", wtCmd, "Set or clear your whisper target.", "/wt [player]", "kelpylandia.msg.whispertoggle", "whispertoggle");
+            getServer().getPluginManager().registerEvents(new MsgListener(this), this);
+            getLogger().info("Messaging commands enabled!");
+        }
+        
+        // Register suicide command
+        if (getConfig().getBoolean("suicide.enabled", true)) {
+            SuicideCommand suicideCmd = new SuicideCommand(this);
+            registerCommand("suicide", suicideCmd, "Kill yourself.", "/suicide", "kelpylandia.suicide");
+            getLogger().info("Suicide command enabled!");
+        }
+        
+        // Register skull command
+        if (getConfig().getBoolean("skull.enabled", true)) {
+            SkullCommand skullCmd = new SkullCommand(this);
+            registerCommand("skull", skullCmd, "Get a player's head.", "/skull [player]", "kelpylandia.skull", "head", "playerhead");
+            getLogger().info("Skull command enabled!");
+        }
+        
+        // Register repair command
+        if (getConfig().getBoolean("repair.enabled", true)) {
+            RepairCommand repairCmd = new RepairCommand(this);
+            registerCommand("repair", repairCmd, "Repair items.", "/repair [hand|helmet|chestplate|pants|boots|offhand|all] [player]", "kelpylandia.repair", "fix");
+            getLogger().info("Repair command enabled!");
+        }
+        
+        // Register sudo command
+        if (getConfig().getBoolean("sudo.enabled", true)) {
+            SudoCommand sudoCmd = new SudoCommand(this);
+            registerCommand("sudo", sudoCmd, "Force a player to run a command or send a message.", "/sudo <player> <command or message>", "kelpylandia.sudo");
+            getLogger().info("Sudo command enabled!");
+        }
+        
+        // Register spy commands (/ss, /cs) and listener
+        if (getConfig().getBoolean("spy.enabled", true)) {
+            spyManager = new SpyManager();
+            SocialSpyCommand ssCmd = new SocialSpyCommand(this);
+            CommandSpyCommand csCmd = new CommandSpyCommand(this);
+            registerCommand("ss", ssCmd, "Toggle social spy.", "/ss", "kelpylandia.socialspy", "socialspy");
+            registerCommand("cs", csCmd, "Toggle command spy.", "/cs", "kelpylandia.commandspy", "commandspy");
+            getServer().getPluginManager().registerEvents(new SpyListener(this), this);
+            getLogger().info("Spy commands enabled!");
+        }
+        
+        // Register fly command
+        if (getConfig().getBoolean("fly.enabled", true)) {
+            FlyCommand flyCmd = new FlyCommand(this);
+            registerCommand("fly", flyCmd, "Toggle flight mode.", "/fly [player]", "kelpylandia.fly", "flight");
+            getLogger().info("Fly command enabled!");
+        }
+        
+        // Register god command
+        if (getConfig().getBoolean("god.enabled", true)) {
+            godCommand = new GodCommand(this);
+            registerCommand("god", godCommand, "Toggle god mode (invincibility).", "/god [player]", "kelpylandia.god", "godmode");
+            getLogger().info("God command enabled!");
+        }
+        
+        // Register heal command
+        if (getConfig().getBoolean("heal.enabled", true)) {
+            HealCommand healCmd = new HealCommand(this);
+            registerCommand("heal", healCmd, "Heal a player to full health.", "/heal [player]", "kelpylandia.heal");
+            getLogger().info("Heal command enabled!");
+        }
+        
+        // Register starve command
+        if (getConfig().getBoolean("starve.enabled", true)) {
+            StarveCommand starveCmd = new StarveCommand(this);
+            registerCommand("starve", starveCmd, "Set a player's food to zero.", "/starve [player]", "kelpylandia.starve");
+            getLogger().info("Starve command enabled!");
+        }
+        
+        // Register feed command
+        if (getConfig().getBoolean("feed.enabled", true)) {
+            FeedCommand feedCmd = new FeedCommand(this);
+            registerCommand("feed", feedCmd, "Fill a player's food bar.", "/feed [player]", "kelpylandia.feed");
+            getLogger().info("Feed command enabled!");
+        }
+        
+        // Register flyspeed / walkspeed commands
+        if (getConfig().getBoolean("flyspeed.enabled", true)) {
+            FlySpeedCommand speedCmd = new FlySpeedCommand(this);
+            registerCommand("flyspeed", speedCmd, "Set fly speed (0-10).", "/flyspeed <speed> [player]", "kelpylandia.flyspeed", "fspeed");
+            registerCommand("walkspeed", speedCmd, "Set walk speed (0-10).", "/walkspeed <speed> [player]", "kelpylandia.flyspeed", "wspeed");
+            getLogger().info("Fly/Walk speed commands enabled!");
         }
         
         // Initialize Discord integration if enabled
@@ -376,5 +563,33 @@ public class KelpylandiaPlugin extends JavaPlugin {
     
     public BackManager getBackManager() {
         return backManager;
+    }
+    
+    public NickManager getNickManager() {
+        return nickManager;
+    }
+    
+    public AfkManager getAfkManager() {
+        return afkManager;
+    }
+    
+    public MsgCommand getMsgCommand() {
+        return msgCommand;
+    }
+    
+    public SpyManager getSpyManager() {
+        return spyManager;
+    }
+    
+    public GodCommand getGodCommand() {
+        return godCommand;
+    }
+    
+    public VanishCommand getVanishCommand() {
+        return vanishCommand;
+    }
+    
+    public PlayerStateManager getPlayerStateManager() {
+        return playerStateManager;
     }
 }

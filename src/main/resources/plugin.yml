@@ -114,7 +114,37 @@ permissions:
       kelpylandia.back: true
       kelpylandia.dback: true
       kelpylandia.back.bypass.cooldown: true
+      kelpylandia.spawn: true
+      kelpylandia.spawn.others: true
+      kelpylandia.gamemode.*: true
       kelpylandia.workbench.*: true
+      kelpylandia.nickname: true
+      kelpylandia.nickname.others: true
+      kelpylandia.enchant: true
+      kelpylandia.enchant.unsafe: true
+      kelpylandia.afk: true
+      kelpylandia.msg: true
+      kelpylandia.msg.reply: true
+      kelpylandia.msg.whispertoggle: true
+      kelpylandia.suicide: true
+      kelpylandia.skull: true
+      kelpylandia.repair: true
+      kelpylandia.repair.others: true
+      kelpylandia.sudo: true
+      kelpylandia.socialspy: true
+      kelpylandia.commandspy: true
+      kelpylandia.fly: true
+      kelpylandia.fly.others: true
+      kelpylandia.god: true
+      kelpylandia.god.others: true
+      kelpylandia.heal: true
+      kelpylandia.heal.others: true
+      kelpylandia.starve: true
+      kelpylandia.starve.others: true
+      kelpylandia.feed: true
+      kelpylandia.feed.others: true
+      kelpylandia.flyspeed: true
+      kelpylandia.flyspeed.others: true
       
   kelpylandia.admin:
     description: Allows admin commands
@@ -297,4 +327,168 @@ permissions:
 
   kelpylandia.back.bypass.cooldown:
     description: Bypass the back command cooldown
+    default: op
+
+  # Spawn Permissions
+  kelpylandia.spawn:
+    description: Allows using /spawn to teleport to world spawn
+    default: true
+
+  kelpylandia.spawn.others:
+    description: Allows teleporting other players to spawn
+    default: op
+
+  # Gamemode Permissions
+  kelpylandia.gamemode.*:
+    description: Grants all gamemode permissions
+    default: op
+    children:
+      kelpylandia.gamemode.survival: true
+      kelpylandia.gamemode.creative: true
+      kelpylandia.gamemode.adventure: true
+      kelpylandia.gamemode.spectator: true
+      kelpylandia.gamemode.others: true
+
+  kelpylandia.gamemode.survival:
+    description: Allows switching to survival mode
+    default: op
+
+  kelpylandia.gamemode.creative:
+    description: Allows switching to creative mode
+    default: op
+
+  kelpylandia.gamemode.adventure:
+    description: Allows switching to adventure mode
+    default: op
+
+  kelpylandia.gamemode.spectator:
+    description: Allows switching to spectator mode
+    default: op
+
+  kelpylandia.gamemode.others:
+    description: Allows changing other players' gamemode
+    default: op
+
+  # Nickname Permissions
+  kelpylandia.nickname:
+    description: Allows using /nick to set or reset your own nickname
+    default: true
+
+  kelpylandia.nickname.others:
+    description: Allows setting or resetting other players' nicknames
+    default: op
+
+  # Enchant Permissions
+  kelpylandia.enchant:
+    description: Allows using /enchant to enchant items
+    default: op
+
+  kelpylandia.enchant.unsafe:
+    description: Allows bypassing enchantment limits (any level, any item)
+    default: op
+
+  # AFK Permissions
+  kelpylandia.afk:
+    description: Allows using /afk to toggle AFK status
+    default: true
+
+  # Messaging Permissions
+  kelpylandia.msg:
+    description: Allows sending private messages with /w
+    default: true
+
+  kelpylandia.msg.reply:
+    description: Allows using /r to reply to private messages
+    default: true
+
+  kelpylandia.msg.whispertoggle:
+    description: Allows using /wt to set or clear whisper target
+    default: true
+
+  # Suicide Permission
+  kelpylandia.suicide:
+    description: Allows using /suicide to kill yourself
+    default: true
+
+  # Skull Permission
+  kelpylandia.skull:
+    description: Allows using /skull to get a player head
+    default: op
+
+  # Repair Permissions
+  kelpylandia.repair:
+    description: Allows using /repair to repair your own items
+    default: op
+
+  kelpylandia.repair.others:
+    description: Allows using /repair on other players
+    default: op
+
+  # Sudo Permission
+  kelpylandia.sudo:
+    description: Allows using /sudo to force players to run commands
+    default: op
+
+  # SocialSpy Permission
+  kelpylandia.socialspy:
+    description: Allows using /ss to spy on private messages and channel chat
+    default: op
+
+  # CommandSpy Permission
+  kelpylandia.commandspy:
+    description: Allows using /cs to spy on commands other players run
+    default: op
+
+  # Fly Permissions
+  kelpylandia.fly:
+    description: Allows using /fly to toggle flight mode
+    default: op
+
+  kelpylandia.fly.others:
+    description: Allows using /fly on other players or * for all
+    default: op
+
+  # God Permissions
+  kelpylandia.god:
+    description: Allows using /god to toggle invincibility
+    default: op
+
+  kelpylandia.god.others:
+    description: Allows using /god on other players or * for all
+    default: op
+
+  # Heal Permissions
+  kelpylandia.heal:
+    description: Allows using /heal to heal yourself
+    default: op
+
+  kelpylandia.heal.others:
+    description: Allows using /heal on other players or * for all
+    default: op
+
+  # Starve Permissions
+  kelpylandia.starve:
+    description: Allows using /starve to starve yourself
+    default: op
+
+  kelpylandia.starve.others:
+    description: Allows using /starve on other players or * for all
+    default: op
+
+  # Feed Permissions
+  kelpylandia.feed:
+    description: Allows using /feed to fill your food bar
+    default: op
+
+  kelpylandia.feed.others:
+    description: Allows using /feed on other players or * for all
+    default: op
+
+  # FlySpeed/WalkSpeed Permissions
+  kelpylandia.flyspeed:
+    description: Allows using /flyspeed and /walkspeed to change your speed
+    default: op
+
+  kelpylandia.flyspeed.others:
+    description: Allows using /flyspeed and /walkspeed on other players
     default: op
