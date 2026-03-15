@@ -24,12 +24,15 @@ public class VanishManager {
     private final Map<UUID, Boolean> canPickupItems;
     private final Map<UUID, UUID> vanishTargets;
     private final Map<UUID, Scoreboard> vanishScoreboards;
+    /** Saves the player's original scoreboard before vanish replaces it. */
+    private final Map<UUID, Scoreboard> savedScoreboards;
     
     public VanishManager(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
         this.canPickupItems = new HashMap<>();
         this.vanishTargets = new HashMap<>();
         this.vanishScoreboards = new HashMap<>();
+        this.savedScoreboards = new HashMap<>();
     }
     
     public void setCanPickupItems(Player player, boolean canPickup) {
@@ -59,6 +62,9 @@ public class VanishManager {
         ScoreboardManager manager = Bukkit.getScoreboardManager();
         if (manager == null) return;
         
+        // Save the player's current scoreboard so we can restore it later
+        savedScoreboards.put(player.getUniqueId(), player.getScoreboard());
+        
         Scoreboard scoreboard = manager.getNewScoreboard();
         Objective objective = scoreboard.registerNewObjective("vanish", "dummy", 
             ChatColor.DARK_PURPLE + ChatColor.BOLD.toString() + "VANISH MODE");
@@ -72,7 +78,13 @@ public class VanishManager {
     
     public void hideVanishScoreboard(Player player) {
         vanishScoreboards.remove(player.getUniqueId());
-        player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+        // Restore the player's original scoreboard (not just the main one)
+        Scoreboard saved = savedScoreboards.remove(player.getUniqueId());
+        if (saved != null) {
+            player.setScoreboard(saved);
+        } else {
+            player.setScoreboard(Bukkit.getScoreboardManager().getMainScoreboard());
+        }
     }
     
     private void updateVanishScoreboard(Player vanishedPlayer) {
@@ -169,5 +181,6 @@ public class VanishManager {
         canPickupItems.remove(uuid);
         vanishTargets.remove(uuid);
         vanishScoreboards.remove(uuid);
+        savedScoreboards.remove(uuid);
     }
 }

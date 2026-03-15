@@ -6,13 +6,10 @@ import com.kelpwing.kelpylandiaplugin.utils.LevelManager;
 import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
-import org.bukkit.GameMode;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
-import org.bukkit.event.player.PlayerJoinEvent;
-import org.bukkit.event.player.PlayerQuitEvent;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -22,13 +19,10 @@ public class VanishCommand implements CommandExecutor {
 
     private final KelpylandiaPlugin plugin;
     private final Set<UUID> vanishedPlayers;
-    /** Whether DiscordSRV is present on this server (checked once at construction). */
-    private final boolean hasDiscordSRV;
     
     public VanishCommand(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
         this.vanishedPlayers = new HashSet<>();
-        this.hasDiscordSRV = Bukkit.getPluginManager().getPlugin("DiscordSRV") != null;
     }
 
     @Override
@@ -135,7 +129,7 @@ public class VanishCommand implements CommandExecutor {
     private void sendFakeLeaveMessage(Player player) {
         plugin.getLogger().info("Sending fake leave for " + player.getName());
         
-        // Broadcast the in-game leave message ourselves
+        // Broadcast the in-game leave message
         if (plugin.getConfig().getBoolean("join-leave.enabled", true)) {
             String leaveMessage = plugin.getConfig().getString("join-leave.leave-message", "&e{player} left the game");
             leaveMessage = PlaceholderAPI.setPlaceholders(player, leaveMessage);
@@ -144,24 +138,17 @@ public class VanishCommand implements CommandExecutor {
             plugin.getServer().broadcastMessage(ChatColor.translateAlternateColorCodes('&', leaveMessage));
         }
         
-        // Fire a fake PlayerQuitEvent so DiscordSRV (and any other plugin) picks it up
-        if (hasDiscordSRV) {
-            PlayerQuitEvent fakeQuit = new PlayerQuitEvent(player, null); // null = suppress default quit message
-            Bukkit.getPluginManager().callEvent(fakeQuit);
-            plugin.getLogger().info("[VANISH] Fired fake PlayerQuitEvent for DiscordSRV");
-        } else {
-            // No DiscordSRV — use our own Discord integration as fallback
-            DiscordIntegration discord = plugin.getDiscordIntegration();
-            if (discord != null && discord.isEnabled() && 
-                plugin.getConfig().getBoolean("discord.events.broadcast-leaves", true)) {
-                
-                if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
-                    discord.sendPlayerLeaveEmbed(player);
-                } else {
-                    String discordMessage = plugin.getConfig().getString("discord.formats.leave", "{player} left the game");
-                    discordMessage = discordMessage.replace("{player}", player.getName());
-                    discord.sendToGlobalChat(discordMessage);
-                }
+        // Send to Discord via our integration (no fake events — those break other plugins)
+        DiscordIntegration discord = plugin.getDiscordIntegration();
+        if (discord != null && discord.isEnabled() &&
+            plugin.getConfig().getBoolean("discord.events.broadcast-leaves", true)) {
+            
+            if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
+                discord.sendPlayerLeaveEmbed(player);
+            } else {
+                String discordMessage = plugin.getConfig().getString("discord.formats.leave", "{player} left the game");
+                discordMessage = discordMessage.replace("{player}", player.getName());
+                discord.sendToGlobalChat(discordMessage);
             }
         }
     }
@@ -169,7 +156,7 @@ public class VanishCommand implements CommandExecutor {
     private void sendFakeJoinMessage(Player player) {
         plugin.getLogger().info("Sending fake join for " + player.getName());
         
-        // Broadcast the in-game join message ourselves
+        // Broadcast the in-game join message
         if (plugin.getConfig().getBoolean("join-leave.enabled", true)) {
             String joinMessage = plugin.getConfig().getString("join-leave.join-message", "&e{player} joined the game");
             joinMessage = PlaceholderAPI.setPlaceholders(player, joinMessage);
@@ -178,24 +165,17 @@ public class VanishCommand implements CommandExecutor {
             plugin.getServer().broadcastMessage(ChatColor.translateAlternateColorCodes('&', joinMessage));
         }
         
-        // Fire a fake PlayerJoinEvent so DiscordSRV (and any other plugin) picks it up
-        if (hasDiscordSRV) {
-            PlayerJoinEvent fakeJoin = new PlayerJoinEvent(player, null); // null = suppress default join message
-            Bukkit.getPluginManager().callEvent(fakeJoin);
-            plugin.getLogger().info("[VANISH] Fired fake PlayerJoinEvent for DiscordSRV");
-        } else {
-            // No DiscordSRV — use our own Discord integration as fallback
-            DiscordIntegration discord = plugin.getDiscordIntegration();
-            if (discord != null && discord.isEnabled() && 
-                plugin.getConfig().getBoolean("discord.events.broadcast-joins", true)) {
-                
-                if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
-                    discord.sendPlayerJoinEmbed(player);
-                } else {
-                    String discordMessage = plugin.getConfig().getString("discord.formats.join", "{player} joined the game");
-                    discordMessage = discordMessage.replace("{player}", player.getName());
-                    discord.sendToGlobalChat(discordMessage);
-                }
+        // Send to Discord via our integration (no fake events — those break other plugins)
+        DiscordIntegration discord = plugin.getDiscordIntegration();
+        if (discord != null && discord.isEnabled() &&
+            plugin.getConfig().getBoolean("discord.events.broadcast-joins", true)) {
+            
+            if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
+                discord.sendPlayerJoinEmbed(player);
+            } else {
+                String discordMessage = plugin.getConfig().getString("discord.formats.join", "{player} joined the game");
+                discordMessage = discordMessage.replace("{player}", player.getName());
+                discord.sendToGlobalChat(discordMessage);
             }
         }
     }
