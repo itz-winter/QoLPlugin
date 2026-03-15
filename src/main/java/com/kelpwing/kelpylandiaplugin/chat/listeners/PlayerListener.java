@@ -35,7 +35,7 @@ public class PlayerListener implements Listener {
         plugin.getLogger().info("Player " + player.getName() + " joined and was assigned to default channel");
     }
 
-    @EventHandler(priority = EventPriority.LOW)
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         

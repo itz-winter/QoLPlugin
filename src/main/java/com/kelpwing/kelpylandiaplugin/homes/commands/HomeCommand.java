@@ -3,8 +3,10 @@ package com.kelpwing.kelpylandiaplugin.homes.commands;
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.homes.Home;
 import com.kelpwing.kelpylandiaplugin.homes.HomeManager;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.Location;
+import org.bukkit.OfflinePlayer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -14,6 +16,7 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * /home [name] - Teleport to a home.
@@ -73,8 +76,39 @@ public class HomeCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        // With args: teleport to the named home
+        // With args: teleport to the named home (supports user:homename for admins)
         String homeName = args[0];
+
+        // Check for admin syntax: user:homename
+        if (homeName.contains(":") && player.hasPermission("kelpylandia.homes.others")) {
+            String[] parts = homeName.split(":", 2);
+            String targetName = parts[0];
+            String targetHomeName = parts[1].isEmpty() ? "home" : parts[1];
+
+            @SuppressWarnings("deprecation")
+            OfflinePlayer targetPlayer = Bukkit.getOfflinePlayer(targetName);
+            if (targetPlayer == null || (!targetPlayer.hasPlayedBefore() && !targetPlayer.isOnline())) {
+                player.sendMessage(ChatColor.RED + "Player " + ChatColor.GOLD + targetName + ChatColor.RED + " has never played on this server.");
+                return true;
+            }
+
+            UUID targetUUID = targetPlayer.getUniqueId();
+            Home home = homeManager.getHome(targetUUID, targetHomeName);
+            if (home == null) {
+                player.sendMessage(ChatColor.RED + "Player " + ChatColor.GOLD + targetName + ChatColor.RED + " doesn't have a home named " + ChatColor.GOLD + targetHomeName + ChatColor.RED + ".");
+                // Show available homes for that player
+                List<String> homeNames = new ArrayList<>(homeManager.getHomeNames(targetUUID));
+                if (!homeNames.isEmpty()) {
+                    player.sendMessage(ChatColor.GRAY + "Their homes: " + ChatColor.YELLOW + String.join(", ", homeNames));
+                }
+                return true;
+            }
+
+            teleportToHome(player, home);
+            player.sendMessage(ChatColor.GRAY + "(Teleported to " + ChatColor.GOLD + targetName + ChatColor.GRAY + "'s home)");
+            return true;
+        }
+
         Home home = homeManager.getHome(player.getUniqueId(), homeName);
         if (home == null) {
             player.sendMessage(ChatColor.RED + "You don't have a home named " + ChatColor.GOLD + homeName + ChatColor.RED + ".");
@@ -103,9 +137,6 @@ public class HomeCommand implements CommandExecutor, TabCompleter {
 
         player.teleport(location);
         player.sendMessage(ChatColor.GREEN + "Teleported to home " + ChatColor.GOLD + home.getName() + ChatColor.GREEN + "!");
-        player.sendMessage(ChatColor.GRAY +
-            String.format("%.1f, %.1f, %.1f", location.getX(), location.getY(), location.getZ()) +
-            " in " + location.getWorld().getName());
 
         // Apply cooldown and invulnerability
         if (plugin.getTpaManager() != null) {
@@ -118,10 +149,42 @@ public class HomeCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (!(sender instanceof Player player)) return Collections.emptyList();
         if (args.length == 1) {
-            List<String> names = new ArrayList<>(plugin.getHomeManager().getHomeNames(player.getUniqueId()));
             String partial = args[0].toLowerCase();
-            names.removeIf(s -> !s.toLowerCase().startsWith(partial));
-            return names;
+            List<String> suggestions = new ArrayList<>();
+
+            // Own homes
+            List<String> names = new ArrayList<>(plugin.getHomeManager().getHomeNames(player.getUniqueId()));
+            for (String name : names) {
+                if (name.toLowerCase().startsWith(partial)) suggestions.add(name);
+            }
+
+            // Admin syntax: user:homename
+            if (player.hasPermission("kelpylandia.homes.others") && partial.contains(":")) {
+                String[] parts = partial.split(":", 2);
+                String targetName = parts[0];
+                String homePartial = parts.length > 1 ? parts[1] : "";
+
+                @SuppressWarnings("deprecation")
+                OfflinePlayer targetPlayer = Bukkit.getOfflinePlayer(targetName);
+                if (targetPlayer != null && (targetPlayer.hasPlayedBefore() || targetPlayer.isOnline())) {
+                    List<String> targetHomes = new ArrayList<>(plugin.getHomeManager().getHomeNames(targetPlayer.getUniqueId()));
+                    for (String h : targetHomes) {
+                        if (h.toLowerCase().startsWith(homePartial)) {
+                            suggestions.add(targetName + ":" + h);
+                        }
+                    }
+                }
+            } else if (player.hasPermission("kelpylandia.homes.others")) {
+                // Suggest online player names with colon suffix
+                for (Player p : Bukkit.getOnlinePlayers()) {
+                    String name = p.getName().toLowerCase();
+                    if (name.startsWith(partial)) {
+                        suggestions.add(p.getName() + ":");
+                    }
+                }
+            }
+
+            return suggestions;
         }
         return Collections.emptyList();
     }

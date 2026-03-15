@@ -74,7 +74,8 @@ public class TpaManager {
 
         // Schedule expiry notification
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
-            if (!request.isExpired()) return; // Already handled
+            if (request.isCompleted()) return; // Already accepted/denied/cancelled
+            if (!request.isExpired()) return; // Not yet expired
             Player req = Bukkit.getPlayer(requesterUUID);
             Player tgt = Bukkit.getPlayer(targetUUID);
             if (req != null) {
@@ -97,6 +98,40 @@ public class TpaManager {
         if (requests.isEmpty()) return null;
 
         return requests.get(requests.size() - 1);
+    }
+
+    /**
+     * Check if the target has any requests that existed but are now expired.
+     * This is used by /tpaccept and /tpdeny to show an [expired] message
+     * instead of "no pending requests" when the request timed out.
+     */
+    public boolean hasExpiredRequests(UUID targetUUID) {
+        List<TpaRequest> requests = pendingRequests.get(targetUUID);
+        if (requests == null || requests.isEmpty()) return false;
+        return requests.stream().anyMatch(TpaRequest::isExpired);
+    }
+
+    /**
+     * Check if the target has an expired request from a specific requester.
+     */
+    public boolean hasExpiredRequestFrom(UUID targetUUID, UUID requesterUUID) {
+        List<TpaRequest> requests = pendingRequests.get(targetUUID);
+        if (requests == null) return false;
+        return requests.stream()
+                .anyMatch(r -> r.getRequesterUUID().equals(requesterUUID) && r.isExpired());
+    }
+
+    /**
+     * Remove all expired requests for a target player.
+     */
+    public void clearExpiredRequests(UUID targetUUID) {
+        List<TpaRequest> requests = pendingRequests.get(targetUUID);
+        if (requests != null) {
+            requests.removeIf(TpaRequest::isExpired);
+            if (requests.isEmpty()) {
+                pendingRequests.remove(targetUUID);
+            }
+        }
     }
 
     /**

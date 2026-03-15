@@ -19,6 +19,7 @@ public class TpaRequest {
     private final Type type;
     private final long createdAt;
     private final long expiresAt;
+    private boolean completed;
 
     public TpaRequest(UUID requesterUUID, UUID targetUUID, Type type, long timeoutSeconds) {
         this.requesterUUID = requesterUUID;
@@ -26,6 +27,7 @@ public class TpaRequest {
         this.type = type;
         this.createdAt = System.currentTimeMillis();
         this.expiresAt = createdAt + (timeoutSeconds * 1000L);
+        this.completed = false;
     }
 
     public UUID getRequesterUUID() { return requesterUUID; }
@@ -33,6 +35,10 @@ public class TpaRequest {
     public Type getType() { return type; }
     public long getCreatedAt() { return createdAt; }
     public long getExpiresAt() { return expiresAt; }
+
+    /** Mark this request as completed (accepted/denied). Prevents the expiry message. */
+    public void setCompleted(boolean completed) { this.completed = completed; }
+    public boolean isCompleted() { return completed; }
 
     public boolean isExpired() {
         return System.currentTimeMillis() >= expiresAt;

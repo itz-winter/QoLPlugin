@@ -1,0 +1,28 @@
+# ===== CUSTOM DEATH MESSAGES =====
+# These messages are used when a player uses /suicide.
+# A random message is picked from this list each time.
+#
+# Placeholders:
+#   {player}       - The player's display name
+#   {player_name}  - The player's raw username
+#   {world}        - The world the player died in
+#
+# PlaceholderAPI placeholders are also supported if PlaceholderAPI is installed.
+# Example: %player_health%, %player_level%, etc.
+
+messages:
+  - "{player} exploded"
+  - "{player} tried to divide by 0"
+  - "{player} forgot about gravity and flew away"
+  - "{player} tripped on a blade of grass"
+  - "{player} looked at a creeper the wrong way"
+  - "{player} didn't survive the vibe check"
+  - "{player} had a skill issue"
+  - "{player} was not the imposter"
+  - "{player} ragequit life"
+  - "{player} fell into the void of their own making"
+  - "{player} tried to respawn in real life"
+  - "{player} forgot to eat"
+  - "{player} spontaneously combusted"
+  - "{player} thought fall damage was a myth"
+  - "{player} uninstalled themselves"

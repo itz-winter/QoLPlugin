@@ -247,6 +247,14 @@ nickname:
 enchant:
   enabled: true
 
+# ===== ENCHANT OVERRIDES =====
+# Allows normally conflicting enchantments to be combined in an anvil.
+# Enabled combos: Infinity+Mending, Sharpness+Smite+Bane (any combo),
+#   sword enchants on tridents, Multishot+Piercing.
+# Hard-blocked: Fortune+Silk Touch.
+enchant-overrides:
+  enabled: true
+
 # ===== AFK SYSTEM =====
 # /afk - Toggle AFK status. Players are auto-marked AFK after the idle time.
 # Set enabled to false to disable the AFK system
@@ -348,6 +356,118 @@ workbenches:
   smithing: true
   cartography: true
   loom: true
+  # Allow players with kelpylandia.anvil.color to use & color codes in anvil renames
+  anvil-color: true
+
+# ===== TRASH COMMAND =====
+# /trash - Opens a disposable inventory. Items left inside are permanently destroyed on close.
+# Set enabled to false to disable the trash command
+trash:
+  enabled: true
+
+# ===== LORE COMMAND =====
+# /lore <set|add|clear|remove|insert> [args] - Edit the lore on the held item
+# Supports & color codes. Use \n for newlines in /lore set.
+# Set enabled to false to disable the lore command
+lore:
+  enabled: true
+
+# ===== HAT COMMAND =====
+# /hat - Place the item in your hand on your head as a hat
+# Set enabled to false to disable the hat command
+hat:
+  enabled: true
+
+# Auto-broadcast system
+# Messages from broadcasts.yml are sent to all players at random intervals
+auto-broadcasts:
+  enabled: true
+
+# ===== WARP SYSTEM =====
+# /warp, /warps, /setwarp, /delwarp - Server warp points
+warps:
+  enabled: true
+
+# ===== RANDOM TELEPORT =====
+# /rtp - Teleport to a random location in the world
+rtp:
+  enabled: true
+  # Maximum distance from spawn for random teleport (in blocks)
+  radius: 2000
+  # Allow teleporting to underground locations
+  allow-underground: false
+  # Allow teleporting into water
+  allow-water: false
+  # Minimum Y level for surface teleports (ignored when allow-underground is true)
+  min-y: 50
+
+# ===== SEEN COMMAND =====
+# /seen <player> - Check when a player was last online
+seen:
+  enabled: true
+
+# ===== JAIL SYSTEM =====
+# /jail <player> <duration> [reason] and /release <player> [reason]
+# Jailed players are teleported to spawn and completely restricted
+jail:
+  enabled: true
+
+# ===== FREEZE SYSTEM =====
+# /freeze and /unfreeze - Freeze players in place (persists across relog)
+freeze:
+  enabled: true
+
+# ===== STUCK COMMAND =====
+# /stuck - Helps players escape the nether roof or void
+# Disabled by default as it could be exploited
+stuck:
+  enabled: false
+
+# ===== NOCLIP COMMAND =====
+# /noclip [player] - Toggle spectator mode while flying to clip through blocks
+noclip:
+  enabled: true
+
+# ===== SMITE COMMAND =====
+# /smite <player> - Strike lightning on a player with a random broadcast message
+# Use {player} for the target's display name and {sender} for the staff member's name
+smite:
+  enabled: true
+  messages:
+    - "&e{player} &7has been struck by the wrath of the gods!"
+    - "&e{player} &7was smote by &e{sender}&7!"
+    - "&e{player} &7was struck by divine lightning!"
+    - "&e{player} &7displeased the heavens."
+    - "&7The sky opens up and lightning strikes &e{player}&7!"
+    - "&e{player} &7felt the power of Zeus."
+    - "&7A thunderbolt finds its mark on &e{player}&7!"
+
+# ===== REPORT COMMAND =====
+# /report <player|bug> <reason> - Submit a report to staff and Discord
+report:
+  enabled: true
+  # Discord webhook URL to send reports to. Leave blank or set to "your-webhook-url-here" to disable.
+  webhook-url: "your-webhook-url-here"
+
+# ===== RULES COMMAND =====
+# /rules - Display server rules to a player
+# Use & for color codes. {number} is replaced with the rule number (1, 2, 3, ...)
+rules:
+  enabled: true
+  header:
+    - "&8&m----------------------------------------"
+    - "&6&l         Server Rules"
+    - "&8&m----------------------------------------"
+  lines:
+    - "&e{number}. &fBe respectful to all players."
+    - "&e{number}. &fNo griefing or stealing."
+    - "&e{number}. &fNo hacking, cheating, or exploiting."
+    - "&e{number}. &fNo spamming or advertising."
+    - "&e{number}. &fUse common sense."
+  footer:
+    - "&8&m----------------------------------------"
+    - "&7Breaking the rules may result in a punishment."
+    - "&8&m----------------------------------------"
 
 # ===== AVAILABLE PLACEHOLDERS =====
 # Chat placeholders:

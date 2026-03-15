@@ -7,8 +7,15 @@ import com.kelpwing.kelpylandiaplugin.chat.commands.ChannelAliasCommand;
 import com.kelpwing.kelpylandiaplugin.chat.listeners.ChatListener;
 import com.kelpwing.kelpylandiaplugin.commands.GamemodeCommand;
 import com.kelpwing.kelpylandiaplugin.commands.NickCommand;
+import com.kelpwing.kelpylandiaplugin.commands.NoclipCommand;
 import com.kelpwing.kelpylandiaplugin.commands.PvpCommand;
+import com.kelpwing.kelpylandiaplugin.commands.ReportCommand;
+import com.kelpwing.kelpylandiaplugin.commands.RtpCommand;
+import com.kelpwing.kelpylandiaplugin.commands.RulesCommand;
+import com.kelpwing.kelpylandiaplugin.commands.SeenCommand;
+import com.kelpwing.kelpylandiaplugin.commands.SmiteCommand;
 import com.kelpwing.kelpylandiaplugin.commands.SpawnCommand;
+import com.kelpwing.kelpylandiaplugin.commands.StuckCommand;
 import com.kelpwing.kelpylandiaplugin.commands.WorkbenchCommand;
 import com.kelpwing.kelpylandiaplugin.commands.EnchantCommand;
 import com.kelpwing.kelpylandiaplugin.commands.AfkCommand;
@@ -27,7 +34,11 @@ import com.kelpwing.kelpylandiaplugin.commands.HealCommand;
 import com.kelpwing.kelpylandiaplugin.commands.StarveCommand;
 import com.kelpwing.kelpylandiaplugin.commands.FeedCommand;
 import com.kelpwing.kelpylandiaplugin.commands.FlySpeedCommand;
+import com.kelpwing.kelpylandiaplugin.commands.TrashCommand;
+import com.kelpwing.kelpylandiaplugin.commands.LoreCommand;
+import com.kelpwing.kelpylandiaplugin.commands.HatCommand;
 import com.kelpwing.kelpylandiaplugin.listeners.SpyListener;
+import com.kelpwing.kelpylandiaplugin.listeners.WorkbenchListener;
 import com.kelpwing.kelpylandiaplugin.homes.HomeGUI;
 import com.kelpwing.kelpylandiaplugin.homes.HomeManager;
 import com.kelpwing.kelpylandiaplugin.homes.commands.DelHomeCommand;
@@ -35,7 +46,11 @@ import com.kelpwing.kelpylandiaplugin.homes.commands.HomeCommand;
 import com.kelpwing.kelpylandiaplugin.homes.commands.HomesCommand;
 import com.kelpwing.kelpylandiaplugin.homes.commands.SetHomeCommand;
 import com.kelpwing.kelpylandiaplugin.moderation.commands.*;
+import com.kelpwing.kelpylandiaplugin.moderation.JailManager;
+import com.kelpwing.kelpylandiaplugin.moderation.FreezeManager;
 import com.kelpwing.kelpylandiaplugin.moderation.listeners.PlayerListener;
+import com.kelpwing.kelpylandiaplugin.moderation.listeners.JailListener;
+import com.kelpwing.kelpylandiaplugin.moderation.listeners.FreezeListener;
 import com.kelpwing.kelpylandiaplugin.listeners.ConsoleListener;
 import com.kelpwing.kelpylandiaplugin.listeners.NickListener;
 import com.kelpwing.kelpylandiaplugin.listeners.AfkListener;
@@ -55,7 +70,14 @@ import com.kelpwing.kelpylandiaplugin.utils.AfkManager;
 import com.kelpwing.kelpylandiaplugin.utils.VanishManager;
 import com.kelpwing.kelpylandiaplugin.utils.SpyManager;
 import com.kelpwing.kelpylandiaplugin.utils.PlayerStateManager;
+import com.kelpwing.kelpylandiaplugin.utils.DeathMessagesManager;
+import com.kelpwing.kelpylandiaplugin.utils.BroadcastManager;
 import com.kelpwing.kelpylandiaplugin.utils.VersionHelper;
+import com.kelpwing.kelpylandiaplugin.warps.WarpManager;
+import com.kelpwing.kelpylandiaplugin.warps.commands.WarpCommand;
+import com.kelpwing.kelpylandiaplugin.warps.commands.WarpsCommand;
+import com.kelpwing.kelpylandiaplugin.warps.commands.SetWarpCommand;
+import com.kelpwing.kelpylandiaplugin.warps.commands.DelWarpCommand;
 import com.kelpwing.kelpylandiaplugin.placeholders.KpauPlaceholders;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandMap;
@@ -101,6 +123,11 @@ public class KelpylandiaPlugin extends JavaPlugin {
     private GodCommand godCommand;
     private VanishCommand vanishCommand;
     private PlayerStateManager playerStateManager;
+    private DeathMessagesManager deathMessagesManager;
+    private BroadcastManager broadcastManager;
+    private WarpManager warpManager;
+    private JailManager jailManager;
+    private FreezeManager freezeManager;
     
     @Override
     public void onEnable() {
@@ -201,6 +228,12 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register vanish listener
         getServer().getPluginManager().registerEvents(new com.kelpwing.kelpylandiaplugin.listeners.VanishListener(this, vanishCommand), this);
         
+        // Register enchantment override listener (allows custom enchant combos on anvil)
+        if (getConfig().getBoolean("enchant-overrides.enabled", true)) {
+            getServer().getPluginManager().registerEvents(new com.kelpwing.kelpylandiaplugin.listeners.EnchantOverrideListener(this), this);
+            getLogger().info("Enchantment override system enabled!");
+        }
+        
         // Register invsee listener
         getServer().getPluginManager().registerEvents(new com.kelpwing.kelpylandiaplugin.listeners.InvseeListener(this, invseeCommand), this);
         
@@ -274,6 +307,9 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register workbench commands
         if (getConfig().getBoolean("workbenches.enabled", true)) {
             WorkbenchCommand wbCmd = new WorkbenchCommand(this);
+            WorkbenchListener wbListener = new WorkbenchListener(this);
+            wbCmd.setWorkbenchListener(wbListener);
+            getServer().getPluginManager().registerEvents(wbListener, this);
             registerCommand("workbench", wbCmd, "Open a virtual crafting table.", "/workbench [player]", "kelpylandia.workbench.craft", "wb", "craft");
             registerCommand("enderchest", wbCmd, "Open your ender chest (or another player's).", "/enderchest [player]", "kelpylandia.workbench.enderchest", "ec", "echest");
             registerCommand("anvil", wbCmd, "Open a virtual anvil.", "/anvil [player]", "kelpylandia.workbench.anvil");
@@ -325,9 +361,17 @@ public class KelpylandiaPlugin extends JavaPlugin {
         
         // Register suicide command
         if (getConfig().getBoolean("suicide.enabled", true)) {
+            deathMessagesManager = new DeathMessagesManager(this);
+            getServer().getPluginManager().registerEvents(deathMessagesManager, this);
             SuicideCommand suicideCmd = new SuicideCommand(this);
             registerCommand("suicide", suicideCmd, "Kill yourself.", "/suicide", "kelpylandia.suicide");
             getLogger().info("Suicide command enabled!");
+        }
+        
+        // Initialize auto-broadcast system
+        if (getConfig().getBoolean("auto-broadcasts.enabled", true)) {
+            broadcastManager = new BroadcastManager(this);
+            getLogger().info("Auto-broadcast system enabled!");
         }
         
         // Register skull command
@@ -405,6 +449,118 @@ public class KelpylandiaPlugin extends JavaPlugin {
             getLogger().info("Fly/Walk speed commands enabled!");
         }
         
+        // Register trash command
+        if (getConfig().getBoolean("trash.enabled", true)) {
+            TrashCommand trashCmd = new TrashCommand(this);
+            registerCommand("trash", trashCmd, "Open a trash can to dispose of items.", "/trash", "kelpylandia.trash", "disposal", "bin");
+            getServer().getPluginManager().registerEvents(trashCmd, this);
+            getLogger().info("Trash command enabled!");
+        }
+        
+        // Register lore command
+        if (getConfig().getBoolean("lore.enabled", true)) {
+            LoreCommand loreCmd = new LoreCommand(this);
+            registerCommand("lore", loreCmd, "Edit item lore.", "/lore <set|add|clear|remove|insert> [args]", "kelpylandia.lore", "itemlore");
+            getLogger().info("Lore command enabled!");
+        }
+        
+        // Register hat command
+        if (getConfig().getBoolean("hat.enabled", true)) {
+            HatCommand hatCmd = new HatCommand(this);
+            registerCommand("hat", hatCmd, "Wear an item as a hat.", "/hat", "kelpylandia.hat");
+            getLogger().info("Hat command enabled!");
+        }
+        
+        // Register warp commands
+        if (getConfig().getBoolean("warps.enabled", true)) {
+            warpManager = new WarpManager(this);
+            WarpCommand warpCmd = new WarpCommand(this);
+            WarpsCommand warpsCmd = new WarpsCommand(this);
+            SetWarpCommand setWarpCmd = new SetWarpCommand(this);
+            DelWarpCommand delWarpCmd = new DelWarpCommand(this);
+            registerCommand("warp", warpCmd, "Teleport to a warp.", "/warp <name>", "kelpylandia.warp", "warpto");
+            registerCommand("warps", warpsCmd, "List all available warps.", "/warps", "kelpylandia.warp", "warplist");
+            registerCommand("setwarp", setWarpCmd, "Create a new warp.", "/setwarp <name>", "kelpylandia.setwarp");
+            registerCommand("delwarp", delWarpCmd, "Delete a warp.", "/delwarp <name>", "kelpylandia.delwarp", "removewarp");
+            getLogger().info("Warp commands enabled!");
+        }
+        
+        // Register random teleport command
+        if (getConfig().getBoolean("rtp.enabled", true)) {
+            RtpCommand rtpCmd = new RtpCommand(this);
+            registerCommand("rtp", rtpCmd, "Teleport to a random location.", "/rtp", "kelpylandia.rtp", "randomtp", "randomteleport", "wild");
+            getLogger().info("Random teleport command enabled!");
+        }
+        
+        // Register seen command
+        if (getConfig().getBoolean("seen.enabled", true)) {
+            SeenCommand seenCmd = new SeenCommand(this);
+            registerCommand("seen", seenCmd, "Check when a player was last online.", "/seen <player>", "kelpylandia.seen", "lastonline");
+            getLogger().info("Seen command enabled!");
+        }
+        
+        // Register jail system
+        if (getConfig().getBoolean("jail.enabled", true)) {
+            jailManager = new JailManager(this);
+            JailCommand jailCmd = new JailCommand(this);
+            ReleaseCommand releaseCmd = new ReleaseCommand(this);
+            getCommand("jail").setExecutor(jailCmd);
+            getCommand("jail").setTabCompleter(jailCmd);
+            getCommand("release").setExecutor(releaseCmd);
+            getCommand("release").setTabCompleter(releaseCmd);
+            getServer().getPluginManager().registerEvents(new JailListener(this), this);
+            getLogger().info("Jail system enabled!");
+        }
+        
+        // Register freeze system
+        if (getConfig().getBoolean("freeze.enabled", true)) {
+            freezeManager = new FreezeManager();
+            FreezeCommand freezeCmd = new FreezeCommand(this);
+            UnfreezeCommand unfreezeCmd = new UnfreezeCommand(this);
+            getCommand("freeze").setExecutor(freezeCmd);
+            getCommand("freeze").setTabCompleter(freezeCmd);
+            getCommand("unfreeze").setExecutor(unfreezeCmd);
+            getCommand("unfreeze").setTabCompleter(unfreezeCmd);
+            getServer().getPluginManager().registerEvents(new FreezeListener(this), this);
+            getLogger().info("Freeze system enabled!");
+        }
+        
+        // Register stuck command
+        if (getConfig().getBoolean("stuck.enabled", false)) {
+            StuckCommand stuckCmd = new StuckCommand(this);
+            registerCommand("stuck", stuckCmd, "Unstuck yourself from the nether roof or void.", "/stuck", "kelpylandia.stuck", "unstuck");
+            getLogger().info("Stuck command enabled!");
+        }
+        
+        // Register noclip command
+        if (getConfig().getBoolean("noclip.enabled", true)) {
+            NoclipCommand noclipCmd = new NoclipCommand(this);
+            registerCommand("noclip", noclipCmd, "Toggle noclip mode (fly through blocks).", "/noclip [player]", "kelpylandia.noclip");
+            getServer().getPluginManager().registerEvents(noclipCmd, this);
+            getLogger().info("Noclip command enabled!");
+        }
+        
+        // Register rules command
+        if (getConfig().getBoolean("rules.enabled", true)) {
+            RulesCommand rulesCmd = new RulesCommand(this);
+            registerCommand("rules", rulesCmd, "Display the server rules.", "/rules", "kelpylandia.rules", "serverrules");
+            getLogger().info("Rules command enabled!");
+        }
+        
+        // Register smite command
+        if (getConfig().getBoolean("smite.enabled", true)) {
+            SmiteCommand smiteCmd = new SmiteCommand(this);
+            registerCommand("smite", smiteCmd, "Strike lightning on a player.", "/smite <player>", "kelpylandia.smite", "lightning", "strike");
+            getLogger().info("Smite command enabled!");
+        }
+        
+        // Register report command
+        if (getConfig().getBoolean("report.enabled", true)) {
+            ReportCommand reportCmd = new ReportCommand(this);
+            registerCommand("report", reportCmd, "Report a player or bug.", "/report <player|bug> <reason>", "kelpylandia.report");
+            getLogger().info("Report command enabled!");
+        }
+        
         // Initialize Discord integration if enabled
         if (getConfig().getBoolean("discord.enabled", true)) {
             discordIntegration = new DiscordIntegration(this);
@@ -451,6 +607,10 @@ public class KelpylandiaPlugin extends JavaPlugin {
         
         if (placeholderAPIIntegration != null) {
             placeholderAPIIntegration.unregister();
+        }
+        
+        if (broadcastManager != null) {
+            broadcastManager.stop();
         }
         
         getLogger().info("KelpylandiaPlugin has been disabled!");
@@ -591,5 +751,25 @@ public class KelpylandiaPlugin extends JavaPlugin {
     
     public PlayerStateManager getPlayerStateManager() {
         return playerStateManager;
+    }
+    
+    public DeathMessagesManager getDeathMessagesManager() {
+        return deathMessagesManager;
+    }
+    
+    public BroadcastManager getBroadcastManager() {
+        return broadcastManager;
+    }
+    
+    public WarpManager getWarpManager() {
+        return warpManager;
+    }
+    
+    public JailManager getJailManager() {
+        return jailManager;
+    }
+    
+    public FreezeManager getFreezeManager() {
+        return freezeManager;
     }
 }

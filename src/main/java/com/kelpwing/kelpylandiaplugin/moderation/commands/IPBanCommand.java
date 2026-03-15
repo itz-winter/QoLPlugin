@@ -48,12 +48,19 @@ public class IPBanCommand implements CommandExecutor {
 
         String ip = target.getAddress().getAddress().getHostAddress();
         
-        // Parse duration - if "permanent" or invalid, set to 0 (permanent)
+        // Parse duration - if "permanent" keywords, set to 0 (permanent)
         long duration;
-        if (durationStr.equals("permanent") || !DurationParser.isValidDuration(durationStr)) {
+        String lowerDuration = durationStr.toLowerCase();
+        if (lowerDuration.equals("permanent") || lowerDuration.equals("perm")
+            || lowerDuration.equals("inf") || lowerDuration.equals("infinite")) {
             duration = 0; // Permanent ban
         } else {
             duration = DurationParser.parseDuration(durationStr);
+            if (duration == -1) {
+                sender.sendMessage(ChatColor.RED + "Invalid duration format: " + durationStr);
+                sender.sendMessage(ChatColor.YELLOW + "Duration formats: 1y2w3d4h5m (years/weeks/days/hours/minutes), inf/permanent");
+                return true;
+            }
         }
 
         // Create punishment object using proper constructor parameters

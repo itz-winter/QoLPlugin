@@ -1,0 +1,29 @@
+# ===================================================
+# Auto-Broadcast Configuration
+# Messages are broadcasted globally at random intervals.
+# ===================================================
+
+# Minimum interval between broadcasts (in seconds)
+min-interval: 60
+
+# Maximum interval between broadcasts (in seconds)
+max-interval: 120
+
+# Prefix prepended to every broadcast message
+# Set to "" to disable the prefix
+prefix: "&6&l[Broadcast] &r"
+
+# Whether to randomize message order (true) or cycle sequentially (false)
+random-order: true
+
+# Messages to broadcast
+# Supports color codes (&1-&f, &l, &o, &n, &m, &k, &r) and PlaceholderAPI placeholders
+messages:
+  - "&eWelcome to the server! Have fun and play fair."
+  - "&eJoin our Discord for updates and community events!"
+  - "&eRemember to set your homes with &b/sethome&e!"
+  - "&eNeed help? Ask a staff member or use &b/help&e."
+  - "&eVote for the server to earn rewards!"
+  - "&eRespect other players and follow the rules."
+  - "&eExplore the world, build amazing things, and make friends!"
+  - "&eCheck out our website for more information!"

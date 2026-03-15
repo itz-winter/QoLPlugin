@@ -51,14 +51,27 @@ public class TpAcceptCommand implements CommandExecutor, TabCompleter {
             }
             request = tpaManager.getRequest(player.getUniqueId(), requester.getUniqueId());
             if (request == null) {
-                player.sendMessage(ChatColor.RED + "You don't have a pending request from " + ChatColor.GOLD + requester.getName() + ChatColor.RED + ".");
+                // Check if request existed but expired
+                if (tpaManager.hasExpiredRequestFrom(player.getUniqueId(), requester.getUniqueId())) {
+                    player.sendMessage(ChatColor.RED + "[Expired] " + ChatColor.GRAY + "The teleport request from "
+                        + ChatColor.GOLD + requester.getName() + ChatColor.GRAY + " has expired.");
+                    tpaManager.clearExpiredRequests(player.getUniqueId());
+                } else {
+                    player.sendMessage(ChatColor.RED + "You don't have a pending request from " + ChatColor.GOLD + requester.getName() + ChatColor.RED + ".");
+                }
                 return true;
             }
         } else {
             // Accept most recent request
             request = tpaManager.getLatestRequest(player.getUniqueId());
             if (request == null) {
-                player.sendMessage(ChatColor.RED + "You don't have any pending teleport requests.");
+                // Check if there were requests that expired
+                if (tpaManager.hasExpiredRequests(player.getUniqueId())) {
+                    player.sendMessage(ChatColor.RED + "[Expired] " + ChatColor.GRAY + "Your pending teleport request(s) have expired.");
+                    tpaManager.clearExpiredRequests(player.getUniqueId());
+                } else {
+                    player.sendMessage(ChatColor.RED + "You don't have any pending teleport requests.");
+                }
                 return true;
             }
         }
@@ -99,7 +112,8 @@ public class TpAcceptCommand implements CommandExecutor, TabCompleter {
         tpaManager.applyCooldown(teleportee);
         tpaManager.applyInvulnerability(teleportee);
 
-        // Remove the request
+        // Mark as completed to prevent expiry message, then remove
+        request.setCompleted(true);
         tpaManager.removeRequest(request);
 
         return true;

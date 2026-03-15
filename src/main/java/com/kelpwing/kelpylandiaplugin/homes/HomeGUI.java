@@ -238,22 +238,27 @@ public class HomeGUI implements Listener {
                 return;
             }
 
+            // Close inventory first, then teleport next tick to avoid event conflicts
             player.closeInventory();
 
-            // Apply cooldown/invulnerability if teleport system is available
-            TpaManager tpaManager = plugin.getTpaManager();
-            if (tpaManager != null) {
-                if (tpaManager.isOnCooldown(player) && !player.hasPermission("kelpylandia.teleport.bypass.cooldown")) {
-                    long remaining = tpaManager.getCooldownRemaining(player);
-                    player.sendMessage(ChatColor.RED + "You must wait " + ChatColor.GOLD + String.format("%.1f", remaining / 1000.0) + "s" + ChatColor.RED + " before teleporting again.");
-                    return;
-                }
-                tpaManager.applyCooldown(player);
-                tpaManager.applyInvulnerability(player);
-            }
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (!player.isOnline()) return;
 
-            player.teleport(loc);
-            player.sendMessage(ChatColor.GREEN + "Teleported to home " + ChatColor.GOLD + home.getName() + ChatColor.GREEN + "!");
+                // Apply cooldown/invulnerability if teleport system is available
+                TpaManager tpaManager = plugin.getTpaManager();
+                if (tpaManager != null) {
+                    if (tpaManager.isOnCooldown(player) && !player.hasPermission("kelpylandia.teleport.bypass.cooldown")) {
+                        long remaining = tpaManager.getCooldownRemaining(player);
+                        player.sendMessage(ChatColor.RED + "You must wait " + ChatColor.GOLD + String.format("%.1f", remaining / 1000.0) + "s" + ChatColor.RED + " before teleporting again.");
+                        return;
+                    }
+                    tpaManager.applyCooldown(player);
+                    tpaManager.applyInvulnerability(player);
+                }
+
+                player.teleport(loc);
+                player.sendMessage(ChatColor.GREEN + "Teleported to home " + ChatColor.GOLD + home.getName() + ChatColor.GREEN + "!");
+            }, 1L);
         }
     }
 

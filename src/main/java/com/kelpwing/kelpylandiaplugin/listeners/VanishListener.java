@@ -3,17 +3,27 @@ package com.kelpwing.kelpylandiaplugin.listeners;
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.moderation.commands.VanishCommand;
 import com.kelpwing.kelpylandiaplugin.utils.VanishManager;
+import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
+import org.bukkit.Material;
+import org.bukkit.block.Block;
+import org.bukkit.block.Container;
+import org.bukkit.block.data.BlockData;
+import org.bukkit.block.data.Openable;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
+import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.EntityPickupItemEvent;
+import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
+import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.ChatColor;
 
 import java.util.HashMap;
@@ -60,6 +70,66 @@ public class VanishListener implements Listener {
                 event.getInventory().getViewers().add(player);
             }
         }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onInventoryClose(InventoryCloseEvent event) {
+        if (event.getPlayer() instanceof Player) {
+            Player player = (Player) event.getPlayer();
+            if (vanishCommand.isVanished(player)) {
+                // Sync silent container contents back to the real container
+                vanishManager.handleSilentContainerClose(player, event.getInventory());
+            }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
+    public void onPlayerInteract(PlayerInteractEvent event) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) return;
+        Player player = event.getPlayer();
+        if (!vanishCommand.isVanished(player)) return;
+        Block block = event.getClickedBlock();
+        if (block == null) return;
+
+        Material type = block.getType();
+
+        // --- Silent door/trapdoor/gate toggle ---
+        BlockData data = block.getBlockData();
+        if (data instanceof Openable) {
+            event.setCancelled(true);
+            Openable openable = (Openable) data;
+            openable.setOpen(!openable.isOpen());
+            block.setBlockData(openable, false); // false = don't apply physics (no sound to others)
+            player.sendBlockChange(block.getLocation(), block.getBlockData()); // sync for the player
+            return;
+        }
+
+        // --- Silent container open (no chest lid animation for other players) ---
+        if (isContainer(type) && block.getState() instanceof Container) {
+            event.setCancelled(true);
+            Container container = (Container) block.getState();
+            Inventory real = container.getInventory();
+            // Open a virtual copy so the block's viewer count never increments
+            Inventory copy = Bukkit.createInventory(null, real.getSize(), container.getCustomName() != null ? container.getCustomName() : prettyName(type));
+            copy.setContents(real.getContents());
+            player.openInventory(copy);
+            // Schedule sync-back when the player closes it
+            vanishManager.trackSilentContainer(player, copy, real);
+        }
+    }
+
+    /** Checks whether a material is a container that shows an open/close animation. */
+    private boolean isContainer(Material type) {
+        String name = type.name();
+        return name.equals("CHEST") || name.equals("TRAPPED_CHEST")
+            || name.equals("BARREL") || name.contains("SHULKER_BOX")
+            || name.equals("ENDER_CHEST");
+    }
+
+    /** Pretty-print a container name for the inventory title. */
+    private String prettyName(Material type) {
+        String name = type.name().replace('_', ' ').toLowerCase();
+        return Character.toUpperCase(name.charAt(0)) + name.substring(1);
     }
 
     @EventHandler(priority = EventPriority.MONITOR)

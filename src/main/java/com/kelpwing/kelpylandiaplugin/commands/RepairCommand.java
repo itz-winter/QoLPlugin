@@ -63,12 +63,14 @@ public class RepairCommand implements CommandExecutor, TabCompleter {
         int repaired = 0;
 
         if (slot.equals("all")) {
-            repaired += repairItem(inv.getItemInMainHand());
+            // Repair everything: main inventory (hotbar + storage), armor, and offhand
+            for (ItemStack item : inv.getContents()) {
+                repaired += repairItem(item);
+            }
+            for (ItemStack item : inv.getArmorContents()) {
+                repaired += repairItem(item);
+            }
             repaired += repairItem(inv.getItemInOffHand());
-            repaired += repairItem(inv.getHelmet());
-            repaired += repairItem(inv.getChestplate());
-            repaired += repairItem(inv.getLeggings());
-            repaired += repairItem(inv.getBoots());
         } else {
             ItemStack item = getSlotItem(inv, slot);
             repaired += repairItem(item);

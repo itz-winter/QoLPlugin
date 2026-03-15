@@ -93,6 +93,28 @@ commands:
     usage: /pvp [on|off|status]
     permission: kelpylandia.pvp
     aliases: [pvptoggle]
+  jail:
+    description: Jail a player for a specified duration.
+    usage: /jail <player> <duration> [reason]
+    permission: kelpylandia.mod.jail
+    permission-message: "You don't have permission to use this command."
+  release:
+    description: Release a player from jail.
+    usage: /release <player> [reason]
+    permission: kelpylandia.mod.jail
+    aliases: [unjail]
+    permission-message: "You don't have permission to use this command."
+  freeze:
+    description: Freeze a player in place.
+    usage: /freeze <player>
+    permission: kelpylandia.mod.freeze
+    permission-message: "You don't have permission to use this command."
+  unfreeze:
+    description: Unfreeze a player.
+    usage: /unfreeze <player>
+    permission: kelpylandia.mod.freeze
+    aliases: [thaw]
+    permission-message: "You don't have permission to use this command."
 
   # Home, TPA, Back, and Workbench commands are registered dynamically
   # based on config settings. They will not appear here to avoid
@@ -145,6 +167,21 @@ permissions:
       kelpylandia.feed.others: true
       kelpylandia.flyspeed: true
       kelpylandia.flyspeed.others: true
+      kelpylandia.trash: true
+      kelpylandia.lore: true
+      kelpylandia.hat: true
+      kelpylandia.warp: true
+      kelpylandia.setwarp: true
+      kelpylandia.delwarp: true
+      kelpylandia.rtp: true
+      kelpylandia.seen: true
+      kelpylandia.stuck: true
+      kelpylandia.noclip: true
+      kelpylandia.homes.others: true
+      kelpylandia.rules: true
+      kelpylandia.smite: true
+      kelpylandia.report: true
+      kelpylandia.report.notify: true
       
   kelpylandia.admin:
     description: Allows admin commands
@@ -172,6 +209,8 @@ permissions:
       kelpylandia.vanish.others: true
       kelpylandia.vanish.see: true
       kelpylandia.invsee: true
+      kelpylandia.mod.jail: true
+      kelpylandia.mod.freeze: true
       
   kelpylandia.mod.basic:
     description: Basic moderation permissions
@@ -491,4 +530,86 @@ permissions:
 
   kelpylandia.flyspeed.others:
     description: Allows using /flyspeed and /walkspeed on other players
+    default: op
+
+  # Trash Permission
+  kelpylandia.trash:
+    description: Allows using /trash to open a disposal inventory
+    default: true
+
+  # Lore Permission
+  kelpylandia.lore:
+    description: Allows using /lore to edit item lore
+    default: op
+
+  # Hat Permission
+  kelpylandia.hat:
+    description: Allows using /hat to wear items on your head
+    default: true
+
+  # Warp Permissions
+  kelpylandia.warp:
+    description: Allows using /warp and /warps
+    default: true
+
+  kelpylandia.setwarp:
+    description: Allows creating warps with /setwarp
+    default: op
+
+  kelpylandia.delwarp:
+    description: Allows deleting warps with /delwarp
+    default: op
+
+  # Random Teleport Permission
+  kelpylandia.rtp:
+    description: Allows using /rtp for random teleportation
+    default: true
+
+  # Seen Permission
+  kelpylandia.seen:
+    description: Allows using /seen to check when a player was last online
+    default: op
+
+  # Jail Permission
+  kelpylandia.mod.jail:
+    description: Allows jailing and releasing players
+    default: op
+
+  # Freeze Permission
+  kelpylandia.mod.freeze:
+    description: Allows freezing and unfreezing players
+    default: op
+
+  # Stuck Permission
+  kelpylandia.stuck:
+    description: Allows using /stuck to escape nether roof or void
+    default: true
+
+  # Noclip Permission
+  kelpylandia.noclip:
+    description: Allows using /noclip to fly through blocks
+    default: op
+
+  # Admin Home Access Permission
+  kelpylandia.homes.others:
+    description: Allows teleporting to other players' homes
+    default: op
+
+  # Rules Permission
+  kelpylandia.rules:
+    description: Allows using /rules to view server rules
+    default: true
+
+  # Smite Permission
+  kelpylandia.smite:
+    description: Allows using /smite to strike lightning on a player
+    default: op
+
+  # Report Permissions
+  kelpylandia.report:
+    description: Allows using /report to submit player or bug reports
+    default: true
+
+  kelpylandia.report.notify:
+    description: Receive staff notifications when reports are submitted
     default: op

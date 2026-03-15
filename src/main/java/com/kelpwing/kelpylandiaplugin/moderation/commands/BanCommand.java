@@ -76,7 +76,9 @@ public class BanCommand implements CommandExecutor, TabCompleter {
         } else {
             duration = DurationParser.parseDuration(durationStr);
             if (duration == -1) {
-                duration = 0; // If parsing failed, treat as permanent
+                sender.sendMessage(ChatColor.RED + "Invalid duration format: " + durationStr);
+                sender.sendMessage(ChatColor.YELLOW + "Duration formats: 1y2w3d4h5m (years/weeks/days/hours/minutes), inf/permanent");
+                return true;
             }
         }
 

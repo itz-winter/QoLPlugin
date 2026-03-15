@@ -46,6 +46,18 @@ public class ReloadCommand implements CommandExecutor {
                 plugin.getLogger().info("Channels reloaded from config.");
             }
             
+            // Reload death messages
+            if (plugin.getDeathMessagesManager() != null) {
+                plugin.getDeathMessagesManager().loadMessages();
+                plugin.getLogger().info("Death messages reloaded from deathmessages.yml.");
+            }
+            
+            // Reload auto-broadcasts
+            if (plugin.getBroadcastManager() != null) {
+                plugin.getBroadcastManager().reload();
+                plugin.getLogger().info("Auto-broadcasts reloaded from broadcasts.yml.");
+            }
+            
             // Send success message
             sender.sendMessage(ChatColor.GREEN + "KelpylandiaPlugin configuration has been reloaded successfully!");
             

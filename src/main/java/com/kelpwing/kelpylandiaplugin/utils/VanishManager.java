@@ -5,6 +5,7 @@ import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.Inventory;
 import org.bukkit.scoreboard.DisplaySlot;
 import org.bukkit.scoreboard.Objective;
 import org.bukkit.scoreboard.Score;
@@ -26,6 +27,8 @@ public class VanishManager {
     private final Map<UUID, Scoreboard> vanishScoreboards;
     /** Saves the player's original scoreboard before vanish replaces it. */
     private final Map<UUID, Scoreboard> savedScoreboards;
+    /** Maps a vanished player's UUID → their silent container copy + real inventory for sync-back. */
+    private final Map<UUID, Inventory[]> silentContainers;
     
     public VanishManager(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
@@ -33,6 +36,7 @@ public class VanishManager {
         this.vanishTargets = new HashMap<>();
         this.vanishScoreboards = new HashMap<>();
         this.savedScoreboards = new HashMap<>();
+        this.silentContainers = new HashMap<>();
     }
     
     public void setCanPickupItems(Player player, boolean canPickup) {
@@ -176,11 +180,38 @@ public class VanishManager {
         scoreEntry.setScore(score);
     }
     
+    /**
+     * Track a silent container opened by a vanished player.
+     * When the player closes it, the contents are synced back to the real container.
+     */
+    public void trackSilentContainer(Player player, Inventory copy, Inventory real) {
+        silentContainers.put(player.getUniqueId(), new Inventory[]{copy, real});
+    }
+
+    /**
+     * Called when a player closes an inventory. If it's a tracked silent container,
+     * sync the contents back to the real container and remove the tracking.
+     * @return true if this was a tracked silent container close
+     */
+    public boolean handleSilentContainerClose(Player player, Inventory closedInv) {
+        Inventory[] pair = silentContainers.remove(player.getUniqueId());
+        if (pair == null) return false;
+        Inventory copy = pair[0];
+        Inventory real = pair[1];
+        if (closedInv.equals(copy)) {
+            // Sync contents back to the real container
+            real.setContents(copy.getContents());
+            return true;
+        }
+        return false;
+    }
+
     public void cleanup(Player player) {
         UUID uuid = player.getUniqueId();
         canPickupItems.remove(uuid);
         vanishTargets.remove(uuid);
         vanishScoreboards.remove(uuid);
         savedScoreboards.remove(uuid);
+        silentContainers.remove(uuid);
     }
 }

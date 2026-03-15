@@ -47,6 +47,8 @@ public class TpCancelCommand implements CommandExecutor, TabCompleter {
 
         Player target = Bukkit.getPlayer(request.getTargetUUID());
 
+        // Mark as completed to prevent expiry message, then remove
+        request.setCompleted(true);
         tpaManager.removeRequest(request);
 
         player.sendMessage(ChatColor.YELLOW + "Your teleport request has been cancelled.");

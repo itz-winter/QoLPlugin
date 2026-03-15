@@ -202,7 +202,6 @@ public class VanishCommand implements CommandExecutor {
         plugin.getVanishManager().setCanPickupItems(player, false);
         plugin.getVanishManager().showVanishScoreboard(player);
         
-        player.sendMessage(ChatColor.GREEN + "Your vanish state has been restored.");
         plugin.getLogger().info("Restored vanish for " + player.getName());
     }
 

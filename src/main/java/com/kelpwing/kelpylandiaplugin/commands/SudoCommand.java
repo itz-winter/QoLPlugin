@@ -1,6 +1,7 @@
 package com.kelpwing.kelpylandiaplugin.commands;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
+import com.kelpwing.kelpylandiaplugin.utils.SpyManager;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
@@ -12,6 +13,7 @@ import org.bukkit.entity.Player;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * /sudo <user> <command|message> — Force a player to run a command or send a chat message.
@@ -55,6 +57,24 @@ public class SudoCommand implements CommandExecutor, TabCompleter {
             target.chat(text);
             sender.sendMessage(ChatColor.GREEN + "Forced " + ChatColor.GOLD + target.getName() + ChatColor.GREEN + " to say: " + ChatColor.WHITE + text);
         }
+
+        // Notify CommandSpy users about the sudo action
+        SpyManager spyManager = plugin.getSpyManager();
+        if (spyManager != null) {
+            String senderName = sender instanceof Player ? ((Player) sender).getName() : "CONSOLE";
+            String spyMsg = ChatColor.GRAY + "[" + ChatColor.RED + "CS" + ChatColor.GRAY + "] "
+                    + ChatColor.DARK_RED + "[SUDO] " + ChatColor.GRAY
+                    + senderName + " forced " + target.getName() + ": " + ChatColor.WHITE + text;
+            for (UUID spyUUID : spyManager.getCommandSpies()) {
+                Player spy = Bukkit.getPlayer(spyUUID);
+                if (spy != null && spy.isOnline()) {
+                    // Don't notify the sender themselves
+                    if (sender instanceof Player && spy.getUniqueId().equals(((Player) sender).getUniqueId())) continue;
+                    spy.sendMessage(spyMsg);
+                }
+            }
+        }
+
         return true;
     }
 

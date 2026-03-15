@@ -8,7 +8,7 @@ import java.util.List;
 public class DurationParser {
     
     // Pattern to match time units like 1y, 1w, 5d, 3h, 30m, 45s
-    private static final Pattern TIME_PATTERN = Pattern.compile("(\\d+)([ywhms])");
+    private static final Pattern TIME_PATTERN = Pattern.compile("(\\d+)([ywdhms])");
     
     public static long parseDuration(String input) {
         if (input == null || input.isEmpty()) {
