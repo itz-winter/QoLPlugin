@@ -78,6 +78,11 @@ public class VanishCommand implements CommandExecutor {
         plugin.getLogger().info("Vanishing player: " + player.getName());
         vanishedPlayers.add(player.getUniqueId());
         
+        // Persist immediately to disk
+        if (plugin.getPlayerStateManager() != null) {
+            plugin.getPlayerStateManager().saveToggle(player.getUniqueId(), "vanish", true);
+        }
+        
         // Hide player from all online players (respecting vanish levels)
         for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
             if (onlinePlayer.equals(player)) continue;
@@ -105,6 +110,11 @@ public class VanishCommand implements CommandExecutor {
     private void unvanish(Player player) {
         plugin.getLogger().info("Unvanishing player: " + player.getName());
         vanishedPlayers.remove(player.getUniqueId());
+        
+        // Persist immediately to disk
+        if (plugin.getPlayerStateManager() != null) {
+            plugin.getPlayerStateManager().saveToggle(player.getUniqueId(), "vanish", false);
+        }
         
         // Show player to all online players
         for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {

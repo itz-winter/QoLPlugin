@@ -37,6 +37,7 @@ import com.kelpwing.kelpylandiaplugin.commands.FlySpeedCommand;
 import com.kelpwing.kelpylandiaplugin.commands.TrashCommand;
 import com.kelpwing.kelpylandiaplugin.commands.LoreCommand;
 import com.kelpwing.kelpylandiaplugin.commands.HatCommand;
+import com.kelpwing.kelpylandiaplugin.commands.UngodCommand;
 import com.kelpwing.kelpylandiaplugin.listeners.SpyListener;
 import com.kelpwing.kelpylandiaplugin.listeners.WorkbenchListener;
 import com.kelpwing.kelpylandiaplugin.homes.HomeGUI;
@@ -87,6 +88,7 @@ import org.bukkit.command.TabCompleter;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 
+import java.io.File;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.util.Arrays;
@@ -133,6 +135,9 @@ public class KelpylandiaPlugin extends JavaPlugin {
     public void onEnable() {
         instance = this;
         mutedPlayers = new HashMap<>();
+        
+        // Migrate old plugin folder: rename KelpylandiaPlugin → QoLPlugin
+        migrateDataFolder();
         
         // Detect server version and platform
         VersionHelper.init(getLogger());
@@ -397,7 +402,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
         
         // Register spy commands (/ss, /cs) and listener
         if (getConfig().getBoolean("spy.enabled", true)) {
-            spyManager = new SpyManager();
+            spyManager = new SpyManager(this);
             SocialSpyCommand ssCmd = new SocialSpyCommand(this);
             CommandSpyCommand csCmd = new CommandSpyCommand(this);
             registerCommand("ss", ssCmd, "Toggle social spy.", "/ss", "kelpylandia.socialspy", "socialspy");
@@ -417,6 +422,8 @@ public class KelpylandiaPlugin extends JavaPlugin {
         if (getConfig().getBoolean("god.enabled", true)) {
             godCommand = new GodCommand(this);
             registerCommand("god", godCommand, "Toggle god mode (invincibility).", "/god [player]", "kelpylandia.god", "godmode");
+            UngodCommand ungodCmd = new UngodCommand(this);
+            registerCommand("ungod", ungodCmd, "Remove god mode (invincibility).", "/ungod [player]", "kelpylandia.god");
             getLogger().info("God command enabled!");
         }
         
@@ -771,5 +778,27 @@ public class KelpylandiaPlugin extends JavaPlugin {
     
     public FreezeManager getFreezeManager() {
         return freezeManager;
+    }
+    
+    // ─── Data folder migration ─────────────────────────────────────
+
+    /**
+     * If the old "KelpylandiaPlugin" data folder exists and the new
+     * "QoLPlugin" folder does NOT, rename the old folder so all configs,
+     * playerdata, etc. carry over automatically.
+     */
+    private void migrateDataFolder() {
+        File pluginsDir = getDataFolder().getParentFile(); // …/plugins/
+        File oldFolder = new File(pluginsDir, "KelpylandiaPlugin");
+        File newFolder = getDataFolder(); // …/plugins/QoLPlugin
+
+        if (oldFolder.exists() && !newFolder.exists()) {
+            if (oldFolder.renameTo(newFolder)) {
+                getLogger().info("[Migration] Renamed data folder KelpylandiaPlugin → QoLPlugin");
+            } else {
+                getLogger().warning("[Migration] Failed to rename KelpylandiaPlugin → QoLPlugin. " +
+                        "Please rename the folder manually.");
+            }
+        }
     }
 }

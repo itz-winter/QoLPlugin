@@ -70,10 +70,18 @@ public class GodCommand implements CommandExecutor, TabCompleter {
             godPlayers.remove(uuid);
             player.setInvulnerable(false);
             player.sendMessage(ChatColor.YELLOW + "God mode " + ChatColor.BOLD + "disabled" + ChatColor.YELLOW + ".");
+            persistGod(uuid, false);
         } else {
             godPlayers.add(uuid);
             player.setInvulnerable(true);
             player.sendMessage(ChatColor.GREEN + "God mode " + ChatColor.BOLD + "enabled" + ChatColor.GREEN + ". You are now invincible.");
+            persistGod(uuid, true);
+        }
+    }
+
+    private void persistGod(UUID uuid, boolean value) {
+        if (plugin.getPlayerStateManager() != null) {
+            plugin.getPlayerStateManager().saveToggle(uuid, "god", value);
         }
     }
 

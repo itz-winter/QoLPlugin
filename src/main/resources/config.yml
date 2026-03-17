@@ -1,5 +1,6 @@
-# KelpylandiaPlugin Configuration File
+# QoLPlugin Configuration File
 # Combined chat and moderation system for Kelpylandia
+# (Formerly KelpylandiaPlugin — old folder is auto-migrated)
 
 # ===== CHAT SYSTEM CONFIGURATION =====
 
@@ -12,7 +13,7 @@ channels:
     proximity: false
     proximity-distance: 0.0
     discord-enabled: true
-    discord-channel: ''
+    discord-channel: '123456789012345678'  # Set to your Discord channel ID for global chat
     default: true
     alias: "g"
     
@@ -29,14 +30,14 @@ channels:
     
   admin:
     display-name: "Admin"
-    format: "&c[A]&r {prefix}{displayname}&r: {message}"
+    format: "&9[A]&r {prefix}{displayname}&r: {message}"
     permission: "kelpylandia.channel.admin"
     proximity: false
     proximity-distance: 0.0
     discord-enabled: true
-    discord-channel: ''
+    discord-channel: '123456789012345678'  # Set to your Discord channel ID for admin chat
     default: false
-    alias: "a"
+    alias: "at"
 
 # Discord Bot Integration Settings
 discord:
@@ -252,6 +253,8 @@ enchant:
 # Enabled combos: Infinity+Mending, Sharpness+Smite+Bane (any combo),
 #   sword enchants on tridents, Multishot+Piercing.
 # Hard-blocked: Fortune+Silk Touch.
+# Makes the game more enjoyable by allowing fun enchantment combinations that are normally disallowed, while still preventing truly overpowered combos like Fortune+Silk Touch.
+
 enchant-overrides:
   enabled: true
 
@@ -270,9 +273,9 @@ messaging:
   enabled: true
   # Format shown to the SENDER of a private message
   # Placeholders: {sender} = sender display name, {receiver} = receiver display name, {message} = the message
-  format-sender: "&c[Me -> {receiver}]:&7 {message}"
+  format-sender: "&c[Me &c-> &r{receiver}&c]:&7 {message}"
   # Format shown to the RECEIVER of a private message
-  format-receiver: "&c[{sender} -> Me]:&7 {message}"
+  format-receiver: "&c[&r{sender}&c -> Me]:&7 {message}"
 
 # ===== SUICIDE COMMAND =====
 # /suicide - Kill yourself
@@ -297,6 +300,18 @@ repair:
 # Set enabled to false to disable the sudo command
 sudo:
   enabled: true
+
+# ===== STATE PERSISTENCE =====
+# Toggle states (vanish, socialspy, commandspy, god, fly) are saved to disk
+# immediately when toggled and restored on rejoin. Enabled by default.
+# Set to false to disable persistence for a specific toggle.
+state-persistence:
+  enabled: true
+  vanish: true
+  socialspy: true
+  commandspy: true
+  god: true
+  fly: true
 
 # ===== SPY COMMANDS =====
 # /ss /socialspy - Toggle social spy (see all private messages and channel chat)

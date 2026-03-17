@@ -1,4 +1,4 @@
-name: KelpylandiaPlugin
+name: QoLPlugin
 version: '${project.version}'
 main: com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin
 api-version: '1.16'
