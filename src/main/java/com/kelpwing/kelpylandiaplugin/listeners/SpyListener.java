@@ -49,7 +49,10 @@ public class SpyListener implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         SpyManager spyManager = plugin.getSpyManager();
         if (spyManager != null) {
-            spyManager.removePlayer(event.getPlayer().getUniqueId());
+            // Defer cleanup to next tick so saveState() (LOWEST) still sees
+            // the spy flags during this event cycle
+            final UUID uuid = event.getPlayer().getUniqueId();
+            Bukkit.getScheduler().runTask(plugin, () -> spyManager.removePlayer(uuid));
         }
     }
 }

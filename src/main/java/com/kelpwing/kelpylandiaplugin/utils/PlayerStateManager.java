@@ -45,14 +45,19 @@ public class PlayerStateManager {
      * SpyManager toggles, GodCommand, etc. at the moment the state changes.
      */
     public void saveToggle(UUID uuid, String key, boolean value) {
-        if (!plugin.getConfig().getBoolean("state-persistence.enabled", true)) return;
-        if (!plugin.getConfig().getBoolean("state-persistence." + key, true)) return;
+        boolean globalEnabled = plugin.getConfig().getBoolean("state-persistence.enabled", true);
+        boolean keyEnabled = plugin.getConfig().getBoolean("state-persistence." + key, true);
+        plugin.getLogger().info("[StateManager] saveToggle(" + key + "=" + value + ") for " + uuid
+                + " | global=" + globalEnabled + " key=" + keyEnabled);
+        if (!globalEnabled) return;
+        if (!keyEnabled) return;
 
         File file = getPlayerFile(uuid);
         FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
         cfg.set(key, value);
         try {
             cfg.save(file);
+            plugin.getLogger().info("[StateManager] Wrote " + key + "=" + value + " to " + file.getAbsolutePath());
         } catch (IOException e) {
             plugin.getLogger().warning("[StateManager] Could not save " + key + " for " + uuid + ": " + e.getMessage());
         }
@@ -84,19 +89,26 @@ public class PlayerStateManager {
         cfg.set("fly", player.getAllowFlight());
 
         // God — also written at toggle time, but write again as safety
+        boolean god = false;
         if (plugin.getGodCommand() != null) {
-            cfg.set("god", plugin.getGodCommand().isGod(player));
+            god = plugin.getGodCommand().isGod(player);
+            cfg.set("god", god);
         }
 
         // Vanish — already written at toggle time, write again as safety
+        boolean vanish = false;
         if (plugin.getVanishCommand() != null) {
-            cfg.set("vanish", plugin.getVanishCommand().isVanished(player));
+            vanish = plugin.getVanishCommand().isVanished(player);
+            cfg.set("vanish", vanish);
         }
 
         // SocialSpy / CommandSpy — already written at toggle time
+        boolean ss = false, cs = false;
         if (plugin.getSpyManager() != null) {
-            cfg.set("socialspy", plugin.getSpyManager().isSocialSpy(uuid));
-            cfg.set("commandspy", plugin.getSpyManager().isCommandSpy(uuid));
+            ss = plugin.getSpyManager().isSocialSpy(uuid);
+            cs = plugin.getSpyManager().isCommandSpy(uuid);
+            cfg.set("socialspy", ss);
+            cfg.set("commandspy", cs);
         }
 
         // Whisper target
@@ -107,6 +119,10 @@ public class PlayerStateManager {
 
         try {
             cfg.save(file);
+            plugin.getLogger().info("[StateManager] saveState for " + player.getName()
+                    + " — fly=" + player.getAllowFlight() + " god=" + god
+                    + " vanish=" + vanish + " ss=" + ss + " cs=" + cs
+                    + " → " + file.getAbsolutePath());
         } catch (IOException e) {
             plugin.getLogger().warning("Could not save state for " + player.getName() + ": " + e.getMessage());
         }
@@ -118,18 +134,27 @@ public class PlayerStateManager {
      * Restore all relevant toggle states for a player on join.
      */
     public void restoreState(Player player) {
-        if (!plugin.getConfig().getBoolean("state-persistence.enabled", true)) return;
+        boolean globalEnabled = plugin.getConfig().getBoolean("state-persistence.enabled", true);
+        plugin.getLogger().info("[StateManager] restoreState for " + player.getName() + " | global=" + globalEnabled);
+        if (!globalEnabled) return;
 
         UUID uuid = player.getUniqueId();
         File file = getPlayerFile(uuid);
+        plugin.getLogger().info("[StateManager] Looking for file: " + file.getAbsolutePath() + " exists=" + file.exists());
         if (!file.exists()) return;
 
         FileConfiguration cfg = YamlConfiguration.loadConfiguration(file);
+        plugin.getLogger().info("[StateManager] File contents — fly=" + cfg.getBoolean("fly", false)
+                + " god=" + cfg.getBoolean("god", false)
+                + " vanish=" + cfg.getBoolean("vanish", false)
+                + " socialspy=" + cfg.getBoolean("socialspy", false)
+                + " commandspy=" + cfg.getBoolean("commandspy", false));
 
         // Fly
         if (plugin.getConfig().getBoolean("state-persistence.fly", true)
                 && cfg.getBoolean("fly", false)) {
             player.setAllowFlight(true);
+            plugin.getLogger().info("[StateManager] Restored fly for " + player.getName());
         }
 
         // God
@@ -137,6 +162,7 @@ public class PlayerStateManager {
                 && cfg.getBoolean("god", false) && plugin.getGodCommand() != null) {
             player.setInvulnerable(true);
             plugin.getGodCommand().restoreGod(uuid);
+            plugin.getLogger().info("[StateManager] Restored god for " + player.getName());
         }
 
         // Vanish — add to vanished set immediately (so join message is suppressed),

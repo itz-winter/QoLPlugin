@@ -2,6 +2,8 @@ package com.kelpwing.kelpylandiaplugin.moderation.commands;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
+import com.kelpwing.kelpylandiaplugin.chat.Channel;
+import com.kelpwing.kelpylandiaplugin.chat.ChannelManager;
 import com.kelpwing.kelpylandiaplugin.utils.LevelManager;
 import me.clip.placeholderapi.PlaceholderAPI;
 import org.bukkit.Bukkit;
@@ -139,13 +141,13 @@ public class VanishCommand implements CommandExecutor {
     private void sendFakeLeaveMessage(Player player) {
         plugin.getLogger().info("Sending fake leave for " + player.getName());
         
-        // Broadcast the in-game leave message
+        // Broadcast the in-game leave message through the channel system
         if (plugin.getConfig().getBoolean("join-leave.enabled", true)) {
             String leaveMessage = plugin.getConfig().getString("join-leave.leave-message", "&e{player} left the game");
             leaveMessage = PlaceholderAPI.setPlaceholders(player, leaveMessage);
             leaveMessage = leaveMessage.replace("{player}", player.getName());
             leaveMessage = leaveMessage.replace("{displayname}", player.getDisplayName());
-            plugin.getServer().broadcastMessage(ChatColor.translateAlternateColorCodes('&', leaveMessage));
+            broadcastToGlobalChannel(ChatColor.translateAlternateColorCodes('&', leaveMessage));
         }
         
         // Send to Discord via our integration (no fake events — those break other plugins)
@@ -166,13 +168,13 @@ public class VanishCommand implements CommandExecutor {
     private void sendFakeJoinMessage(Player player) {
         plugin.getLogger().info("Sending fake join for " + player.getName());
         
-        // Broadcast the in-game join message
+        // Broadcast the in-game join message through the channel system
         if (plugin.getConfig().getBoolean("join-leave.enabled", true)) {
             String joinMessage = plugin.getConfig().getString("join-leave.join-message", "&e{player} joined the game");
             joinMessage = PlaceholderAPI.setPlaceholders(player, joinMessage);
             joinMessage = joinMessage.replace("{player}", player.getName());
             joinMessage = joinMessage.replace("{displayname}", player.getDisplayName());
-            plugin.getServer().broadcastMessage(ChatColor.translateAlternateColorCodes('&', joinMessage));
+            broadcastToGlobalChannel(ChatColor.translateAlternateColorCodes('&', joinMessage));
         }
         
         // Send to Discord via our integration (no fake events — those break other plugins)
@@ -221,5 +223,29 @@ public class VanishCommand implements CommandExecutor {
     
     public void removeVanishedPlayer(Player player) {
         vanishedPlayers.remove(player.getUniqueId());
+    }
+
+    /**
+     * Route a message through the channel system, matching how PlayerEventListener
+     * sends join/leave messages so they appear consistently in-game.
+     */
+    private void broadcastToGlobalChannel(String message) {
+        ChannelManager channelManager = plugin.getChannelManager();
+        if (channelManager == null) {
+            plugin.getServer().broadcastMessage(message);
+            return;
+        }
+        Channel globalChannel = channelManager.getChannel("global");
+        if (globalChannel != null) {
+            for (Player onlinePlayer : plugin.getServer().getOnlinePlayers()) {
+                Channel playerChannel = channelManager.getPlayerChannel(onlinePlayer);
+                if (playerChannel != null && (playerChannel.getName().equals("global")
+                        || plugin.getConfig().getBoolean("broadcast-join-leave-to-all-channels", true))) {
+                    onlinePlayer.sendMessage(message);
+                }
+            }
+        } else {
+            plugin.getServer().broadcastMessage(message);
+        }
     }
 }

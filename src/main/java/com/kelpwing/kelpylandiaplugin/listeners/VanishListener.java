@@ -215,29 +215,34 @@ public class VanishListener implements Listener {
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         
-        // Save vanished state BEFORE cleanup so we can suppress the quit message
         boolean wasVanished = vanishCommand.isVanished(player);
         
-        // Clean up vanish data
+        // Hide quit message if player was vanished (must happen synchronously
+        // inside the event handler so the message suppression takes effect)
         if (wasVanished) {
-            vanishCommand.removeVanishedPlayer(player);
+            event.setQuitMessage(null);
             // Restore gamemode if in spectator from vanish toggle
             GameMode saved = savedGameMode.remove(player.getUniqueId());
             if (saved != null && player.getGameMode() == GameMode.SPECTATOR) {
                 player.setGameMode(saved);
             }
         }
-        vanishManager.cleanup(player);
-        lastSneakTime.remove(player.getUniqueId());
+        
+        // Defer vanish cleanup to the next tick so every quit handler in this
+        // event cycle still sees the player as vanished (prevents duplicate leave messages)
+        final UUID uuid = player.getUniqueId();
+        final boolean vanished = wasVanished;
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            if (vanished) {
+                vanishCommand.removeVanishedPlayer(player);
+            }
+            vanishManager.cleanup(player);
+            lastSneakTime.remove(uuid);
+        });
         
         // Clean up PvP data
         if (plugin.getPvpCommand() != null) {
             plugin.getPvpCommand().cleanupPlayer(player.getUniqueId());
-        }
-        
-        // Hide quit message if player was vanished
-        if (wasVanished) {
-            event.setQuitMessage(null);
         }
     }
 }
