@@ -212,7 +212,7 @@ teleport:
   # Enable the TPA system (/tpa, /tpahere, /tpaccept, /tpdeny, /tpcancel)
   enabled: true
   # Cooldown between teleports in seconds
-  cooldown: 2
+  cooldown: 1
   # Invulnerability duration in seconds after teleporting (0 to disable)
   invulnerability: 4
   # How long a TPA request lasts before expiring in seconds
@@ -223,7 +223,7 @@ teleport:
 # /dback returns to your last death location
 back:
   enabled: true
-  cooldown: 3
+  cooldown: 1
 
 # ===== SPAWN COMMAND =====
 # /spawn teleports to the main world's spawn point
