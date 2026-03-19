@@ -14,6 +14,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.event.player.PlayerStatisticIncrementEvent;
+import org.bukkit.metadata.FixedMetadataValue;
 import org.bukkit.Statistic;
 
 public class PlayerEventListener implements Listener {
@@ -30,6 +31,34 @@ public class PlayerEventListener implements Listener {
     private DiscordIntegration getDiscord() {
         return plugin.getDiscordIntegration();
     }
+
+    // ─── DiscordSRV silent-event metadata ───────────────────────────────
+    // DiscordSRV checks for player metadata "DiscordSRV:silentjoin" and
+    // "DiscordSRV:silentquit" to decide whether to skip its own join/leave
+    // messages.  We tag vanished players before DiscordSRV's MONITOR listener
+    // fires, and explicitly remove the tag for non-vanished players to avoid
+    // stale metadata from persisting.
+    //
+    // NOTE: silentjoin metadata is set in chat.listeners.PlayerListener (LOW)
+    // because that is where restoreState() runs and vanish status is resolved.
+    // silentquit is set here at LOWEST because the player is already vanished
+    // when they quit.
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onPlayerQuitEarly(PlayerQuitEvent event) {
+        Player player = event.getPlayer();
+        VanishCommand vc = plugin.getVanishCommand();
+        boolean vanished = vc != null && vc.isVanished(player);
+
+        if (vanished) {
+            player.setMetadata("DiscordSRV:silentquit",
+                    new FixedMetadataValue(plugin, true));
+        } else {
+            player.removeMetadata("DiscordSRV:silentquit", plugin);
+        }
+    }
+
+    // ────────────────────────────────────────────────────────────────────
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerJoin(PlayerJoinEvent event) {
