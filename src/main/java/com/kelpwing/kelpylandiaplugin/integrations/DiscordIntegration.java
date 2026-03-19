@@ -457,46 +457,20 @@ public class DiscordIntegration extends ListenerAdapter {
      * Send a player join embed to Discord
      */
     public void sendPlayerJoinEmbed(Player player) {
-        plugin.getLogger().info("[DISCORD DEBUG] sendPlayerJoinEmbed called for: " + player.getName());
-        plugin.getLogger().info("[DISCORD DEBUG] enabled: " + enabled + ", chatChannelId: " + chatChannelId);
+        if (!enabled || chatChannelId == null || chatChannelId.equals("your-chat-channel-id")) return;
         
-        if (!enabled) {
-            plugin.getLogger().warning("[DISCORD DEBUG] Discord integration not enabled");
-            return;
-        }
-        
-        if (chatChannelId == null) {
-            plugin.getLogger().warning("[DISCORD DEBUG] Chat channel ID is null");
-            return;
-        }
-        
-        if (chatChannelId.equals("your-chat-channel-id")) {
-            plugin.getLogger().warning("[DISCORD DEBUG] Chat channel ID is still default placeholder! Please configure discord.chat-channel-id in config.yml");
-            return;
-        }
-        
-        plugin.getLogger().info("[DISCORD DEBUG] Attempting to send join embed...");
         try {
             TextChannel channel = jda.getTextChannelById(chatChannelId);
             if (channel != null) {
-                plugin.getLogger().info("[DISCORD DEBUG] Found Discord channel: " + channel.getName());
                 EmbedBuilder embed = new EmbedBuilder();
                 embed.setColor(getColorFromConfig("discord.embeds.join-color", Color.GREEN));
                 embed.setAuthor(stripSectionCodes(player.getName()) + " joined the server", null, 
                     "https://mc-heads.net/avatar/" + player.getUniqueId() + "/64");
                 
-                channel.sendMessageEmbeds(embed.build()).queue(
-                    success -> plugin.getLogger().info("[DISCORD DEBUG] Join embed sent successfully!"),
-                    error -> plugin.getLogger().severe("[DISCORD DEBUG] Failed to send join embed: " + error.getMessage())
-                );
-            } else {
-                plugin.getLogger().warning("[DISCORD DEBUG] Discord channel not found with ID: " + chatChannelId);
-                plugin.getLogger().warning("[DISCORD DEBUG] Available channels: " + (jda != null && jda.getTextChannels() != null ? 
-                    jda.getTextChannels().stream().map(c -> c.getId() + ":" + c.getName()).collect(java.util.stream.Collectors.joining(", ")) : "None"));
+                channel.sendMessageEmbeds(embed.build()).queue();
             }
         } catch (Exception e) {
-            plugin.getLogger().warning("[DISCORD DEBUG] Exception in sendPlayerJoinEmbed: " + e.getMessage());
-            e.printStackTrace();
+            plugin.getLogger().warning("Failed to send join embed to Discord: " + e.getMessage());
         }
     }
     
@@ -504,42 +478,20 @@ public class DiscordIntegration extends ListenerAdapter {
      * Send a player leave embed to Discord
      */
     public void sendPlayerLeaveEmbed(Player player) {
-        plugin.getLogger().info("[DISCORD DEBUG] sendPlayerLeaveEmbed called for: " + player.getName());
-        
-        if (!enabled) {
-            plugin.getLogger().warning("[DISCORD DEBUG] Discord integration not enabled");
-            return;
-        }
-        
-        if (chatChannelId == null) {
-            plugin.getLogger().warning("[DISCORD DEBUG] Chat channel ID is null");
-            return;
-        }
-        
-        if (chatChannelId.equals("your-chat-channel-id")) {
-            plugin.getLogger().warning("[DISCORD DEBUG] Chat channel ID is still default placeholder! Please configure discord.chat-channel-id in config.yml");
-            return;
-        }
+        if (!enabled || chatChannelId == null || chatChannelId.equals("your-chat-channel-id")) return;
         
         try {
             TextChannel channel = jda.getTextChannelById(chatChannelId);
             if (channel != null) {
-                plugin.getLogger().info("[DISCORD DEBUG] Found Discord channel for leave: " + channel.getName());
                 EmbedBuilder embed = new EmbedBuilder();
                 embed.setColor(getColorFromConfig("discord.embeds.leave-color", Color.RED));
                 embed.setAuthor(stripSectionCodes(player.getName()) + " left the server", null, 
                     "https://mc-heads.net/avatar/" + player.getUniqueId() + "/64");
                 
-                channel.sendMessageEmbeds(embed.build()).queue(
-                    success -> plugin.getLogger().info("[DISCORD DEBUG] Leave embed sent successfully!"),
-                    error -> plugin.getLogger().severe("[DISCORD DEBUG] Failed to send leave embed: " + error.getMessage())
-                );
-            } else {
-                plugin.getLogger().warning("[DISCORD DEBUG] Discord channel not found for leave with ID: " + chatChannelId);
+                channel.sendMessageEmbeds(embed.build()).queue();
             }
         } catch (Exception e) {
-            plugin.getLogger().warning("[DISCORD DEBUG] Exception in sendPlayerLeaveEmbed: " + e.getMessage());
-            e.printStackTrace();
+            plugin.getLogger().warning("Failed to send leave embed to Discord: " + e.getMessage());
         }
     }
     

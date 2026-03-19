@@ -1,0 +1,76 @@
+# ═══════════════════════════════════════════════════
+# KelpylandiaPlugin — Kits Configuration
+# ═══════════════════════════════════════════════════
+# Each kit is defined under the "kits" section.
+#
+# Kit properties:
+#   cooldown:           Seconds between claims. -1 = no cooldown, 0+ = seconds
+#   one-time:           If true, kit can only ever be claimed once (default: false)
+#   give-on-first-join: If true, automatically given to new players (default: false)
+#   permission:         Permission node required (null = no permission)
+#   icon:               Material name for /kit list display
+#   description:        Short description shown in /kit list
+#   items:              List of serialised ItemStacks (managed automatically
+#                       when you /kit create or /kit edit in-game)
+#
+# Cooldown data is stored under "cooldowns" and managed automatically.
+# ═══════════════════════════════════════════════════
+
+kits:
+  starter:
+    cooldown: 0
+    one-time: true
+    give-on-first-join: true
+    permission: "kelpylandia.kit.starter"
+    icon: "CHEST"
+    description: "Basic starting gear"
+    items:
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: STONE_SWORD
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: STONE_PICKAXE
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: STONE_AXE
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: BREAD
+        amount: 16
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: TORCH
+        amount: 32
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: CRAFTING_TABLE
+
+  tools:
+    cooldown: 86400
+    one-time: false
+    give-on-first-join: false
+    permission: "kelpylandia.kit.tools"
+    icon: "IRON_PICKAXE"
+    description: "Iron tool set (24h cooldown)"
+    items:
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: IRON_PICKAXE
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: IRON_AXE
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: IRON_SHOVEL
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: IRON_SWORD
+      - ==: org.bukkit.inventory.ItemStack
+        v: 2230
+        type: SHIELD
+
+# Player cooldown data (managed automatically — do not edit manually)
+# cooldowns:
+#   <uuid>:
+#     <kitName>: <epoch-millis>

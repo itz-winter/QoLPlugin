@@ -58,16 +58,35 @@ public class AdvancementListener implements Listener {
             return;
         }
         
-        // Send advancement to Discord
+        // Send advancement to Discord (skip if DiscordSRV handles it)
         DiscordIntegration discord = plugin.getDiscordIntegration();
-        if (discord != null && discord.isEnabled()) {
+        if (discord != null && discord.isEnabled() && !isDiscordSRVHandlingEvents()) {
             String advancementTitle = VersionHelper.getAdvancementTitle(advancement);
             String advancementDescription = VersionHelper.getAdvancementDescription(advancement);
             
             if (advancementTitle != null) {
                 // Send the advancement announcement to Discord
-                discord.sendAdvancementMessage(player, advancementTitle, advancementDescription);
+                if (plugin.getConfig().getBoolean("discord.events.broadcast-advancements", true)) {
+                    discord.sendAdvancementMessage(player, advancementTitle, advancementDescription);
+                }
+                
+                // Send to console channel if enabled
+                if (plugin.getConfig().getBoolean("discord.events.console-logging", true)) {
+                    String consoleMessage = String.format("Player `%s` completed advancement: %s",
+                        player.getName(), advancementTitle);
+                    discord.sendToConsole(consoleMessage);
+                }
             }
         }
+    }
+
+    /**
+     * Check if DiscordSRV is present and the config says to let it handle events.
+     */
+    private boolean isDiscordSRVHandlingEvents() {
+        if (!plugin.getConfig().getBoolean("discord.events.skip-if-discordsrv", true)) {
+            return false;
+        }
+        return plugin.getServer().getPluginManager().getPlugin("DiscordSRV") != null;
     }
 }

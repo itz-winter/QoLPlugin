@@ -11,7 +11,7 @@ max-interval: 120
 
 # Prefix prepended to every broadcast message
 # Set to "" to disable the prefix
-prefix: "&6&l[Broadcast] &r"
+prefix: "&6[Broadcast] &r"
 
 # Whether to randomize message order (true) or cycle sequentially (false)
 random-order: true
@@ -27,3 +27,5 @@ messages:
   - "&eRespect other players and follow the rules."
   - "&eExplore the world, build amazing things, and make friends!"
   - "&eCheck out our website for more information!"
+  - "&eYou seeing this message means that the owner was too lazy to actually configure the broadcast system!"
+# Remove the last line lmfao

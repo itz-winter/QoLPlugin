@@ -3,6 +3,7 @@ package com.kelpwing.kelpylandiaplugin.chat.listeners;
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.chat.Channel;
 import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
+import com.kelpwing.kelpylandiaplugin.moderation.commands.VanishCommand;
 import com.kelpwing.kelpylandiaplugin.utils.PlayerStateManager;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -32,7 +33,15 @@ public class PlayerListener implements Listener {
             stateManager.restoreState(player);
         }
         
-        plugin.getLogger().info("Player " + player.getName() + " joined and was assigned to default channel");
+        // If restoreState made the player vanished, suppress the join message immediately
+        // so no handler at any priority leaks it
+        VanishCommand vc = plugin.getVanishCommand();
+        if (vc != null && vc.isVanished(player)) {
+            event.setJoinMessage(null);
+        }
+        
+        plugin.getLogger().info("Player " + player.getName() + " joined and was assigned to default channel"
+                + (vc != null && vc.isVanished(player) ? " (vanished — join message suppressed)" : ""));
     }
 
     @EventHandler(priority = EventPriority.LOWEST)

@@ -89,6 +89,11 @@ public class UngodCommand implements CommandExecutor, TabCompleter {
         godCommand.removePlayer(player.getUniqueId());
         player.setInvulnerable(false);
         player.sendMessage(ChatColor.YELLOW + "God mode " + ChatColor.BOLD + "disabled" + ChatColor.YELLOW + ".");
+
+        // Persist god=false to disk so state survives a crash
+        if (plugin.getPlayerStateManager() != null) {
+            plugin.getPlayerStateManager().saveToggle(player.getUniqueId(), "god", false);
+        }
     }
 
     @Override

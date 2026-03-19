@@ -13,8 +13,10 @@ import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -24,7 +26,8 @@ import java.util.concurrent.ThreadLocalRandom;
 public class RtpCommand implements CommandExecutor {
 
     private final KelpylandiaPlugin plugin;
-    private final Set<UUID> cooldowns = new HashSet<>();
+    /** UUID -> epoch millis when cooldown expires */
+    private final Map<UUID, Long> cooldowns = new ConcurrentHashMap<>();
 
     private static final int MAX_ATTEMPTS = 30;
 
@@ -39,9 +42,13 @@ public class RtpCommand implements CommandExecutor {
             return true;
         }
 
-        if (cooldowns.contains(player.getUniqueId())) {
-            player.sendMessage(ChatColor.RED + "Please wait before using /rtp again.");
-            return true;
+        if (cooldowns.containsKey(player.getUniqueId())) {
+            long remaining = (cooldowns.get(player.getUniqueId()) - System.currentTimeMillis()) / 1000;
+            if (remaining > 0) {
+                player.sendMessage(ChatColor.RED + "Please wait " + formatCooldown(remaining) + " before using /rtp again.");
+                return true;
+            }
+            cooldowns.remove(player.getUniqueId());
         }
 
         int radius = plugin.getConfig().getInt("rtp.radius", 2000);
@@ -51,8 +58,8 @@ public class RtpCommand implements CommandExecutor {
 
         player.sendMessage(ChatColor.YELLOW + "Finding a safe location...");
 
-        // Run async-safe location search
-        cooldowns.add(player.getUniqueId());
+        // Mark in-progress (prevent spamming while searching)
+        cooldowns.put(player.getUniqueId(), Long.MAX_VALUE);
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             World world = player.getWorld();
@@ -144,9 +151,20 @@ public class RtpCommand implements CommandExecutor {
         player.sendMessage(ChatColor.GREEN + "Teleported to a random location! " +
                 ChatColor.GRAY + "(" + safe.getBlockX() + ", " + safe.getBlockY() + ", " + safe.getBlockZ() + ")");
 
-        // Apply cooldown
-        Bukkit.getScheduler().runTaskLater(plugin, () -> {
+        // Apply cooldown (skip if player has bypass permission)
+        if (player.hasPermission("kelpylandia.rtp.bypass.cooldown")) {
             cooldowns.remove(player.getUniqueId());
-        }, cooldownSec * 20L);
+        } else {
+            long expiresAt = System.currentTimeMillis() + (cooldownSec * 1000L);
+            cooldowns.put(player.getUniqueId(), expiresAt);
+        }
+    }
+
+    private String formatCooldown(long seconds) {
+        if (seconds <= 0) return "0s";
+        long m = seconds / 60;
+        long s = seconds % 60;
+        if (m > 0) return m + "m " + s + "s";
+        return s + "s";
     }
 }

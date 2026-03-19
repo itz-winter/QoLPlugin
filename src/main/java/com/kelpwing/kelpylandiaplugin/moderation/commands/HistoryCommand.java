@@ -7,14 +7,13 @@ import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 
-import java.text.SimpleDateFormat;
-import java.util.Date;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
-import java.util.Map;
 
 public class HistoryCommand implements CommandExecutor {
     private final KelpylandiaPlugin plugin;
-    private final SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
     public HistoryCommand(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
@@ -34,8 +33,8 @@ public class HistoryCommand implements CommandExecutor {
 
         String targetName = args[0];
         
-        // Get player history
-        List<Map<String, String>> history = plugin.getFileManager().getPlayerHistory(targetName);
+        // Get player history as Punishment objects directly — avoids lossy Map conversion
+        List<Punishment> history = plugin.getFileManager().getPlayerHistoryPunishments(targetName);
 
         sender.sendMessage(ChatColor.YELLOW + "========================");
         sender.sendMessage(ChatColor.GOLD + "Punishment History for " + targetName + ":");
@@ -44,15 +43,15 @@ public class HistoryCommand implements CommandExecutor {
             sender.sendMessage(ChatColor.GREEN + "No punishment history found.");
         } else {
             int count = 1;
-            for (Map<String, String> record : history) {
-                String action = record.get("action");
-                String reason = record.get("reason");
-                String punisher = record.get("punisher");
-                String duration = record.get("duration");
-                long timestamp = Long.parseLong(record.get("timestamp"));
+            for (Punishment punishment : history) {
+                String action = punishment.getAction();
+                String reason = punishment.getReason();
+                String punisher = punishment.getPunisher();
+                long durationMinutes = punishment.getDurationMinutes();
+                LocalDateTime timestamp = punishment.getTimestamp();
                 
-                String date = dateFormat.format(new Date(timestamp));
-                String durationText = formatDuration(Long.parseLong(duration));
+                String date = timestamp != null ? timestamp.format(DATE_FORMAT) : "Unknown";
+                String durationText = formatDuration(durationMinutes);
                 
                 // Color code based on action
                 ChatColor actionColor = getActionColor(action);
@@ -62,6 +61,11 @@ public class HistoryCommand implements CommandExecutor {
                 sender.sendMessage(ChatColor.GRAY + "   Staff: " + punisher);
                 sender.sendMessage(ChatColor.GRAY + "   Duration: " + durationText);
                 sender.sendMessage(ChatColor.GRAY + "   Date: " + date);
+                if (punishment.isActive()) {
+                    sender.sendMessage(ChatColor.GREEN + "   Status: Active");
+                } else {
+                    sender.sendMessage(ChatColor.DARK_GRAY + "   Status: Expired/Revoked");
+                }
                 
                 count++;
                 
@@ -77,18 +81,17 @@ public class HistoryCommand implements CommandExecutor {
         return true;
     }
 
-    private String formatDuration(long duration) {
-        if (duration <= 0) return "Permanent";
+    private String formatDuration(long durationMinutes) {
+        if (durationMinutes < 0) return "Permanent";
+        if (durationMinutes == 0) return "Permanent";
         
-        long seconds = duration / 1000;
-        long minutes = seconds / 60;
+        long minutes = durationMinutes;
         long hours = minutes / 60;
         long days = hours / 24;
         
         if (days > 0) return days + " day(s)";
         if (hours > 0) return hours + " hour(s)";
-        if (minutes > 0) return minutes + " minute(s)";
-        return seconds + " second(s)";
+        return minutes + " minute(s)";
     }
 
     private ChatColor getActionColor(String action) {

@@ -174,6 +174,7 @@ permissions:
       kelpylandia.setwarp: true
       kelpylandia.delwarp: true
       kelpylandia.rtp: true
+      kelpylandia.rtp.bypass.cooldown: true
       kelpylandia.seen: true
       kelpylandia.stuck: true
       kelpylandia.noclip: true
@@ -182,6 +183,9 @@ permissions:
       kelpylandia.smite: true
       kelpylandia.report: true
       kelpylandia.report.notify: true
+      kelpylandia.recipe: true
+      kelpylandia.kit: true
+      kelpylandia.kit.admin: true
       
   kelpylandia.admin:
     description: Allows admin commands
@@ -564,6 +568,9 @@ permissions:
   kelpylandia.rtp:
     description: Allows using /rtp for random teleportation
     default: true
+  kelpylandia.rtp.bypass.cooldown:
+    description: Bypass /rtp cooldown
+    default: op
 
   # Seen Permission
   kelpylandia.seen:
@@ -613,3 +620,25 @@ permissions:
   kelpylandia.report.notify:
     description: Receive staff notifications when reports are submitted
     default: op
+
+  # Recipe Permissions
+  kelpylandia.recipe:
+    description: Allows using /recipe to view crafting recipes
+    default: true
+
+  # Kit Permissions
+  kelpylandia.kit:
+    description: Allows using /kit to claim kits
+    default: true
+
+  kelpylandia.kit.admin:
+    description: Allows creating, editing, deleting, and managing kits
+    default: op
+
+  kelpylandia.kit.starter:
+    description: Allows claiming the starter kit
+    default: true
+
+  kelpylandia.kit.tools:
+    description: Allows claiming the tools kit
+    default: true

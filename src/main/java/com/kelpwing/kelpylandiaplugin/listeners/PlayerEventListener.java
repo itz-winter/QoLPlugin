@@ -4,33 +4,34 @@ import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
 import com.kelpwing.kelpylandiaplugin.chat.ChannelManager;
 import com.kelpwing.kelpylandiaplugin.chat.Channel;
+import com.kelpwing.kelpylandiaplugin.kits.KitManager;
 import com.kelpwing.kelpylandiaplugin.moderation.commands.VanishCommand;
-import com.kelpwing.kelpylandiaplugin.utils.VersionHelper;
 import me.clip.placeholderapi.PlaceholderAPI;
-import org.bukkit.advancement.Advancement;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.player.PlayerJoinEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
-import org.bukkit.event.player.PlayerAdvancementDoneEvent;
 import org.bukkit.event.player.PlayerStatisticIncrementEvent;
 import org.bukkit.Statistic;
 
 public class PlayerEventListener implements Listener {
 
     private final KelpylandiaPlugin plugin;
-    private final DiscordIntegration discord;
     private final ChannelManager channelManager;
 
     public PlayerEventListener(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
-        this.discord = plugin.getDiscordIntegration();
         this.channelManager = plugin.getChannelManager();
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    /** Fetch lazily — DiscordIntegration is initialized after listeners are registered. */
+    private DiscordIntegration getDiscord() {
+        return plugin.getDiscordIntegration();
+    }
+
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
         
@@ -61,13 +62,18 @@ public class PlayerEventListener implements Listener {
             sendToGlobalChannel(org.bukkit.ChatColor.translateAlternateColorCodes('&', joinMessage));
         }
         
-        // Handle Discord broadcasting
-        if (discord != null && discord.isEnabled()) {
+        // Handle Discord broadcasting (skip if DiscordSRV handles it)
+        DiscordIntegration discord = getDiscord();
+        if (discord != null && discord.isEnabled() && !isDiscordSRVHandlingEvents()) {
             // Broadcast to global Discord chat if enabled
             if (plugin.getConfig().getBoolean("discord.events.broadcast-joins", true)) {
-                String discordMessage = plugin.getConfig().getString("discord.formats.join", "**{player}** joined Kelpy Land!");
-                discordMessage = discordMessage.replace("{player}", player.getName());
-                discord.sendToGlobalChat(discordMessage);
+                if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
+                    discord.sendPlayerJoinEmbed(player);
+                } else {
+                    String discordMessage = plugin.getConfig().getString("discord.formats.join", "**{player}** joined Kelpy Land!");
+                    discordMessage = discordMessage.replace("{player}", player.getName());
+                    discord.sendToGlobalChat(discordMessage);
+                }
             }
             
             // Send to console channel if enabled
@@ -78,9 +84,21 @@ public class PlayerEventListener implements Listener {
                 discord.sendToConsole(consoleMessage);
             }
         }
+
+        // Give first-join kits to new players (delay 1 tick so inventory is ready)
+        if (!player.hasPlayedBefore()) {
+            KitManager km = plugin.getKitManager();
+            if (km != null) {
+                org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    if (player.isOnline()) {
+                        km.giveFirstJoinKits(player);
+                    }
+                }, 5L);  // 5 tick delay to let the player fully load
+            }
+        }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         
@@ -111,75 +129,30 @@ public class PlayerEventListener implements Listener {
             sendToGlobalChannel(org.bukkit.ChatColor.translateAlternateColorCodes('&', leaveMessage));
         }
         
-        // Handle Discord broadcasting
-        if (discord != null && discord.isEnabled()) {
+        // Handle Discord broadcasting (skip if DiscordSRV handles it)
+        DiscordIntegration discordQuit = getDiscord();
+        if (discordQuit != null && discordQuit.isEnabled() && !isDiscordSRVHandlingEvents()) {
             // Broadcast to global Discord chat if enabled
             if (plugin.getConfig().getBoolean("discord.events.broadcast-leaves", true)) {
-                String discordMessage = plugin.getConfig().getString("discord.formats.leave", "**{player}** left Kelpy Land!");
-                discordMessage = discordMessage.replace("{player}", player.getName());
-                discord.sendToGlobalChat(discordMessage);
-            }
-            
-            // Send to console channel if enabled
-            if (plugin.getConfig().getBoolean("discord.events.console-logging", true)) {
-                String consoleMessage = String.format("Player `%s` left the server", player.getName());
-                discord.sendToConsole(consoleMessage);
-            }
-        }
-    }
-
-    @SuppressWarnings("deprecation") // getKey() deprecated since 1.21.4, but still functional across all versions
-    @EventHandler(priority = EventPriority.MONITOR)
-    public void onPlayerAdvancement(PlayerAdvancementDoneEvent event) {
-        Player player = event.getPlayer();
-        Advancement advancement = event.getAdvancement();
-        
-        // Skip vanished players — don't broadcast their advancements
-        VanishCommand vc = plugin.getVanishCommand();
-        if (vc != null && vc.isVanished(player)) {
-            return;
-        }
-        
-        // Skip recipe advancements and other hidden ones
-        if (advancement.getKey().getNamespace().equals("minecraft") && 
-            (advancement.getKey().getKey().startsWith("recipes/") ||
-             !VersionHelper.hasAdvancementDisplay(advancement))) {
-            return;
-        }
-        
-        // Handle Discord broadcasting
-        if (discord != null && discord.isEnabled()) {
-            String advancementTitle = VersionHelper.getAdvancementTitle(advancement);
-            if (advancementTitle == null) {
-                advancementTitle = advancement.getKey().getKey();
-            }
-            String advancementDescription = VersionHelper.getAdvancementDescription(advancement);
-            
-            // Broadcast advancements to global Discord chat if enabled
-            if (plugin.getConfig().getBoolean("discord.events.broadcast-advancements", true)) {
                 if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
-                    discord.sendAdvancementEmbed(player, advancementTitle, advancementDescription);
+                    discordQuit.sendPlayerLeaveEmbed(player);
                 } else {
-                    // Fallback to text message
-                    String discordAdvancementMessage = plugin.getConfig().getString("discord.format.advancement-message", 
-                        ":star: **{player}** has made the advancement **{advancement}**");
-                    discordAdvancementMessage = PlaceholderAPI.setPlaceholders(player, discordAdvancementMessage);
-                    discordAdvancementMessage = discordAdvancementMessage.replace("{player}", player.getName());
-                    discordAdvancementMessage = discordAdvancementMessage.replace("{displayname}", player.getDisplayName());
-                    discordAdvancementMessage = discordAdvancementMessage.replace("{advancement}", advancementTitle);
-                    discord.sendToGlobalChat(discordAdvancementMessage);
+                    String discordMessage = plugin.getConfig().getString("discord.formats.leave", "**{player}** left Kelpy Land!");
+                    discordMessage = discordMessage.replace("{player}", player.getName());
+                    discordQuit.sendToGlobalChat(discordMessage);
                 }
             }
             
             // Send to console channel if enabled
             if (plugin.getConfig().getBoolean("discord.events.console-logging", true)) {
-                String consoleMessage = String.format("Player `%s` completed advancement: %s", 
-                    player.getName(), advancementTitle);
-                discord.sendToConsole(consoleMessage);
+                String consoleMessage = String.format("Player `%s` left the server", player.getName());
+                discordQuit.sendToConsole(consoleMessage);
             }
         }
     }
-    
+
+    // Advancement handling is in AdvancementListener (vanish suppression + Discord).
+
     @EventHandler(priority = EventPriority.MONITOR)
     public void onStatisticIncrement(PlayerStatisticIncrementEvent event) {
         Player player = event.getPlayer();
@@ -192,6 +165,7 @@ public class PlayerEventListener implements Listener {
         }
         
         // Handle certain milestone achievements
+        DiscordIntegration discord = getDiscord();
         if (discord != null && discord.isEnabled() && 
             plugin.getConfig().getBoolean("discord.events.broadcast-achievements", true)) {
             
@@ -268,5 +242,17 @@ public class PlayerEventListener implements Listener {
             // Fallback to regular broadcast if global channel doesn't exist
             plugin.getServer().broadcastMessage(message);
         }
+    }
+
+    /**
+     * Check if DiscordSRV is present and the config says to let it handle events.
+     * When true, this plugin skips its own Discord join/leave/advancement messages
+     * to avoid duplicates.
+     */
+    private boolean isDiscordSRVHandlingEvents() {
+        if (!plugin.getConfig().getBoolean("discord.events.skip-if-discordsrv", true)) {
+            return false; // admin explicitly wants this plugin to send even with DiscordSRV
+        }
+        return plugin.getServer().getPluginManager().getPlugin("DiscordSRV") != null;
     }
 }

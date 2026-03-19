@@ -22,11 +22,21 @@ public class BackListener implements Listener {
 
     /**
      * Save the player's location before any teleport so /back can return them.
+     * Portal travel (nether portals, end portals, end gateways) is excluded —
+     * those are world transitions, not deliberate teleports.
      */
     @EventHandler(priority = EventPriority.MONITOR, ignoreCancelled = true)
     public void onPlayerTeleport(PlayerTeleportEvent event) {
         BackManager backManager = plugin.getBackManager();
         if (backManager == null) return;
+
+        // Ignore portal-based teleports — going through a portal is not a "teleport"
+        PlayerTeleportEvent.TeleportCause cause = event.getCause();
+        if (cause == PlayerTeleportEvent.TeleportCause.NETHER_PORTAL
+                || cause == PlayerTeleportEvent.TeleportCause.END_PORTAL
+                || cause == PlayerTeleportEvent.TeleportCause.END_GATEWAY) {
+            return;
+        }
 
         Player player = event.getPlayer();
 

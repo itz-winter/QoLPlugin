@@ -9,6 +9,8 @@ import org.bukkit.configuration.file.YamlConfiguration;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
@@ -55,6 +57,7 @@ public class FileManager {
                 e.printStackTrace();
             }
         }
+        sanitizeYamlTags(punishmentsFile);
         punishmentsConfig = YamlConfiguration.loadConfiguration(punishmentsFile);
         
         // Create bans file
@@ -68,6 +71,32 @@ public class FileManager {
             }
         }
         bansConfig = YamlConfiguration.loadConfiguration(bansFile);
+    }
+    
+    /**
+     * Strip disallowed YAML tags like !!java.time.LocalDateTime from a file.
+     * Newer Paper/SnakeYAML versions block deserialization of arbitrary Java types.
+     * This rewrites the file in-place so loadConfiguration() can succeed.
+     */
+    private void sanitizeYamlTags(File file) {
+        try {
+            String content = Files.readString(file.toPath(), StandardCharsets.UTF_8);
+            // Match !!java.time.LocalDateTime '...' or !!java.time.LocalDateTime {}
+            // and replace with just the quoted value or empty string
+            String sanitized = content.replaceAll(
+                    "!!java\\.time\\.LocalDateTime '([^']*)'", "'$1'"
+            ).replaceAll(
+                    "!!java\\.time\\.LocalDateTime \\{}", "'unknown'"
+            ).replaceAll(
+                    "!!java\\.time\\.LocalDateTime \"([^\"]*)\"", "'$1'"
+            );
+            if (!sanitized.equals(content)) {
+                Files.writeString(file.toPath(), sanitized, StandardCharsets.UTF_8);
+                plugin.getLogger().info("Sanitized invalid YAML tags in " + file.getName());
+            }
+        } catch (IOException e) {
+            plugin.getLogger().warning("Could not sanitize " + file.getName() + ": " + e.getMessage());
+        }
     }
     
     public void saveWarning(Warning warning) {
@@ -273,7 +302,7 @@ public class FileManager {
         punishmentsConfig.set(path + ".type", punishment.getType().toString());
         punishmentsConfig.set(path + ".reason", punishment.getReason());
         punishmentsConfig.set(path + ".punisher", punishment.getPunisher());
-        punishmentsConfig.set(path + ".timestamp", punishment.getTimestamp());
+        punishmentsConfig.set(path + ".timestamp", punishment.getTimestamp().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME));
         if (punishment.getDuration() > 0) {
             punishmentsConfig.set(path + ".duration", punishment.getDuration());
         }

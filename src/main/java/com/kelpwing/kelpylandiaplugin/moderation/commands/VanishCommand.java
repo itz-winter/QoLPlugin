@@ -142,15 +142,28 @@ public class VanishCommand implements CommandExecutor {
         plugin.getLogger().info("Sending fake leave for " + player.getName());
         
         // Broadcast the in-game leave message through the channel system
+        String leaveText = null;
         if (plugin.getConfig().getBoolean("join-leave.enabled", true)) {
             String leaveMessage = plugin.getConfig().getString("join-leave.leave-message", "&e{player} left the game");
             leaveMessage = PlaceholderAPI.setPlaceholders(player, leaveMessage);
             leaveMessage = leaveMessage.replace("{player}", player.getName());
             leaveMessage = leaveMessage.replace("{displayname}", player.getDisplayName());
+            leaveText = leaveMessage;
             broadcastToGlobalChannel(ChatColor.translateAlternateColorCodes('&', leaveMessage));
         }
         
-        // Send to Discord via our integration (no fake events — those break other plugins)
+        // Forward to DiscordSRV if present (let it handle formatting natively)
+        if (isDiscordSRVAvailable()) {
+            try {
+                github.scarsz.discordsrv.DiscordSRV.getPlugin()
+                    .sendLeaveMessage(player, leaveText != null ? leaveText : player.getName() + " left the game");
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to forward fake leave to DiscordSRV: " + e.getMessage());
+            }
+            return; // DiscordSRV handles it — don't double-send through our own integration
+        }
+        
+        // Fallback: send through our own Discord integration
         DiscordIntegration discord = plugin.getDiscordIntegration();
         if (discord != null && discord.isEnabled() &&
             plugin.getConfig().getBoolean("discord.events.broadcast-leaves", true)) {
@@ -169,25 +182,38 @@ public class VanishCommand implements CommandExecutor {
         plugin.getLogger().info("Sending fake join for " + player.getName());
         
         // Broadcast the in-game join message through the channel system
+        String joinText = null;
         if (plugin.getConfig().getBoolean("join-leave.enabled", true)) {
             String joinMessage = plugin.getConfig().getString("join-leave.join-message", "&e{player} joined the game");
             joinMessage = PlaceholderAPI.setPlaceholders(player, joinMessage);
             joinMessage = joinMessage.replace("{player}", player.getName());
             joinMessage = joinMessage.replace("{displayname}", player.getDisplayName());
+            joinText = joinMessage;
             broadcastToGlobalChannel(ChatColor.translateAlternateColorCodes('&', joinMessage));
         }
         
-        // Send to Discord via our integration (no fake events — those break other plugins)
-        DiscordIntegration discord = plugin.getDiscordIntegration();
-        if (discord != null && discord.isEnabled() &&
+        // Forward to DiscordSRV if present (let it handle formatting natively)
+        if (isDiscordSRVAvailable()) {
+            try {
+                github.scarsz.discordsrv.DiscordSRV.getPlugin()
+                    .sendJoinMessage(player, joinText != null ? joinText : player.getName() + " joined the game");
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to forward fake join to DiscordSRV: " + e.getMessage());
+            }
+            return; // DiscordSRV handles it — don't double-send through our own integration
+        }
+        
+        // Fallback: send through our own Discord integration
+        DiscordIntegration discord2 = plugin.getDiscordIntegration();
+        if (discord2 != null && discord2.isEnabled() &&
             plugin.getConfig().getBoolean("discord.events.broadcast-joins", true)) {
             
             if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
-                discord.sendPlayerJoinEmbed(player);
+                discord2.sendPlayerJoinEmbed(player);
             } else {
                 String discordMessage = plugin.getConfig().getString("discord.formats.join", "{player} joined the game");
                 discordMessage = discordMessage.replace("{player}", player.getName());
-                discord.sendToGlobalChat(discordMessage);
+                discord2.sendToGlobalChat(discordMessage);
             }
         }
     }
@@ -247,5 +273,22 @@ public class VanishCommand implements CommandExecutor {
         } else {
             plugin.getServer().broadcastMessage(message);
         }
+    }
+
+    /**
+     * Check if DiscordSRV is present and enabled on this server.
+     */
+    private boolean isDiscordSRVAvailable() {
+        return plugin.getServer().getPluginManager().getPlugin("DiscordSRV") != null;
+    }
+
+    /**
+     * Check if DiscordSRV is present and the config says to let it handle events.
+     */
+    private boolean isDiscordSRVHandlingEvents() {
+        if (!plugin.getConfig().getBoolean("discord.events.skip-if-discordsrv", true)) {
+            return false;
+        }
+        return plugin.getServer().getPluginManager().getPlugin("DiscordSRV") != null;
     }
 }

@@ -75,6 +75,10 @@ discord:
     
     # Use embeds for events (like DiscordSRV)
     use-embeds: true
+
+    # When DiscordSRV is installed, skip this plugin's own join/leave/advancement
+    # Discord messages to avoid duplicates. Set to false if you want both.
+    skip-if-discordsrv: true
     
     # Server lifecycle events
     server-start: true
@@ -301,6 +305,15 @@ repair:
 sudo:
   enabled: true
 
+# ===== RUNAT COMMAND =====
+# /runat <player|Console> <command> - Run a command as another player with full permission bypass.
+# The target is temporarily granted all permissions so the command always succeeds.
+# Use "Console" as the target to execute commands as the server console.
+# Console can always use /runat. Players need the kelpylandia.runat permission (unset by default).
+# Alias: /forcecmd
+runat:
+  enabled: true
+
 # ===== STATE PERSISTENCE =====
 # Toggle states (vanish, socialspy, commandspy, god, fly) are saved to disk
 # immediately when toggled and restored on rejoin. Enabled by default.
@@ -398,6 +411,12 @@ hat:
 auto-broadcasts:
   enabled: true
 
+# ===== KITS SYSTEM =====
+# /kit - Claimable item kits with cooldowns
+# Kit definitions are stored in kits.yml (create/edit in-game or in the file)
+kits:
+  enabled: true
+
 # ===== WARP SYSTEM =====
 # /warp, /warps, /setwarp, /delwarp - Server warp points
 warps:
@@ -409,6 +428,8 @@ rtp:
   enabled: true
   # Maximum distance from spawn for random teleport (in blocks)
   radius: 2000
+  # Cooldown in seconds between uses (0 = no cooldown)
+  cooldown: 0
   # Allow teleporting to underground locations
   allow-underground: false
   # Allow teleporting into water
@@ -463,6 +484,12 @@ report:
   enabled: true
   # Discord webhook URL to send reports to. Leave blank or set to "your-webhook-url-here" to disable.
   webhook-url: "your-webhook-url-here"
+
+# ===== RECIPE COMMAND =====
+# /recipe <item> [page] - View the crafting recipe for an item in a GUI
+# Hold an item and type /recipe with no arguments to look up what you're holding
+recipe:
+  enabled: true
 
 # ===== RULES COMMAND =====
 # /rules - Display server rules to a player

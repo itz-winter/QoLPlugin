@@ -1,6 +1,7 @@
 package com.kelpwing.kelpylandiaplugin.commands;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
+import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.NamespacedKey;
 import org.bukkit.command.Command;
@@ -14,7 +15,8 @@ import org.bukkit.inventory.ItemStack;
 import java.util.*;
 
 /**
- * /enchant <enchantment> [level] — Apply an enchantment to the item in hand.
+ * /enchant <enchantment> [level] [player] — Apply an enchantment to the item in hand.
+ * Console may specify a player: /enchant <enchantment> [level] <player>
  * Supports unsafe enchantments (any level, any item) with the admin permission.
  */
 public class EnchantCommand implements CommandExecutor, TabCompleter {
@@ -37,19 +39,35 @@ public class EnchantCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!(sender instanceof Player player)) {
-            sender.sendMessage(ChatColor.RED + "This command can only be used by players.");
-            return true;
-        }
-
         if (args.length < 1) {
-            player.sendMessage(ChatColor.RED + "Usage: /enchant <enchantment> [level]");
+            sender.sendMessage(ChatColor.RED + "Usage: /enchant <enchantment> [level] [player]");
             return true;
         }
 
-        ItemStack item = player.getInventory().getItemInMainHand();
+        // Determine the target player
+        Player target = null;
+
+        // Check if last argument is an online player name
+        if (args.length >= 3) {
+            target = Bukkit.getPlayerExact(args[2]);
+        }
+        // If no player specified, sender must be a player
+        if (target == null && args.length >= 3) {
+            // Third arg was given but not a valid player
+            sender.sendMessage(ChatColor.RED + "Player not found: " + args[2]);
+            return true;
+        }
+        if (target == null) {
+            if (!(sender instanceof Player)) {
+                sender.sendMessage(ChatColor.RED + "Console must specify a player: /enchant <enchantment> [level] <player>");
+                return true;
+            }
+            target = (Player) sender;
+        }
+
+        ItemStack item = target.getInventory().getItemInMainHand();
         if (item.getType().isAir()) {
-            player.sendMessage(ChatColor.RED + "You must hold an item to enchant it.");
+            sender.sendMessage(ChatColor.RED + (sender == target ? "You must" : target.getName() + " must") + " hold an item to enchant.");
             return true;
         }
 
@@ -60,8 +78,8 @@ public class EnchantCommand implements CommandExecutor, TabCompleter {
             enchantment = Enchantment.getByKey(NamespacedKey.minecraft(enchantName));
         }
         if (enchantment == null) {
-            player.sendMessage(ChatColor.RED + "Unknown enchantment: " + args[0]);
-            player.sendMessage(ChatColor.GRAY + "Use tab-complete to see available enchantments.");
+            sender.sendMessage(ChatColor.RED + "Unknown enchantment: " + args[0]);
+            sender.sendMessage(ChatColor.GRAY + "Use tab-complete to see available enchantments.");
             return true;
         }
 
@@ -70,11 +88,22 @@ public class EnchantCommand implements CommandExecutor, TabCompleter {
             try {
                 level = Integer.parseInt(args[1]);
             } catch (NumberFormatException e) {
-                player.sendMessage(ChatColor.RED + "Invalid level: " + args[1]);
-                return true;
+                // Might be a player name as the 2nd arg (no level specified)
+                Player maybePlayer = Bukkit.getPlayerExact(args[1]);
+                if (maybePlayer != null) {
+                    target = maybePlayer;
+                    item = target.getInventory().getItemInMainHand();
+                    if (item.getType().isAir()) {
+                        sender.sendMessage(ChatColor.RED + target.getName() + " must hold an item to enchant.");
+                        return true;
+                    }
+                } else {
+                    sender.sendMessage(ChatColor.RED + "Invalid level or player: " + args[1]);
+                    return true;
+                }
             }
             if (level < 0) {
-                player.sendMessage(ChatColor.RED + "Level must be 0 or higher.");
+                sender.sendMessage(ChatColor.RED + "Level must be 0 or higher.");
                 return true;
             }
         }
@@ -82,28 +111,38 @@ public class EnchantCommand implements CommandExecutor, TabCompleter {
         // Level 0 = remove the enchantment
         if (level == 0) {
             item.removeEnchantment(enchantment);
-            player.sendMessage(ChatColor.GREEN + "Removed " + ChatColor.GOLD + formatName(enchantment) + ChatColor.GREEN + " from your item.");
+            String msg = ChatColor.GREEN + "Removed " + ChatColor.GOLD + formatName(enchantment) + ChatColor.GREEN + " from "
+                    + (sender == target ? "your item." : target.getName() + "'s item.");
+            sender.sendMessage(msg);
+            if (sender != target) {
+                target.sendMessage(ChatColor.GREEN + formatName(enchantment) + " was removed from your item.");
+            }
             return true;
         }
 
-        boolean unsafe = player.hasPermission("kelpylandia.enchant.unsafe");
+        boolean unsafe = sender.hasPermission("kelpylandia.enchant.unsafe");
         if (unsafe) {
             // Bypass normal limits
             item.addUnsafeEnchantment(enchantment, level);
         } else {
             // Check if enchantment can apply to this item
             if (!enchantment.canEnchantItem(item)) {
-                player.sendMessage(ChatColor.RED + "That enchantment cannot be applied to this item.");
+                sender.sendMessage(ChatColor.RED + "That enchantment cannot be applied to this item.");
                 return true;
             }
             if (level > enchantment.getMaxLevel()) {
-                player.sendMessage(ChatColor.RED + "Maximum level for " + formatName(enchantment) + " is " + enchantment.getMaxLevel() + ".");
+                sender.sendMessage(ChatColor.RED + "Maximum level for " + formatName(enchantment) + " is " + enchantment.getMaxLevel() + ".");
                 return true;
             }
             item.addEnchantment(enchantment, level);
         }
 
-        player.sendMessage(ChatColor.GREEN + "Applied " + ChatColor.GOLD + formatName(enchantment) + " " + level + ChatColor.GREEN + " to your item.");
+        String msg = ChatColor.GREEN + "Applied " + ChatColor.GOLD + formatName(enchantment) + " " + level + ChatColor.GREEN + " to "
+                + (sender == target ? "your item." : target.getName() + "'s item.");
+        sender.sendMessage(msg);
+        if (sender != target) {
+            target.sendMessage(ChatColor.GREEN + formatName(enchantment) + " " + level + " was applied to your item.");
+        }
         return true;
     }
 
@@ -120,8 +159,25 @@ public class EnchantCommand implements CommandExecutor, TabCompleter {
             return results;
         }
         if (args.length == 2) {
-            // Suggest common levels
-            return Arrays.asList("1", "2", "3", "4", "5");
+            // Suggest common levels and online player names
+            String prefix = args[1].toLowerCase();
+            List<String> results = new ArrayList<>(Arrays.asList("1", "2", "3", "4", "5"));
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                results.add(online.getName());
+            }
+            results.removeIf(s -> !s.toLowerCase().startsWith(prefix));
+            return results;
+        }
+        if (args.length == 3) {
+            // Suggest online player names
+            String prefix = args[2].toLowerCase();
+            List<String> results = new ArrayList<>();
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (online.getName().toLowerCase().startsWith(prefix)) {
+                    results.add(online.getName());
+                }
+            }
+            return results;
         }
         return Collections.emptyList();
     }

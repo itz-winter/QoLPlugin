@@ -10,6 +10,7 @@ import com.kelpwing.kelpylandiaplugin.commands.NickCommand;
 import com.kelpwing.kelpylandiaplugin.commands.NoclipCommand;
 import com.kelpwing.kelpylandiaplugin.commands.PvpCommand;
 import com.kelpwing.kelpylandiaplugin.commands.ReportCommand;
+import com.kelpwing.kelpylandiaplugin.commands.RecipeCommand;
 import com.kelpwing.kelpylandiaplugin.commands.RtpCommand;
 import com.kelpwing.kelpylandiaplugin.commands.RulesCommand;
 import com.kelpwing.kelpylandiaplugin.commands.SeenCommand;
@@ -26,6 +27,7 @@ import com.kelpwing.kelpylandiaplugin.commands.SuicideCommand;
 import com.kelpwing.kelpylandiaplugin.commands.SkullCommand;
 import com.kelpwing.kelpylandiaplugin.commands.RepairCommand;
 import com.kelpwing.kelpylandiaplugin.commands.SudoCommand;
+import com.kelpwing.kelpylandiaplugin.commands.RunAtCommand;
 import com.kelpwing.kelpylandiaplugin.commands.SocialSpyCommand;
 import com.kelpwing.kelpylandiaplugin.commands.CommandSpyCommand;
 import com.kelpwing.kelpylandiaplugin.commands.FlyCommand;
@@ -79,6 +81,9 @@ import com.kelpwing.kelpylandiaplugin.warps.commands.WarpCommand;
 import com.kelpwing.kelpylandiaplugin.warps.commands.WarpsCommand;
 import com.kelpwing.kelpylandiaplugin.warps.commands.SetWarpCommand;
 import com.kelpwing.kelpylandiaplugin.warps.commands.DelWarpCommand;
+import com.kelpwing.kelpylandiaplugin.kits.KitCommand;
+import com.kelpwing.kelpylandiaplugin.kits.KitGUI;
+import com.kelpwing.kelpylandiaplugin.kits.KitManager;
 import com.kelpwing.kelpylandiaplugin.placeholders.KpauPlaceholders;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandMap;
@@ -130,6 +135,8 @@ public class KelpylandiaPlugin extends JavaPlugin {
     private WarpManager warpManager;
     private JailManager jailManager;
     private FreezeManager freezeManager;
+    private KitManager kitManager;
+    private KitGUI kitGUI;
     
     @Override
     public void onEnable() {
@@ -182,7 +189,8 @@ public class KelpylandiaPlugin extends JavaPlugin {
         
         // Register listeners
         getServer().getPluginManager().registerEvents(new ChatListener(this), this);
-        getServer().getPluginManager().registerEvents(new PlayerListener(this), this);
+        getServer().getPluginManager().registerEvents(new PlayerListener(this), this);  // moderation.listeners (mute checks)
+        getServer().getPluginManager().registerEvents(new com.kelpwing.kelpylandiaplugin.chat.listeners.PlayerListener(this), this);  // chat.listeners (channels + state persistence)
         getServer().getPluginManager().registerEvents(new com.kelpwing.kelpylandiaplugin.listeners.PlayerEventListener(this), this);
         getServer().getPluginManager().registerEvents(new com.kelpwing.kelpylandiaplugin.listeners.ConsoleEventListener(this), this);
         getServer().getPluginManager().registerEvents(new com.kelpwing.kelpylandiaplugin.listeners.AdvancementListener(this), this);
@@ -254,8 +262,8 @@ public class KelpylandiaPlugin extends JavaPlugin {
             
             registerCommand("sethome", setHomeCmd, "Set a home at your current location.", "/sethome [name]", "kelpylandia.homes");
             registerCommand("delhome", delHomeCmd, "Delete a home.", "/delhome <name>", "kelpylandia.homes", "removehome", "remhome");
-            registerCommand("home", homeCmd, "Teleport to a home.", "/home [name]", "kelpylandia.homes");
-            registerCommand("homes", homesCmd, "List or browse your homes.", "/homes", "kelpylandia.homes");
+            registerCommand("home", homeCmd, "Teleport to a home. List your homes with /homes. Create a new home with /sethome.", "/home [name]", "kelpylandia.homes");
+            registerCommand("homes", homesCmd, "List or browse your homes. Set a new home with /sethome.", "/homes", "kelpylandia.homes");
             
             // Register HomeGUI as listener for inventory clicks
             getServer().getPluginManager().registerEvents(homeGUI, this);
@@ -269,7 +277,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
             TpDenyCommand tpDenyCmd = new TpDenyCommand(this);
             TpCancelCommand tpCancelCmd = new TpCancelCommand(this);
             
-            registerCommand("tpa", tpaCmd, "Send a teleport request to a player.", "/tpa <player>", "kelpylandia.tpa", "tpask");
+            registerCommand("tpa", tpaCmd, "Send a teleport request to a player. To teleport a player to you, use /tpahere.", "/tpa <player>", "kelpylandia.tpa", "tpask");
             registerCommand("tpahere", tpaHereCmd, "Request a player to teleport to you.", "/tpahere <player>", "kelpylandia.tpa.here");
             registerCommand("tpaccept", tpAcceptCmd, "Accept a pending teleport request.", "/tpaccept [player]", "kelpylandia.tpa", "tpyes");
             registerCommand("tpdeny", tpDenyCmd, "Deny a pending teleport request.", "/tpdeny [player]", "kelpylandia.tpa", "tpno");
@@ -284,8 +292,8 @@ public class KelpylandiaPlugin extends JavaPlugin {
             BackCommand backCmd = new BackCommand(this);
             DeathBackCommand dbackCmd = new DeathBackCommand(this);
             
-            registerCommand("back", backCmd, "Teleport to your previous location.", "/back", "kelpylandia.back", "return");
-            registerCommand("dback", dbackCmd, "Teleport to your last death location.", "/dback", "kelpylandia.dback", "deathback", "dreturn");
+            registerCommand("back", backCmd, "Teleport to your previous location. Use /dback to return to your last death location.", "/back", "kelpylandia.back", "return");
+            registerCommand("dback", dbackCmd, "Teleport to your last death location. Use /back to return to your previous (non-death) location.", "/dback", "kelpylandia.dback", "deathback", "dreturn");
             
             // Register back listener for teleport/death tracking
             getServer().getPluginManager().registerEvents(new BackListener(this), this);
@@ -338,7 +346,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register enchant command
         if (getConfig().getBoolean("enchant.enabled", true)) {
             EnchantCommand enchantCmd = new EnchantCommand(this);
-            registerCommand("enchant", enchantCmd, "Enchant the item in your hand.", "/enchant <enchantment> [level]", "kelpylandia.enchant");
+            registerCommand("enchant", enchantCmd, "Enchant the item in your hand.", "/enchant <enchantment> [level] [player]", "kelpylandia.enchant");
             getLogger().info("Enchant command enabled!");
         }
         
@@ -398,6 +406,13 @@ public class KelpylandiaPlugin extends JavaPlugin {
             SudoCommand sudoCmd = new SudoCommand(this);
             registerCommand("sudo", sudoCmd, "Force a player to run a command or send a message.", "/sudo <player> <command or message>", "kelpylandia.sudo");
             getLogger().info("Sudo command enabled!");
+        }
+        
+        // Register runat command
+        if (getConfig().getBoolean("runat.enabled", true)) {
+            RunAtCommand runatCmd = new RunAtCommand(this);
+            registerCommand("runat", runatCmd, "Run a command as another player with permission bypass.", "/runat <player|Console> <command>", null, "forcecmd");
+            getLogger().info("RunAt command enabled!");
         }
         
         // Register spy commands (/ss, /cs) and listener
@@ -485,7 +500,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
             WarpsCommand warpsCmd = new WarpsCommand(this);
             SetWarpCommand setWarpCmd = new SetWarpCommand(this);
             DelWarpCommand delWarpCmd = new DelWarpCommand(this);
-            registerCommand("warp", warpCmd, "Teleport to a warp.", "/warp <name>", "kelpylandia.warp", "warpto");
+            registerCommand("warp", warpCmd, "Teleport to a warp. List available warps with /warps.", "/warp <name>", "kelpylandia.warp", "warpto");
             registerCommand("warps", warpsCmd, "List all available warps.", "/warps", "kelpylandia.warp", "warplist");
             registerCommand("setwarp", setWarpCmd, "Create a new warp.", "/setwarp <name>", "kelpylandia.setwarp");
             registerCommand("delwarp", delWarpCmd, "Delete a warp.", "/delwarp <name>", "kelpylandia.delwarp", "removewarp");
@@ -532,6 +547,16 @@ public class KelpylandiaPlugin extends JavaPlugin {
             getLogger().info("Freeze system enabled!");
         }
         
+        // Register kits system
+        if (getConfig().getBoolean("kits.enabled", true)) {
+            kitManager = new KitManager(this);
+            kitGUI = new KitGUI(this);
+            KitCommand kitCmd = new KitCommand(this);
+            registerCommand("kit", kitCmd, "Claim, preview, or manage kits.", "/kit <name|list|preview|create|edit|delete|reload>", "kelpylandia.kit", "kits");
+            getServer().getPluginManager().registerEvents(kitGUI, this);
+            getLogger().info("Kits system enabled! (" + kitManager.getAllKits().size() + " kit(s) loaded)");
+        }
+        
         // Register stuck command
         if (getConfig().getBoolean("stuck.enabled", false)) {
             StuckCommand stuckCmd = new StuckCommand(this);
@@ -566,6 +591,14 @@ public class KelpylandiaPlugin extends JavaPlugin {
             ReportCommand reportCmd = new ReportCommand(this);
             registerCommand("report", reportCmd, "Report a player or bug.", "/report <player|bug> <reason>", "kelpylandia.report");
             getLogger().info("Report command enabled!");
+        }
+        
+        // Register recipe command
+        if (getConfig().getBoolean("recipe.enabled", true)) {
+            RecipeCommand recipeCmd = new RecipeCommand(this);
+            registerCommand("recipe", recipeCmd, "View the crafting recipe for an item.", "/recipe <item> [page]", "kelpylandia.recipe", "recipes", "lookup");
+            getServer().getPluginManager().registerEvents(recipeCmd, this);
+            getLogger().info("Recipe command enabled!");
         }
         
         // Initialize Discord integration if enabled
@@ -778,6 +811,14 @@ public class KelpylandiaPlugin extends JavaPlugin {
     
     public FreezeManager getFreezeManager() {
         return freezeManager;
+    }
+    
+    public KitManager getKitManager() {
+        return kitManager;
+    }
+    
+    public KitGUI getKitGUI() {
+        return kitGUI;
     }
     
     // ─── Data folder migration ─────────────────────────────────────

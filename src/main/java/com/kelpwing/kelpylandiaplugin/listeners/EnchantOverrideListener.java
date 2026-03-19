@@ -74,7 +74,69 @@ public class EnchantOverrideListener implements Listener {
         ItemStack result = computeResult(left, right);
         if (result != null) {
             event.setResult(result);
+
+            // Calculate and set the XP cost — without this the client won't let
+            // the player take the item out of the anvil.
+            int cost = calculateCost(left, right, result);
+            inv.setRepairCost(cost);
+
+            // Raise the max cost cap so "Too Expensive!" doesn't block our overrides.
+            // setMaximumRepairCost is Paper-only API, so call via reflection for Spigot compat.
+            try {
+                inv.getClass().getMethod("setMaximumRepairCost", int.class).invoke(inv, Integer.MAX_VALUE);
+            } catch (Exception ignored) {
+                // Spigot — no max-cost API; the default vanilla cap (40) still applies
+            }
         }
+    }
+
+    /**
+     * Calculates an XP-level cost for combining items with our overrides.
+     * Mimics vanilla logic: 1 level per enchantment applied/upgraded,
+     * plus extra for high-level enchantments.
+     */
+    private int calculateCost(ItemStack left, ItemStack right, ItemStack result) {
+        Map<Enchantment, Integer> leftEnchants = getEnchantments(left);
+        Map<Enchantment, Integer> resultEnchants = getEnchantments(result);
+        Map<Enchantment, Integer> rightEnchants = getEnchantments(right);
+
+        int cost = 0;
+        for (Map.Entry<Enchantment, Integer> entry : resultEnchants.entrySet()) {
+            Enchantment ench = entry.getKey();
+            int resultLevel = entry.getValue();
+
+            if (!leftEnchants.containsKey(ench)) {
+                // New enchantment added — cost scales with rarity
+                cost += getEnchantWeight(ench) * resultLevel;
+            } else if (leftEnchants.get(ench) < resultLevel) {
+                // Enchantment upgraded — cheaper
+                cost += getEnchantWeight(ench);
+            }
+        }
+
+        // Book sources are cheaper (halved), item sources are full price
+        if (right.getType() == Material.ENCHANTED_BOOK) {
+            cost = Math.max(1, cost / 2);
+        }
+
+        // Add prior work penalty from the left item
+        ItemMeta leftMeta = left.getItemMeta();
+        if (leftMeta instanceof org.bukkit.inventory.meta.Repairable repairable) {
+            cost += repairable.getRepairCost();
+        }
+
+        return Math.max(1, cost); // Minimum 1 level
+    }
+
+    /**
+     * Returns a weight for an enchantment based on its rarity.
+     * Treasure / high-max-level enchantments cost more.
+     */
+    private int getEnchantWeight(Enchantment ench) {
+        if (ench.isTreasure()) return 4;
+        if (ench.getMaxLevel() >= 5) return 1;  // Common (Protection, Sharpness, etc.)
+        if (ench.getMaxLevel() >= 3) return 2;  // Uncommon
+        return 4;                                 // Rare (single-level enchants like Infinity)
     }
 
     /**
@@ -83,12 +145,13 @@ public class EnchantOverrideListener implements Listener {
      */
     private ItemStack computeResult(ItemStack left, ItemStack right) {
         Material itemType = left.getType();
+        boolean leftIsBook = (itemType == Material.ENCHANTED_BOOK);
 
-        // Gather enchantments from the right item (could be a book or same-type item)
+        // Gather enchantments from both sides (handles books correctly)
         Map<Enchantment, Integer> rightEnchants = getEnchantments(right);
         if (rightEnchants.isEmpty()) return null;
 
-        Map<Enchantment, Integer> leftEnchants = new HashMap<>(left.getEnchantments());
+        Map<Enchantment, Integer> leftEnchants = new HashMap<>(getEnchantments(left));
 
         // Check if any of our overrides are relevant
         boolean needsOverride = false;
@@ -117,7 +180,8 @@ public class EnchantOverrideListener implements Listener {
             if (isFortuneSilkConflict(ench, merged.keySet())) continue;
 
             // Check if this enchant can go on this item type (with our extensions)
-            if (!canApplyTo(ench, itemType, left)) continue;
+            // Enchanted books can store any enchantment
+            if (!leftIsBook && !canApplyTo(ench, itemType, left)) continue;
 
             // Merge levels
             if (merged.containsKey(ench)) {
@@ -140,12 +204,23 @@ public class EnchantOverrideListener implements Listener {
         ItemMeta meta = result.getItemMeta();
         if (meta == null) return null;
 
-        // Clear existing enchants and re-apply merged set
-        for (Enchantment e : new ArrayList<>(result.getEnchantments().keySet())) {
-            result.removeEnchantment(e);
-        }
-        for (Map.Entry<Enchantment, Integer> entry : merged.entrySet()) {
-            result.addUnsafeEnchantment(entry.getKey(), entry.getValue());
+        if (leftIsBook && meta instanceof EnchantmentStorageMeta bookMeta) {
+            // Clear existing stored enchants and re-apply merged set
+            for (Enchantment e : new ArrayList<>(bookMeta.getStoredEnchants().keySet())) {
+                bookMeta.removeStoredEnchant(e);
+            }
+            for (Map.Entry<Enchantment, Integer> entry : merged.entrySet()) {
+                bookMeta.addStoredEnchant(entry.getKey(), entry.getValue(), true);
+            }
+            result.setItemMeta(bookMeta);
+        } else {
+            // Clear existing enchants and re-apply merged set
+            for (Enchantment e : new ArrayList<>(result.getEnchantments().keySet())) {
+                result.removeEnchantment(e);
+            }
+            for (Map.Entry<Enchantment, Integer> entry : merged.entrySet()) {
+                result.addUnsafeEnchantment(entry.getKey(), entry.getValue());
+            }
         }
 
         return result;

@@ -211,7 +211,7 @@ public class VanishListener implements Listener {
         }
     }
 
-    @EventHandler(priority = EventPriority.MONITOR)
+    @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerQuit(PlayerQuitEvent event) {
         Player player = event.getPlayer();
         

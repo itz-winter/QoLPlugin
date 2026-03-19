@@ -14,15 +14,19 @@ import org.bukkit.plugin.Plugin;
 public class ConsoleEventListener implements Listener {
 
     private final KelpylandiaPlugin plugin;
-    private final DiscordIntegration discord;
 
     public ConsoleEventListener(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
-        this.discord = plugin.getDiscordIntegration();
+    }
+
+    /** Fetch lazily — DiscordIntegration is initialized after listeners are registered. */
+    private DiscordIntegration getDiscord() {
+        return plugin.getDiscordIntegration();
     }
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onServerLoad(ServerLoadEvent event) {
+        DiscordIntegration discord = getDiscord();
         if (discord != null && discord.isEnabled() && 
             plugin.getConfig().getBoolean("discord.events.console-logging", true)) {
             
@@ -36,6 +40,7 @@ public class ConsoleEventListener implements Listener {
         Plugin enabledPlugin = event.getPlugin();
         
         // Only log non-core plugins and avoid logging our own plugin to prevent spam
+        DiscordIntegration discord = getDiscord();
         if (discord != null && discord.isEnabled() && 
             plugin.getConfig().getBoolean("discord.events.console-logging", true) &&
             !enabledPlugin.getName().equals(plugin.getName()) &&
@@ -52,6 +57,7 @@ public class ConsoleEventListener implements Listener {
         Plugin disabledPlugin = event.getPlugin();
         
         // Only log non-core plugins and avoid logging our own plugin
+        DiscordIntegration discord = getDiscord();
         if (discord != null && discord.isEnabled() && 
             plugin.getConfig().getBoolean("discord.events.console-logging", true) &&
             !disabledPlugin.getName().equals(plugin.getName()) &&
@@ -65,6 +71,7 @@ public class ConsoleEventListener implements Listener {
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerCommand(PlayerCommandPreprocessEvent event) {
         // Log important admin commands to console channel
+        DiscordIntegration discord = getDiscord();
         if (discord != null && discord.isEnabled() && 
             plugin.getConfig().getBoolean("discord.events.console-logging", true) &&
             !event.isCancelled()) {
