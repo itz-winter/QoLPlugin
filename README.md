@@ -3,11 +3,13 @@ A lil' custom plugin with a cringe name :3
 # KelpylandiaPlugin
 
 ## Overview
+
 KelpylandiaPlugin is a highly customizable, all-in-one Minecraft server plugin designed for small to mid-sized SMP servers. Originally built for my own community, it combines advanced chat, moderation, player homes, teleportation, and more—making it a great alternative to EssentialsX and similar plugins. Built on the Spigot/Bukkit API, it supports **Minecraft 1.16 – 1.21.11** (and likely newer).
 
 ## Features
 
 ### Chat System
+
 - **Channel-Based Communication**: Multiple chat channels (Global, Local, Admin, etc.) with customizable formats and permissions.
 - **Proximity Chat**: Local chat within a configurable radius.
 - **Custom Channels**: Create and delete your own channels.
@@ -17,6 +19,7 @@ KelpylandiaPlugin is a highly customizable, all-in-one Minecraft server plugin d
 > **Tip:** For advanced Discord features, [DiscordSRV](https://modrinth.com/plugin/discordsrv) is recommended.
 
 ### Moderation Tools
+
 - **Broadcast Actions**: Notify players of bans, kicks, mutes, and other moderation actions.
 - **Customizable Punishment Formats**: Define how moderation messages appear.
 - **Join/Leave Messages**: Custom join/leave messages, with the option to hide vanilla ones.
@@ -24,6 +27,7 @@ KelpylandiaPlugin is a highly customizable, all-in-one Minecraft server plugin d
 - **Ban, Kick, Mute, Warn, Unban, Unmute, Unwarn**: All the essentials for server moderation.
 
 ### Player Utilities
+
 - **Homes System**: `/home`, `/sethome`, `/delhome`, `/homes` with GUI and configurable max homes.  
   *(Disabled by default—enable in `config.yml`!)*
 - **Teleportation System**: `/tpa`, `/tpahere`, `/tpaccept`, `/tpdeny`, `/tpcancel` for player-to-player teleport requests, with cooldowns and invulnerability options.  
@@ -34,6 +38,7 @@ KelpylandiaPlugin is a highly customizable, all-in-one Minecraft server plugin d
   *(Configurable permissions and can be disabled to avoid conflicts.)*
 
 ### Sitting System (pre-2.1.0 ONLY)
+
 - **Player Sitting**: Sit on other players by right-clicking with an empty hand.
 - **Block Sitting**: Sit on stairs, slabs, and other blocks.
 - **Configurable**: Toggle sitting features in the config.
@@ -41,6 +46,7 @@ KelpylandiaPlugin is a highly customizable, all-in-one Minecraft server plugin d
 > **Note:** For a more robust sitting experience, use [Gsit](https://www.spigotmc.org/resources/gsit-modern-sit-seat-and-chair-lay-and-crawl-plugin-1-16-1-21-11.62325/) and set `sitting.enabled` to `false` in your config.
 
 ### General
+
 - **Highly Configurable**: Nearly every feature can be toggled or tweaked in `config.yml`.
 - **Permission-Based**: Fine-grained permissions for all commands and features.
 - **No EssentialsX Dependency**: Can fully replace EssentialsX for most servers.
@@ -74,6 +80,7 @@ This project is licensed under the [MIT License](LICENSE). You are free to use, 
 ---
 
 *Made with love, cringe, and a lot of config options.*
+
 - Kelp • [GitHub](https://github.com/itz-winter/)
 
 # Full Configuration File
