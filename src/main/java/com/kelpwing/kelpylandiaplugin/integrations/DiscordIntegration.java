@@ -10,6 +10,7 @@ import net.dv8tion.jda.api.entities.Guild;
 import net.dv8tion.jda.api.entities.Member;
 import net.dv8tion.jda.api.entities.Role;
 import net.dv8tion.jda.api.entities.Webhook;
+import net.dv8tion.jda.api.entities.emoji.Emoji;
 import net.dv8tion.jda.api.entities.channel.concrete.TextChannel;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
@@ -25,6 +26,7 @@ import com.kelpwing.kelpylandiaplugin.utils.VersionHelper;
 import javax.annotation.Nonnull;
 import java.awt.Color;
 import java.time.Instant;
+import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.HashMap;
@@ -333,108 +335,116 @@ public class DiscordIntegration extends ListenerAdapter {
     @Override
     public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
         boolean debugRelay = plugin.getConfig().getBoolean("discord.formats.debug-relay", false);
-        
-        if (!enabled || event.getAuthor().isBot()) {
-            if (debugRelay) {
-                plugin.getLogger().info("Discord message ignored: enabled=" + enabled + ", isBot=" + event.getAuthor().isBot());
+
+        if (!enabled || event.getAuthor().isBot()) return;
+
+        String channelId = event.getChannel().getId();
+        String content = event.getMessage().getContentDisplay().trim();
+        String username = event.getAuthor().getEffectiveName();
+
+        // ── c! prefix command (any channel) ─────────────────────────────────
+        String cmdPrefix = plugin.getConfig().getString("discord.console.commands.prefix", "c!");
+        boolean prefixEnabled = plugin.getConfig().getBoolean("discord.console.commands.prefix-command-enabled", true);
+
+        if (prefixEnabled && content.startsWith(cmdPrefix)) {
+            if (!hasConsoleRole(event.getMember())) {
+                event.getMessage().addReaction(Emoji.fromUnicode("❌")).queue(null, e -> {});
+                return;
+            }
+            String command = content.substring(cmdPrefix.length()).trim();
+            if (!command.isEmpty()) {
+                dispatchConsoleCommand(command, event, username);
             }
             return;
         }
-        
-        String channelId = event.getChannel().getId();
-        String content = event.getMessage().getContentDisplay();
-        String username = event.getAuthor().getEffectiveName();
-        
-        if (debugRelay) {
-            plugin.getLogger().info("Discord message received from " + username + " in channel " + channelId + ": " + content);
-        }
-        
-        // Handle console channel commands
+
+        // ── Console channel: full message = command ──────────────────────────
         if (channelId.equals(consoleChannelId)) {
-            plugin.getLogger().info("Processing console command from Discord: " + content);
-            // Execute console command
-            String command = content; // Use the full content as command
-            plugin.getLogger().info("Executing Discord console command: " + command);
-            
-            Bukkit.getScheduler().runTask(plugin, () -> {
-                try {
-                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
-                } catch (Exception e) {
-                    sendToConsole("Error executing command: " + e.getMessage());
+            boolean consoleCommandsEnabled = plugin.getConfig().getBoolean("discord.console.commands.enabled", true);
+            if (consoleCommandsEnabled) {
+                if (!hasConsoleRole(event.getMember())) {
+                    event.getMessage().addReaction(Emoji.fromUnicode("❌")).queue(null, e -> {});
+                    return;
                 }
-            });
+                if (!content.isEmpty()) {
+                    dispatchConsoleCommand(content, event, username);
+                }
+            }
             return;
         }
-        
-        // Handle chat channel messages - relay to Minecraft
+
+        // ── Chat channel: relay to Minecraft ────────────────────────────────
         if (channelId.equals(chatChannelId)) {
             if (debugRelay) {
                 plugin.getLogger().info("Relaying Discord message to Minecraft: " + username + ": " + content);
             }
-            
-            // Get format from config with better fallback
-            String format = plugin.getConfig().getString("discord.formats.discord-to-minecraft", 
-                "&9[Discord] &r{user}&r: {message}");
-            
+
+            String format = plugin.getConfig().getString("discord.formats.discord-to-minecraft",
+                    "&9[Discord] &r{user}&r: {message}");
             String minecraftMessage = format
-                .replace("{user}", username)
-                .replace("{message}", content);
-            
-            // Route to specific chat channel instead of broadcasting to all
+                    .replace("{user}", username)
+                    .replace("{message}", content);
+
             Bukkit.getScheduler().runTask(plugin, () -> {
                 try {
                     String coloredMessage = org.bukkit.ChatColor.translateAlternateColorCodes('&', minecraftMessage);
-                    
-                    // Find the correct Minecraft channel that matches Discord channel
+
                     com.kelpwing.kelpylandiaplugin.chat.Channel targetChannel = null;
-                    for (com.kelpwing.kelpylandiaplugin.chat.Channel channel : plugin.getChannelManager().getChannels()) {
-                        if (channel.isDiscordEnabled() && channelId.equals(channel.getDiscordChannel())) {
-                            targetChannel = channel;
+                    for (com.kelpwing.kelpylandiaplugin.chat.Channel ch : plugin.getChannelManager().getChannels()) {
+                        if (ch.isDiscordEnabled() && channelId.equals(ch.getDiscordChannel())) {
+                            targetChannel = ch;
                             break;
                         }
                     }
-                    
-                    // If no matching channel found, default to global channel
                     if (targetChannel == null) {
                         targetChannel = plugin.getChannelManager().getChannel("global");
-                        if (targetChannel == null) {
-                            targetChannel = plugin.getChannelManager().getDefaultChannel();
-                        }
+                        if (targetChannel == null) targetChannel = plugin.getChannelManager().getDefaultChannel();
                     }
-                    
+
                     if (targetChannel != null) {
-                        // Send to players in this specific channel
                         for (Player player : Bukkit.getOnlinePlayers()) {
                             String playerChannelName = plugin.getChannelManager().getPlayerChannel(player.getUniqueId());
-                            if (targetChannel.getName().equalsIgnoreCase(playerChannelName) && 
-                                plugin.getChannelManager().hasPermission(player, targetChannel.getName())) {
+                            if (targetChannel.getName().equalsIgnoreCase(playerChannelName)
+                                    && plugin.getChannelManager().hasPermission(player, targetChannel.getName())) {
                                 player.sendMessage(coloredMessage);
                             }
                         }
-                        
                         if (debugRelay) {
-                            plugin.getLogger().info("Successfully relayed Discord message to channel '" + targetChannel.getName() + "': " + coloredMessage);
+                            plugin.getLogger().info("Relayed Discord message to channel '" + targetChannel.getName() + "': " + coloredMessage);
                         }
                     } else {
-                        // Final fallback to broadcast if no channels exist
                         Bukkit.broadcastMessage(coloredMessage);
-                        
-                        if (debugRelay) {
-                            plugin.getLogger().info("Relayed Discord message via broadcast (no channels configured): " + coloredMessage);
-                        }
                     }
                 } catch (Exception e) {
                     plugin.getLogger().warning("Failed to relay Discord message to Minecraft: " + e.getMessage());
                 }
             });
         } else if (debugRelay) {
-            plugin.getLogger().info("Discord message in non-chat channel (" + channelId + "), not relaying to Minecraft");
+            plugin.getLogger().info("Discord message in non-chat channel (" + channelId + "), not relaying.");
         }
-        
-        // Log all Discord messages for debugging (only if debug is enabled)
-        if (debugRelay) {
-            plugin.getLogger().info("Discord message [" + event.getChannel().getName() + "] " + username + ": " + content);
-        }
+    }
+
+    /** Check whether the Discord member has the configured console role. */
+    private boolean hasConsoleRole(Member member) {
+        if (member == null) return false;
+        String consoleRoleId = plugin.getConfig().getString("discord.console.commands.console-role-id", "");
+        // If unconfigured or left as default placeholder, deny
+        if (consoleRoleId.isEmpty() || consoleRoleId.equals("your-console-role-id")) return false;
+        return member.getRoles().stream().anyMatch(r -> r.getId().equals(consoleRoleId));
+    }
+
+    /** Dispatch a raw command string on the server console and react/reply on Discord. */
+    private void dispatchConsoleCommand(String command, MessageReceivedEvent event, String username) {
+        plugin.getLogger().info("[Console-Discord] " + username + " issued: " + command);
+        event.getMessage().addReaction(Emoji.fromUnicode("✅")).queue(null, e -> {});
+        Bukkit.getScheduler().runTask(plugin, () -> {
+            try {
+                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+            } catch (Exception e) {
+                sendToConsole("Error executing command '" + command + "': " + e.getMessage());
+                event.getMessage().addReaction(Emoji.fromUnicode("❌")).queue(null, err -> {});
+            }
+        });
     }
     
     /**
@@ -555,19 +565,11 @@ public class DiscordIntegration extends ListenerAdapter {
     }
     
     /**
-     * Send a message to the console Discord channel
+     * Send a plain informational message to the console Discord channel.
+     * Formatted the same way as sendConsoleMessage at INFO level.
      */
     public void sendToConsole(String message) {
-        if (!enabled || consoleChannelId == null) return;
-        
-        try {
-            TextChannel channel = jda.getTextChannelById(consoleChannelId);
-            if (channel != null) {
-                channel.sendMessage(message).queue();
-            }
-        } catch (Exception e) {
-            plugin.getLogger().warning("Failed to send message to Discord console: " + e.getMessage());
-        }
+        sendConsoleMessage(message, "INFO");
     }
     
     public void disable() {
@@ -1745,76 +1747,69 @@ public class DiscordIntegration extends ListenerAdapter {
     
     // Console message sending for server monitoring
     public void sendConsoleMessage(String message, String level) {
-        plugin.getLogger().info("[DISCORD DEBUG] sendConsoleMessage called: level=" + level + ", message=" + message.substring(0, Math.min(50, message.length())));
-        
-        if (!enabled || consoleChannelId == null) {
-            plugin.getLogger().warning("[DISCORD DEBUG] Console message cancelled - enabled: " + enabled + ", consoleChannelId: " + consoleChannelId);
-            return;
-        }
-        
-        if (!plugin.getConfig().getBoolean("discord.events.console-logging", true)) {
-            plugin.getLogger().info("[DISCORD DEBUG] Console logging disabled in config");
-            return;
-        }
-        
-        // Filter out certain log levels if configured
+        if (!enabled || consoleChannelId == null) return;
+
+        if (!plugin.getConfig().getBoolean("discord.events.console-logging", true)) return;
+
+        // Filter blocked levels
         List<String> blockedLevels = plugin.getConfig().getStringList("discord.console-logging.blocked-levels");
-        if (blockedLevels.contains(level.toUpperCase())) {
-            plugin.getLogger().info("[DISCORD DEBUG] Log level " + level + " is blocked");
-            return;
-        }
-        
-        plugin.getLogger().info("[DISCORD DEBUG] Sending console message to Discord...");
-        
+        if (blockedLevels.contains(level.toUpperCase())) return;
+
         CompletableFuture.runAsync(() -> {
             try {
                 TextChannel channel = jda.getTextChannelById(consoleChannelId);
-                if (channel != null) {
-                    // Format message based on log level
-                    String emoji = getLogLevelEmoji(level);
-                    String formattedMessage = String.format("```%s\n[%s] %s\n```", 
-                        getCodeBlockLanguage(level), level.toUpperCase(), message);
-                    
-                    // Truncate if too long
-                    if (formattedMessage.length() > 1900) {
-                        formattedMessage = formattedMessage.substring(0, 1900) + "...\n```";
-                    }
-                    
-                    channel.sendMessage(formattedMessage).queue();
+                if (channel == null) return;
+
+                // DiscordSRV-style: [HH:mm:ss Level]: message
+                // Use diff for ERROR/SEVERE (red lines), fix for WARN (yellow), plain for INFO
+                String timestamp = DateTimeFormatter
+                        .ofPattern("HH:mm:ss")
+                        .format(LocalTime.now());
+
+                String normalizedLevel = level.toUpperCase();
+                // Map Java level names to shorter labels
+                if (normalizedLevel.equals("SEVERE")) normalizedLevel = "ERROR";
+                if (normalizedLevel.equals("WARNING")) normalizedLevel = "WARN";
+
+                String lang;
+                String prefix;
+                switch (normalizedLevel) {
+                    case "ERROR":
+                        lang = "diff";
+                        prefix = "- ";   // diff red line
+                        break;
+                    case "WARN":
+                        lang = "fix";
+                        prefix = "";     // fix shows in yellow
+                        break;
+                    default:
+                        lang = "";
+                        prefix = "";
+                        break;
                 }
+
+                String header = String.format("[%s %s]: ", timestamp, normalizedLevel);
+                // Strip Minecraft colour codes
+                String cleanMsg = stripSectionCodes(message);
+                String line = prefix + header + cleanMsg;
+
+                // Discord message limit is 2000 chars; truncate safely
+                int maxContent = 1994 - lang.length(); // backticks + lang overhead
+                if (line.length() > maxContent) {
+                    line = line.substring(0, maxContent - 3) + "...";
+                }
+
+                String formatted = lang.isEmpty()
+                        ? "`" + line.replace("`", "'") + "`"
+                        : "```" + lang + "\n" + line + "\n```";
+
+                channel.sendMessage(formatted).queue(
+                        null,
+                        err -> plugin.getLogger().warning("Failed to send console message to Discord: " + err.getMessage())
+                );
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to send console message to Discord: " + e.getMessage());
             }
         });
-    }
-    
-    private String getLogLevelEmoji(String level) {
-        switch (level.toUpperCase()) {
-            case "ERROR":
-            case "SEVERE":
-                return "❌";
-            case "WARN":
-            case "WARNING":
-                return "⚠️";
-            case "INFO":
-                return "ℹ️";
-            case "DEBUG":
-                return "🐛";
-            default:
-                return "📋";
-        }
-    }
-    
-    private String getCodeBlockLanguage(String level) {
-        switch (level.toUpperCase()) {
-            case "ERROR":
-            case "SEVERE":
-                return "diff"; // Red highlighting
-            case "WARN":
-            case "WARNING":
-                return "yaml"; // Yellow highlighting
-            default:
-                return ""; // No highlighting
-        }
     }
 }

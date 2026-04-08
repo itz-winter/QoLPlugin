@@ -63,6 +63,21 @@ discord:
     # Delete webhooks when plugin disables (not recommended)
     cleanup-on-disable: false
   
+  # Console command execution settings
+  console:
+    commands:
+      # Allow messages sent in the console channel to be executed as server commands.
+      # Only users with the configured console-role-id can do this.
+      enabled: true
+      # Also allow the c!<command> prefix to run console commands from ANY channel
+      # the bot can see (requires console-role-id permission).
+      prefix-command-enabled: true
+      # The prefix used for the cross-channel command shortcut.
+      prefix: "c!"
+      # Discord role ID whose members are allowed to run console commands.
+      # Set to your staff/admin role. Leave as default to disable role check (not recommended).
+      console-role-id: "your-console-role-id"
+
   # Server Event Broadcasting
   events:
     # Broadcast join/leave messages to global chat
