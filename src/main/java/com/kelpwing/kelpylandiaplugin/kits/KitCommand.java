@@ -191,7 +191,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Give ──────────────────────────────────────────────────────
 
     private boolean handleGive(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -231,7 +231,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Create ────────────────────────────────────────────────────
 
     private boolean handleCreate(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -275,7 +275,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        Kit kit = new Kit(kitName, items, cooldown, "kelpylandia.kit." + kitName.toLowerCase(),
+        Kit kit = new Kit(kitName, items, cooldown, "qol.kit." + kitName.toLowerCase(),
                 org.bukkit.Material.CHEST, "", false, false);
         km.saveKit(kit);
         sender.sendMessage(ChatColor.GREEN + "Kit '" + kitName + "' created with " + items.size() + " item(s)!");
@@ -286,7 +286,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Edit ──────────────────────────────────────────────────────
 
     private boolean handleEdit(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -312,7 +312,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Delete ────────────────────────────────────────────────────
 
     private boolean handleDelete(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -336,7 +336,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Reload ────────────────────────────────────────────────────
 
     private boolean handleReload(CommandSender sender) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -348,7 +348,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Info ──────────────────────────────────────────────────────
 
     private boolean handleInfo(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -377,7 +377,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Set Cooldown ──────────────────────────────────────────────
 
     private boolean handleSetCooldown(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -407,7 +407,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Set Icon ──────────────────────────────────────────────────
 
     private boolean handleSetIcon(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -450,7 +450,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Set Description ───────────────────────────────────────────
 
     private boolean handleSetDesc(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -475,7 +475,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Set Permission ────────────────────────────────────────────
 
     private boolean handleSetPerm(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -501,7 +501,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Set First Join ────────────────────────────────────────────
 
     private boolean handleSetFirstJoin(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -526,7 +526,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
     // ─── Set One-Time ──────────────────────────────────────────────
 
     private boolean handleSetOneTime(CommandSender sender, String[] args) {
-        if (!sender.hasPermission("kelpylandia.kit.admin")) {
+        if (!sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -555,7 +555,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         sender.sendMessage(ChatColor.YELLOW + "/kit <name>" + ChatColor.GRAY + " — Claim a kit");
         sender.sendMessage(ChatColor.YELLOW + "/kit list" + ChatColor.GRAY + " — List available kits");
         sender.sendMessage(ChatColor.YELLOW + "/kit preview <name>" + ChatColor.GRAY + " — Preview a kit");
-        if (sender.hasPermission("kelpylandia.kit.admin")) {
+        if (sender.hasPermission("qol.kit.admin")) {
             sender.sendMessage(ChatColor.YELLOW + "/kit give <player> <kit>" + ChatColor.GRAY + " — Give kit to player");
             sender.sendMessage(ChatColor.YELLOW + "/kit create <name> [cooldown]" + ChatColor.GRAY + " — Create from inventory");
             sender.sendMessage(ChatColor.YELLOW + "/kit edit <name>" + ChatColor.GRAY + " — Edit kit items in GUI");
@@ -583,7 +583,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             // Sub-commands + kit names
             completions.addAll(PLAYER_SUBS);
-            if (sender.hasPermission("kelpylandia.kit.admin")) {
+            if (sender.hasPermission("qol.kit.admin")) {
                 completions.addAll(ADMIN_SUBS);
             }
             // Also suggest kit names directly for /kit <name>

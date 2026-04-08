@@ -102,7 +102,7 @@ public class WorkbenchListener implements Listener {
 
         if (event.getViewers().isEmpty()) return;
         if (!(event.getViewers().get(0) instanceof Player player)) return;
-        if (!player.hasPermission("kelpylandia.anvil.color")) return;
+        if (!player.hasPermission("qol.anvil.color")) return;
 
         ItemStack result = event.getResult();
         if (result == null) return;

@@ -27,7 +27,7 @@ public class DeathBackCommand implements CommandExecutor {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.dback")) {
+        if (!player.hasPermission("qol.dback")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -44,7 +44,7 @@ public class DeathBackCommand implements CommandExecutor {
         }
 
         // Check cooldown (shared with /back)
-        if (!player.hasPermission("kelpylandia.back.bypass.cooldown") && backManager.isOnCooldown(player.getUniqueId())) {
+        if (!player.hasPermission("qol.back.bypass.cooldown") && backManager.isOnCooldown(player.getUniqueId())) {
             int remaining = backManager.getRemainingCooldown(player.getUniqueId());
             player.sendMessage(ChatColor.RED + "You must wait " + ChatColor.GOLD + remaining + "s" + ChatColor.RED + " before using /dback again.");
             return true;

@@ -43,7 +43,7 @@ public class UngodCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!sender.hasPermission("kelpylandia.god.others")) {
+        if (!sender.hasPermission("qol.god.others")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to remove god mode from others.");
             return true;
         }
@@ -98,7 +98,7 @@ public class UngodCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1 && sender.hasPermission("kelpylandia.god.others")) {
+        if (args.length == 1 && sender.hasPermission("qol.god.others")) {
             GodCommand godCommand = plugin.getGodCommand();
             if (godCommand == null) return Collections.emptyList();
 

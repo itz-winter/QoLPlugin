@@ -55,7 +55,7 @@ public class ConfigManager {
         // Global channel
         config.set("channels.global.display-name", "Global");
         config.set("channels.global.format", "&2[G]&r {prefix}{player}&r: {message}");
-        config.set("channels.global.permission", "kelpylandia.channel.global");
+        config.set("channels.global.permission", "qol.channel.global");
         config.set("channels.global.proximity", false);
         config.set("channels.global.proximity-distance", 0.0);
         config.set("channels.global.discord-enabled", true);
@@ -65,7 +65,7 @@ public class ConfigManager {
         // Local channel
         config.set("channels.local.display-name", "Local");
         config.set("channels.local.format", "&e[L]&r {prefix}{player}&r: {message}");
-        config.set("channels.local.permission", "kelpylandia.channel.local");
+        config.set("channels.local.permission", "qol.channel.local");
         config.set("channels.local.proximity", true);
         config.set("channels.local.proximity-distance", 50.0);
         config.set("channels.local.discord-enabled", false);
@@ -75,7 +75,7 @@ public class ConfigManager {
         // Admin channel
         config.set("channels.admin.display-name", "Admin");
         config.set("channels.admin.format", "&c[A]&r {prefix}{player}&r: {message}");
-        config.set("channels.admin.permission", "kelpylandia.channel.admin");
+        config.set("channels.admin.permission", "qol.channel.admin");
         config.set("channels.admin.proximity", false);
         config.set("channels.admin.proximity-distance", 0.0);
         config.set("channels.admin.discord-enabled", true);

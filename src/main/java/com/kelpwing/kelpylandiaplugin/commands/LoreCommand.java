@@ -41,7 +41,7 @@ public class LoreCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.lore")) {
+        if (!player.hasPermission("qol.lore")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

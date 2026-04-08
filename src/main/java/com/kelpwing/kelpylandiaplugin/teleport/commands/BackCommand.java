@@ -27,7 +27,7 @@ public class BackCommand implements CommandExecutor {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.back")) {
+        if (!player.hasPermission("qol.back")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -44,7 +44,7 @@ public class BackCommand implements CommandExecutor {
         }
 
         // Check cooldown
-        if (!player.hasPermission("kelpylandia.back.bypass.cooldown") && backManager.isOnCooldown(player.getUniqueId())) {
+        if (!player.hasPermission("qol.back.bypass.cooldown") && backManager.isOnCooldown(player.getUniqueId())) {
             int remaining = backManager.getRemainingCooldown(player.getUniqueId());
             player.sendMessage(ChatColor.RED + "You must wait " + ChatColor.GOLD + remaining + "s" + ChatColor.RED + " before using /back again.");
             return true;

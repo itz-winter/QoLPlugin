@@ -39,7 +39,7 @@ public class SetHomeCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.homes.set")) {
+        if (!player.hasPermission("qol.homes.set")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to set homes.");
             return true;
         }

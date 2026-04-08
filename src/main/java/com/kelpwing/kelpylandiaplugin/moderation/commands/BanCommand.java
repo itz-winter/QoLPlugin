@@ -24,7 +24,7 @@ public class BanCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("kelpylandia.mod.ban")) {
+        if (!sender.hasPermission("qol.mod.ban")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

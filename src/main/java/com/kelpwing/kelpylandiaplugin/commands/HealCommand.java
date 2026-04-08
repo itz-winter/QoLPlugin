@@ -38,7 +38,7 @@ public class HealCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!sender.hasPermission("kelpylandia.heal.others")) {
+        if (!sender.hasPermission("qol.heal.others")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to heal others.");
             return true;
         }
@@ -80,7 +80,7 @@ public class HealCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1 && sender.hasPermission("kelpylandia.heal.others")) {
+        if (args.length == 1 && sender.hasPermission("qol.heal.others")) {
             String prefix = args[0].toLowerCase();
             List<String> names = new ArrayList<>();
             names.add("*");

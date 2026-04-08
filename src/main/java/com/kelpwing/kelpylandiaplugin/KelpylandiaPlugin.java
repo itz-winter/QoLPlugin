@@ -67,6 +67,8 @@ import com.kelpwing.kelpylandiaplugin.teleport.TpaManager;
 import com.kelpwing.kelpylandiaplugin.teleport.BackManager;
 import com.kelpwing.kelpylandiaplugin.teleport.BackListener;
 import com.kelpwing.kelpylandiaplugin.teleport.commands.*;
+import com.kelpwing.kelpylandiaplugin.commands.UpdateCommand;
+import com.kelpwing.kelpylandiaplugin.listeners.UpdateNotifyListener;
 import com.kelpwing.kelpylandiaplugin.utils.FileManager;
 import com.kelpwing.kelpylandiaplugin.utils.NickManager;
 import com.kelpwing.kelpylandiaplugin.utils.AfkManager;
@@ -75,6 +77,7 @@ import com.kelpwing.kelpylandiaplugin.utils.SpyManager;
 import com.kelpwing.kelpylandiaplugin.utils.PlayerStateManager;
 import com.kelpwing.kelpylandiaplugin.utils.DeathMessagesManager;
 import com.kelpwing.kelpylandiaplugin.utils.BroadcastManager;
+import com.kelpwing.kelpylandiaplugin.utils.UpdateChecker;
 import com.kelpwing.kelpylandiaplugin.utils.VersionHelper;
 import com.kelpwing.kelpylandiaplugin.warps.WarpManager;
 import com.kelpwing.kelpylandiaplugin.warps.commands.WarpCommand;
@@ -137,6 +140,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
     private FreezeManager freezeManager;
     private KitManager kitManager;
     private KitGUI kitGUI;
+    private UpdateChecker updateChecker;
     
     @Override
     public void onEnable() {
@@ -209,7 +213,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
             String channelName = entry.getValue();
             registerCommand(alias, new ChannelAliasCommand(this, channelName), 
                 "Switch to the " + channelName + " channel.", "/" + alias, 
-                "kelpylandia.channel.use");
+                "qol.channel.use");
             getLogger().info("Registered channel alias: /" + alias + " -> " + channelName);
         }
         
@@ -260,10 +264,10 @@ public class KelpylandiaPlugin extends JavaPlugin {
             HomeCommand homeCmd = new HomeCommand(this);
             HomesCommand homesCmd = new HomesCommand(this);
             
-            registerCommand("sethome", setHomeCmd, "Set a home at your current location.", "/sethome [name]", "kelpylandia.homes");
-            registerCommand("delhome", delHomeCmd, "Delete a home.", "/delhome <name>", "kelpylandia.homes", "removehome", "remhome");
-            registerCommand("home", homeCmd, "Teleport to a home. List your homes with /homes. Create a new home with /sethome.", "/home [name]", "kelpylandia.homes");
-            registerCommand("homes", homesCmd, "List or browse your homes. Set a new home with /sethome.", "/homes", "kelpylandia.homes");
+            registerCommand("sethome", setHomeCmd, "Set a home at your current location.", "/sethome [name]", "qol.homes");
+            registerCommand("delhome", delHomeCmd, "Delete a home.", "/delhome <name>", "qol.homes", "removehome", "remhome");
+            registerCommand("home", homeCmd, "Teleport to a home. List your homes with /homes. Create a new home with /sethome.", "/home [name]", "qol.homes");
+            registerCommand("homes", homesCmd, "List or browse your homes. Set a new home with /sethome.", "/homes", "qol.homes");
             
             // Register HomeGUI as listener for inventory clicks
             getServer().getPluginManager().registerEvents(homeGUI, this);
@@ -277,11 +281,11 @@ public class KelpylandiaPlugin extends JavaPlugin {
             TpDenyCommand tpDenyCmd = new TpDenyCommand(this);
             TpCancelCommand tpCancelCmd = new TpCancelCommand(this);
             
-            registerCommand("tpa", tpaCmd, "Send a teleport request to a player. To teleport a player to you, use /tpahere.", "/tpa <player>", "kelpylandia.tpa", "tpask");
-            registerCommand("tpahere", tpaHereCmd, "Request a player to teleport to you.", "/tpahere <player>", "kelpylandia.tpa.here");
-            registerCommand("tpaccept", tpAcceptCmd, "Accept a pending teleport request.", "/tpaccept [player]", "kelpylandia.tpa", "tpyes");
-            registerCommand("tpdeny", tpDenyCmd, "Deny a pending teleport request.", "/tpdeny [player]", "kelpylandia.tpa", "tpno");
-            registerCommand("tpcancel", tpCancelCmd, "Cancel your outgoing teleport request.", "/tpcancel", "kelpylandia.tpa");
+            registerCommand("tpa", tpaCmd, "Send a teleport request to a player. To teleport a player to you, use /tpahere.", "/tpa <player>", "qol.tpa", "tpask");
+            registerCommand("tpahere", tpaHereCmd, "Request a player to teleport to you.", "/tpahere <player>", "qol.tpa.here");
+            registerCommand("tpaccept", tpAcceptCmd, "Accept a pending teleport request.", "/tpaccept [player]", "qol.tpa", "tpyes");
+            registerCommand("tpdeny", tpDenyCmd, "Deny a pending teleport request.", "/tpdeny [player]", "qol.tpa", "tpno");
+            registerCommand("tpcancel", tpCancelCmd, "Cancel your outgoing teleport request.", "/tpcancel", "qol.tpa");
             
             // Register teleport listener for invulnerability + quit cleanup
             getServer().getPluginManager().registerEvents(new TeleportListener(this), this);
@@ -292,8 +296,8 @@ public class KelpylandiaPlugin extends JavaPlugin {
             BackCommand backCmd = new BackCommand(this);
             DeathBackCommand dbackCmd = new DeathBackCommand(this);
             
-            registerCommand("back", backCmd, "Teleport to your previous location. Use /dback to return to your last death location.", "/back", "kelpylandia.back", "return");
-            registerCommand("dback", dbackCmd, "Teleport to your last death location. Use /back to return to your previous (non-death) location.", "/dback", "kelpylandia.dback", "deathback", "dreturn");
+            registerCommand("back", backCmd, "Teleport to your previous location. Use /dback to return to your last death location.", "/back", "qol.back", "return");
+            registerCommand("dback", dbackCmd, "Teleport to your last death location. Use /back to return to your previous (non-death) location.", "/dback", "qol.dback", "deathback", "dreturn");
             
             // Register back listener for teleport/death tracking
             getServer().getPluginManager().registerEvents(new BackListener(this), this);
@@ -302,18 +306,18 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register spawn command
         if (getConfig().getBoolean("spawn.enabled", true)) {
             SpawnCommand spawnCmd = new SpawnCommand(this);
-            registerCommand("spawn", spawnCmd, "Teleport to the world spawn point.", "/spawn [player]", "kelpylandia.spawn");
+            registerCommand("spawn", spawnCmd, "Teleport to the world spawn point.", "/spawn [player]", "qol.spawn");
             getLogger().info("Spawn command enabled!");
         }
         
         // Register gamemode commands
         if (getConfig().getBoolean("gamemode.enabled", true)) {
             GamemodeCommand gmCmd = new GamemodeCommand(this);
-            registerCommand("gm", gmCmd, "Change your gamemode.", "/gm <mode> [player]", "kelpylandia.gamemode.*", "gamemode");
-            registerCommand("gmc", gmCmd, "Switch to creative mode.", "/gmc [player]", "kelpylandia.gamemode.creative");
-            registerCommand("gms", gmCmd, "Switch to survival mode.", "/gms [player]", "kelpylandia.gamemode.survival");
-            registerCommand("gma", gmCmd, "Switch to adventure mode.", "/gma [player]", "kelpylandia.gamemode.adventure");
-            registerCommand("gmsp", gmCmd, "Switch to spectator mode.", "/gmsp [player]", "kelpylandia.gamemode.spectator");
+            registerCommand("gm", gmCmd, "Change your gamemode.", "/gm <mode> [player]", "qol.gamemode.*", "gamemode");
+            registerCommand("gmc", gmCmd, "Switch to creative mode.", "/gmc [player]", "qol.gamemode.creative");
+            registerCommand("gms", gmCmd, "Switch to survival mode.", "/gms [player]", "qol.gamemode.survival");
+            registerCommand("gma", gmCmd, "Switch to adventure mode.", "/gma [player]", "qol.gamemode.adventure");
+            registerCommand("gmsp", gmCmd, "Switch to spectator mode.", "/gmsp [player]", "qol.gamemode.spectator");
             getLogger().info("Gamemode commands enabled!");
         }
         
@@ -323,14 +327,14 @@ public class KelpylandiaPlugin extends JavaPlugin {
             WorkbenchListener wbListener = new WorkbenchListener(this);
             wbCmd.setWorkbenchListener(wbListener);
             getServer().getPluginManager().registerEvents(wbListener, this);
-            registerCommand("workbench", wbCmd, "Open a virtual crafting table.", "/workbench [player]", "kelpylandia.workbench.craft", "wb", "craft");
-            registerCommand("enderchest", wbCmd, "Open your ender chest (or another player's).", "/enderchest [player]", "kelpylandia.workbench.enderchest", "ec", "echest");
-            registerCommand("anvil", wbCmd, "Open a virtual anvil.", "/anvil [player]", "kelpylandia.workbench.anvil");
-            registerCommand("grindstone", wbCmd, "Open a virtual grindstone.", "/grindstone [player]", "kelpylandia.workbench.grindstone", "gstone");
-            registerCommand("stonecutter", wbCmd, "Open a virtual stonecutter.", "/stonecutter [player]", "kelpylandia.workbench.stonecutter", "scutter");
-            registerCommand("smithingtable", wbCmd, "Open a virtual smithing table.", "/smithingtable [player]", "kelpylandia.workbench.smithing", "smithing");
-            registerCommand("cartographytable", wbCmd, "Open a virtual cartography table.", "/cartographytable [player]", "kelpylandia.workbench.cartography", "cartography");
-            registerCommand("loom", wbCmd, "Open a virtual loom.", "/loom [player]", "kelpylandia.workbench.loom");
+            registerCommand("workbench", wbCmd, "Open a virtual crafting table.", "/workbench [player]", "qol.workbench.craft", "wb", "craft");
+            registerCommand("enderchest", wbCmd, "Open your ender chest (or another player's).", "/enderchest [player]", "qol.workbench.enderchest", "ec", "echest");
+            registerCommand("anvil", wbCmd, "Open a virtual anvil.", "/anvil [player]", "qol.workbench.anvil");
+            registerCommand("grindstone", wbCmd, "Open a virtual grindstone.", "/grindstone [player]", "qol.workbench.grindstone", "gstone");
+            registerCommand("stonecutter", wbCmd, "Open a virtual stonecutter.", "/stonecutter [player]", "qol.workbench.stonecutter", "scutter");
+            registerCommand("smithingtable", wbCmd, "Open a virtual smithing table.", "/smithingtable [player]", "qol.workbench.smithing", "smithing");
+            registerCommand("cartographytable", wbCmd, "Open a virtual cartography table.", "/cartographytable [player]", "qol.workbench.cartography", "cartography");
+            registerCommand("loom", wbCmd, "Open a virtual loom.", "/loom [player]", "qol.workbench.loom");
             getLogger().info("Workbench commands enabled!");
         }
         
@@ -338,7 +342,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
         if (getConfig().getBoolean("nickname.enabled", true)) {
             nickManager = new NickManager(this);
             NickCommand nickCmd = new NickCommand(this);
-            registerCommand("nick", nickCmd, "Set or reset your nickname.", "/nick [nickname] OR /nick <player> [nickname]", "kelpylandia.nickname", "nickname");
+            registerCommand("nick", nickCmd, "Set or reset your nickname.", "/nick [nickname] OR /nick <player> [nickname]", "qol.nickname", "nickname");
             getServer().getPluginManager().registerEvents(new NickListener(this), this);
             getLogger().info("Nickname command enabled!");
         }
@@ -346,7 +350,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register enchant command
         if (getConfig().getBoolean("enchant.enabled", true)) {
             EnchantCommand enchantCmd = new EnchantCommand(this);
-            registerCommand("enchant", enchantCmd, "Enchant the item in your hand.", "/enchant <enchantment> [level] [player]", "kelpylandia.enchant");
+            registerCommand("enchant", enchantCmd, "Enchant the item in your hand.", "/enchant <enchantment> [level] [player]", "qol.enchant");
             getLogger().info("Enchant command enabled!");
         }
         
@@ -354,7 +358,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
         if (getConfig().getBoolean("afk.enabled", true)) {
             afkManager = new AfkManager(this);
             AfkCommand afkCmd = new AfkCommand(this);
-            registerCommand("afk", afkCmd, "Toggle your AFK status.", "/afk", "kelpylandia.afk");
+            registerCommand("afk", afkCmd, "Toggle your AFK status.", "/afk", "qol.afk");
             getServer().getPluginManager().registerEvents(new AfkListener(this), this);
             getLogger().info("AFK system enabled!");
         }
@@ -365,9 +369,9 @@ public class KelpylandiaPlugin extends JavaPlugin {
             ReplyCommand replyCmd = new ReplyCommand(this);
             WhisperToggleCommand wtCmd = new WhisperToggleCommand(this);
             
-            registerCommand("w", msgCommand, "Send a private message.", "/w <player> <message>", "kelpylandia.msg", "msg", "tell", "whisper");
-            registerCommand("r", replyCmd, "Reply to the last private message.", "/r <message>", "kelpylandia.msg.reply", "reply");
-            registerCommand("wt", wtCmd, "Set or clear your whisper target.", "/wt [player]", "kelpylandia.msg.whispertoggle", "whispertoggle");
+            registerCommand("w", msgCommand, "Send a private message.", "/w <player> <message>", "qol.msg", "msg", "tell", "whisper");
+            registerCommand("r", replyCmd, "Reply to the last private message.", "/r <message>", "qol.msg.reply", "reply");
+            registerCommand("wt", wtCmd, "Set or clear your whisper target.", "/wt [player]", "qol.msg.whispertoggle", "whispertoggle");
             getServer().getPluginManager().registerEvents(new MsgListener(this), this);
             getLogger().info("Messaging commands enabled!");
         }
@@ -377,7 +381,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
             deathMessagesManager = new DeathMessagesManager(this);
             getServer().getPluginManager().registerEvents(deathMessagesManager, this);
             SuicideCommand suicideCmd = new SuicideCommand(this);
-            registerCommand("suicide", suicideCmd, "Kill yourself.", "/suicide", "kelpylandia.suicide");
+            registerCommand("suicide", suicideCmd, "Kill yourself.", "/suicide", "qol.suicide");
             getLogger().info("Suicide command enabled!");
         }
         
@@ -390,21 +394,21 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register skull command
         if (getConfig().getBoolean("skull.enabled", true)) {
             SkullCommand skullCmd = new SkullCommand(this);
-            registerCommand("skull", skullCmd, "Get a player's head.", "/skull [player]", "kelpylandia.skull", "head", "playerhead");
+            registerCommand("skull", skullCmd, "Get a player's head.", "/skull [player]", "qol.skull", "head", "playerhead");
             getLogger().info("Skull command enabled!");
         }
         
         // Register repair command
         if (getConfig().getBoolean("repair.enabled", true)) {
             RepairCommand repairCmd = new RepairCommand(this);
-            registerCommand("repair", repairCmd, "Repair items.", "/repair [hand|helmet|chestplate|pants|boots|offhand|all] [player]", "kelpylandia.repair", "fix");
+            registerCommand("repair", repairCmd, "Repair items.", "/repair [hand|helmet|chestplate|pants|boots|offhand|all] [player]", "qol.repair", "fix");
             getLogger().info("Repair command enabled!");
         }
         
         // Register sudo command
         if (getConfig().getBoolean("sudo.enabled", true)) {
             SudoCommand sudoCmd = new SudoCommand(this);
-            registerCommand("sudo", sudoCmd, "Force a player to run a command or send a message.", "/sudo <player> <command or message>", "kelpylandia.sudo");
+            registerCommand("sudo", sudoCmd, "Force a player to run a command or send a message.", "/sudo <player> <command or message>", "qol.sudo");
             getLogger().info("Sudo command enabled!");
         }
         
@@ -420,8 +424,8 @@ public class KelpylandiaPlugin extends JavaPlugin {
             spyManager = new SpyManager(this);
             SocialSpyCommand ssCmd = new SocialSpyCommand(this);
             CommandSpyCommand csCmd = new CommandSpyCommand(this);
-            registerCommand("ss", ssCmd, "Toggle social spy.", "/ss", "kelpylandia.socialspy", "socialspy");
-            registerCommand("cs", csCmd, "Toggle command spy.", "/cs", "kelpylandia.commandspy", "commandspy");
+            registerCommand("ss", ssCmd, "Toggle social spy.", "/ss", "qol.socialspy", "socialspy");
+            registerCommand("cs", csCmd, "Toggle command spy.", "/cs", "qol.commandspy", "commandspy");
             getServer().getPluginManager().registerEvents(new SpyListener(this), this);
             getLogger().info("Spy commands enabled!");
         }
@@ -429,52 +433,52 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register fly command
         if (getConfig().getBoolean("fly.enabled", true)) {
             FlyCommand flyCmd = new FlyCommand(this);
-            registerCommand("fly", flyCmd, "Toggle flight mode.", "/fly [player]", "kelpylandia.fly", "flight");
+            registerCommand("fly", flyCmd, "Toggle flight mode.", "/fly [player]", "qol.fly", "flight");
             getLogger().info("Fly command enabled!");
         }
         
         // Register god command
         if (getConfig().getBoolean("god.enabled", true)) {
             godCommand = new GodCommand(this);
-            registerCommand("god", godCommand, "Toggle god mode (invincibility).", "/god [player]", "kelpylandia.god", "godmode");
+            registerCommand("god", godCommand, "Toggle god mode (invincibility).", "/god [player]", "qol.god", "godmode");
             UngodCommand ungodCmd = new UngodCommand(this);
-            registerCommand("ungod", ungodCmd, "Remove god mode (invincibility).", "/ungod [player]", "kelpylandia.god");
+            registerCommand("ungod", ungodCmd, "Remove god mode (invincibility).", "/ungod [player]", "qol.god");
             getLogger().info("God command enabled!");
         }
         
         // Register heal command
         if (getConfig().getBoolean("heal.enabled", true)) {
             HealCommand healCmd = new HealCommand(this);
-            registerCommand("heal", healCmd, "Heal a player to full health.", "/heal [player]", "kelpylandia.heal");
+            registerCommand("heal", healCmd, "Heal a player to full health.", "/heal [player]", "qol.heal");
             getLogger().info("Heal command enabled!");
         }
         
         // Register starve command
         if (getConfig().getBoolean("starve.enabled", true)) {
             StarveCommand starveCmd = new StarveCommand(this);
-            registerCommand("starve", starveCmd, "Set a player's food to zero.", "/starve [player]", "kelpylandia.starve");
+            registerCommand("starve", starveCmd, "Set a player's food to zero.", "/starve [player]", "qol.starve");
             getLogger().info("Starve command enabled!");
         }
         
         // Register feed command
         if (getConfig().getBoolean("feed.enabled", true)) {
             FeedCommand feedCmd = new FeedCommand(this);
-            registerCommand("feed", feedCmd, "Fill a player's food bar.", "/feed [player]", "kelpylandia.feed");
+            registerCommand("feed", feedCmd, "Fill a player's food bar.", "/feed [player]", "qol.feed");
             getLogger().info("Feed command enabled!");
         }
         
         // Register flyspeed / walkspeed commands
         if (getConfig().getBoolean("flyspeed.enabled", true)) {
             FlySpeedCommand speedCmd = new FlySpeedCommand(this);
-            registerCommand("flyspeed", speedCmd, "Set fly speed (0-10).", "/flyspeed <speed> [player]", "kelpylandia.flyspeed", "fspeed");
-            registerCommand("walkspeed", speedCmd, "Set walk speed (0-10).", "/walkspeed <speed> [player]", "kelpylandia.flyspeed", "wspeed");
+            registerCommand("flyspeed", speedCmd, "Set fly speed (0-10).", "/flyspeed <speed> [player]", "qol.flyspeed", "fspeed");
+            registerCommand("walkspeed", speedCmd, "Set walk speed (0-10).", "/walkspeed <speed> [player]", "qol.flyspeed", "wspeed");
             getLogger().info("Fly/Walk speed commands enabled!");
         }
         
         // Register trash command
         if (getConfig().getBoolean("trash.enabled", true)) {
             TrashCommand trashCmd = new TrashCommand(this);
-            registerCommand("trash", trashCmd, "Open a trash can to dispose of items.", "/trash", "kelpylandia.trash", "disposal", "bin");
+            registerCommand("trash", trashCmd, "Open a trash can to dispose of items.", "/trash", "qol.trash", "disposal", "bin");
             getServer().getPluginManager().registerEvents(trashCmd, this);
             getLogger().info("Trash command enabled!");
         }
@@ -482,14 +486,14 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register lore command
         if (getConfig().getBoolean("lore.enabled", true)) {
             LoreCommand loreCmd = new LoreCommand(this);
-            registerCommand("lore", loreCmd, "Edit item lore.", "/lore <set|add|clear|remove|insert> [args]", "kelpylandia.lore", "itemlore");
+            registerCommand("lore", loreCmd, "Edit item lore.", "/lore <set|add|clear|remove|insert> [args]", "qol.lore", "itemlore");
             getLogger().info("Lore command enabled!");
         }
         
         // Register hat command
         if (getConfig().getBoolean("hat.enabled", true)) {
             HatCommand hatCmd = new HatCommand(this);
-            registerCommand("hat", hatCmd, "Wear an item as a hat.", "/hat", "kelpylandia.hat");
+            registerCommand("hat", hatCmd, "Wear an item as a hat.", "/hat", "qol.hat");
             getLogger().info("Hat command enabled!");
         }
         
@@ -500,24 +504,24 @@ public class KelpylandiaPlugin extends JavaPlugin {
             WarpsCommand warpsCmd = new WarpsCommand(this);
             SetWarpCommand setWarpCmd = new SetWarpCommand(this);
             DelWarpCommand delWarpCmd = new DelWarpCommand(this);
-            registerCommand("warp", warpCmd, "Teleport to a warp. List available warps with /warps.", "/warp <name>", "kelpylandia.warp", "warpto");
-            registerCommand("warps", warpsCmd, "List all available warps.", "/warps", "kelpylandia.warp", "warplist");
-            registerCommand("setwarp", setWarpCmd, "Create a new warp.", "/setwarp <name>", "kelpylandia.setwarp");
-            registerCommand("delwarp", delWarpCmd, "Delete a warp.", "/delwarp <name>", "kelpylandia.delwarp", "removewarp");
+            registerCommand("warp", warpCmd, "Teleport to a warp. List available warps with /warps.", "/warp <name>", "qol.warp", "warpto");
+            registerCommand("warps", warpsCmd, "List all available warps.", "/warps", "qol.warp", "warplist");
+            registerCommand("setwarp", setWarpCmd, "Create a new warp.", "/setwarp <name>", "qol.setwarp");
+            registerCommand("delwarp", delWarpCmd, "Delete a warp.", "/delwarp <name>", "qol.delwarp", "removewarp");
             getLogger().info("Warp commands enabled!");
         }
         
         // Register random teleport command
         if (getConfig().getBoolean("rtp.enabled", true)) {
             RtpCommand rtpCmd = new RtpCommand(this);
-            registerCommand("rtp", rtpCmd, "Teleport to a random location.", "/rtp", "kelpylandia.rtp", "randomtp", "randomteleport", "wild");
+            registerCommand("rtp", rtpCmd, "Teleport to a random location.", "/rtp", "qol.rtp", "randomtp", "randomteleport", "wild");
             getLogger().info("Random teleport command enabled!");
         }
         
         // Register seen command
         if (getConfig().getBoolean("seen.enabled", true)) {
             SeenCommand seenCmd = new SeenCommand(this);
-            registerCommand("seen", seenCmd, "Check when a player was last online.", "/seen <player>", "kelpylandia.seen", "lastonline");
+            registerCommand("seen", seenCmd, "Check when a player was last online.", "/seen <player>", "qol.seen", "lastonline");
             getLogger().info("Seen command enabled!");
         }
         
@@ -552,7 +556,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
             kitManager = new KitManager(this);
             kitGUI = new KitGUI(this);
             KitCommand kitCmd = new KitCommand(this);
-            registerCommand("kit", kitCmd, "Claim, preview, or manage kits.", "/kit <name|list|preview|create|edit|delete|reload>", "kelpylandia.kit", "kits");
+            registerCommand("kit", kitCmd, "Claim, preview, or manage kits.", "/kit <name|list|preview|create|edit|delete|reload>", "qol.kit", "kits");
             getServer().getPluginManager().registerEvents(kitGUI, this);
             getLogger().info("Kits system enabled! (" + kitManager.getAllKits().size() + " kit(s) loaded)");
         }
@@ -560,14 +564,14 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register stuck command
         if (getConfig().getBoolean("stuck.enabled", false)) {
             StuckCommand stuckCmd = new StuckCommand(this);
-            registerCommand("stuck", stuckCmd, "Unstuck yourself from the nether roof or void.", "/stuck", "kelpylandia.stuck", "unstuck");
+            registerCommand("stuck", stuckCmd, "Unstuck yourself from the nether roof or void.", "/stuck", "qol.stuck", "unstuck");
             getLogger().info("Stuck command enabled!");
         }
         
         // Register noclip command
         if (getConfig().getBoolean("noclip.enabled", true)) {
             NoclipCommand noclipCmd = new NoclipCommand(this);
-            registerCommand("noclip", noclipCmd, "Toggle noclip mode (fly through blocks).", "/noclip [player]", "kelpylandia.noclip");
+            registerCommand("noclip", noclipCmd, "Toggle noclip mode (fly through blocks).", "/noclip [player]", "qol.noclip");
             getServer().getPluginManager().registerEvents(noclipCmd, this);
             getLogger().info("Noclip command enabled!");
         }
@@ -575,28 +579,28 @@ public class KelpylandiaPlugin extends JavaPlugin {
         // Register rules command
         if (getConfig().getBoolean("rules.enabled", true)) {
             RulesCommand rulesCmd = new RulesCommand(this);
-            registerCommand("rules", rulesCmd, "Display the server rules.", "/rules", "kelpylandia.rules", "serverrules");
+            registerCommand("rules", rulesCmd, "Display the server rules.", "/rules", "qol.rules", "serverrules");
             getLogger().info("Rules command enabled!");
         }
         
         // Register smite command
         if (getConfig().getBoolean("smite.enabled", true)) {
             SmiteCommand smiteCmd = new SmiteCommand(this);
-            registerCommand("smite", smiteCmd, "Strike lightning on a player.", "/smite <player>", "kelpylandia.smite", "lightning", "strike");
+            registerCommand("smite", smiteCmd, "Strike lightning on a player.", "/smite <player>", "qol.smite", "lightning", "strike");
             getLogger().info("Smite command enabled!");
         }
         
         // Register report command
         if (getConfig().getBoolean("report.enabled", true)) {
             ReportCommand reportCmd = new ReportCommand(this);
-            registerCommand("report", reportCmd, "Report a player or bug.", "/report <player|bug> <reason>", "kelpylandia.report");
+            registerCommand("report", reportCmd, "Report a player or bug.", "/report <player|bug> <reason>", "qol.report");
             getLogger().info("Report command enabled!");
         }
         
         // Register recipe command
         if (getConfig().getBoolean("recipe.enabled", true)) {
             RecipeCommand recipeCmd = new RecipeCommand(this);
-            registerCommand("recipe", recipeCmd, "View the crafting recipe for an item.", "/recipe <item> [page]", "kelpylandia.recipe", "recipes", "lookup");
+            registerCommand("recipe", recipeCmd, "View the crafting recipe for an item.", "/recipe <item> [page]", "qol.recipe", "recipes", "lookup");
             getServer().getPluginManager().registerEvents(recipeCmd, this);
             getLogger().info("Recipe command enabled!");
         }
@@ -605,6 +609,22 @@ public class KelpylandiaPlugin extends JavaPlugin {
         if (getConfig().getBoolean("discord.enabled", true)) {
             discordIntegration = new DiscordIntegration(this);
             getLogger().info("Discord integration enabled!");
+        }
+
+        // Initialize update checker
+        if (getConfig().getBoolean("update-checker.enabled", true)) {
+            updateChecker = new UpdateChecker(this);
+            UpdateCommand updateCmd = new UpdateCommand(this);
+            registerCommand("kpupdate", updateCmd,
+                    "Check for and download plugin updates.",
+                    "/kpupdate <check|download>",
+                    "qol.update",
+                    "pluginupdate", "qolupdate");
+            getServer().getPluginManager().registerEvents(new UpdateNotifyListener(this), this);
+            // Run the first check 3 seconds after startup so it never delays boot
+            Bukkit.getScheduler().runTaskLater(this, () ->
+                    updateChecker.checkAsync(null), 60L);
+            getLogger().info("Update checker enabled!");
         }
         
         // Schedule automatic cleanup of expired warnings every hour
@@ -820,7 +840,11 @@ public class KelpylandiaPlugin extends JavaPlugin {
     public KitGUI getKitGUI() {
         return kitGUI;
     }
-    
+
+    public UpdateChecker getUpdateChecker() {
+        return updateChecker;
+    }
+
     // ─── Data folder migration ─────────────────────────────────────
 
     /**

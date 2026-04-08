@@ -21,7 +21,7 @@ public class KickCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("kelpylandia.mod.kick")) {
+        if (!sender.hasPermission("qol.mod.kick")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

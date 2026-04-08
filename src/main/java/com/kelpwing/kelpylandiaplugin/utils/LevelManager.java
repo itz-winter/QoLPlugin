@@ -25,7 +25,7 @@ public class LevelManager {
     public static int getLevel(Player player, String feature) {
         int highest = 1;
         for (int i = 10; i >= 2; i--) {
-            if (player.hasPermission("kelpylandia." + feature + ".level." + i)) {
+            if (player.hasPermission("qol." + feature + ".level." + i)) {
                 highest = i;
                 break;
             }

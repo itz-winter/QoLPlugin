@@ -225,7 +225,7 @@ public class TpaManager {
 
     public void applyCooldown(Player player) {
         // Bypass for players with bypass permission
-        if (player.hasPermission("kelpylandia.teleport.bypass.cooldown")) return;
+        if (player.hasPermission("qol.teleport.bypass.cooldown")) return;
 
         long cooldownMs = plugin.getConfig().getLong("teleport.cooldown", 2) * 1000L;
         cooldowns.put(player.getUniqueId(), System.currentTimeMillis() + cooldownMs);

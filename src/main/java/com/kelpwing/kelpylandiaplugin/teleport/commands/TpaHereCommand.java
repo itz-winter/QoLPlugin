@@ -42,7 +42,7 @@ public class TpaHereCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.tpa.here")) {
+        if (!player.hasPermission("qol.tpa.here")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

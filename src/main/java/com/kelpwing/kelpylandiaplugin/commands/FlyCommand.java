@@ -37,7 +37,7 @@ public class FlyCommand implements CommandExecutor, TabCompleter {
         }
 
         // Target a player (or *)
-        if (!sender.hasPermission("kelpylandia.fly.others")) {
+        if (!sender.hasPermission("qol.fly.others")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to toggle flight for others.");
             return true;
         }
@@ -76,7 +76,7 @@ public class FlyCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1 && sender.hasPermission("kelpylandia.fly.others")) {
+        if (args.length == 1 && sender.hasPermission("qol.fly.others")) {
             String prefix = args[0].toLowerCase();
             List<String> names = new ArrayList<>();
             names.add("*");

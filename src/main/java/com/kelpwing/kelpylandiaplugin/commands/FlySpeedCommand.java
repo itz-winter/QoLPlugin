@@ -65,7 +65,7 @@ public class FlySpeedCommand implements CommandExecutor, TabCompleter {
         // Determine target player
         Player target;
         if (args.length >= 2) {
-            if (!sender.hasPermission("kelpylandia.flyspeed.others")) {
+            if (!sender.hasPermission("qol.flyspeed.others")) {
                 sender.sendMessage(ChatColor.RED + "You don't have permission to change others' speed.");
                 return true;
             }
@@ -103,7 +103,7 @@ public class FlySpeedCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             return Arrays.asList("0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10");
         }
-        if (args.length == 2 && sender.hasPermission("kelpylandia.flyspeed.others")) {
+        if (args.length == 2 && sender.hasPermission("qol.flyspeed.others")) {
             String prefix = args[1].toLowerCase();
             List<String> names = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) {

@@ -120,7 +120,7 @@ public class EnchantCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        boolean unsafe = sender.hasPermission("kelpylandia.enchant.unsafe");
+        boolean unsafe = sender.hasPermission("qol.enchant.unsafe");
         if (unsafe) {
             // Bypass normal limits
             item.addUnsafeEnchantment(enchantment, level);

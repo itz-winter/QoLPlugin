@@ -22,7 +22,7 @@ public class UnmuteCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("kelpylandia.mod.unmute")) {
+        if (!sender.hasPermission("qol.mod.unmute")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

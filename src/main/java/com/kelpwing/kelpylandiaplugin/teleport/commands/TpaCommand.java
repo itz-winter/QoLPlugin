@@ -43,7 +43,7 @@ public class TpaCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.tpa")) {
+        if (!player.hasPermission("qol.tpa")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to use teleport requests.");
             return true;
         }

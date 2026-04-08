@@ -25,7 +25,7 @@ public class MuteCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("kelpylandia.mod.mute")) {
+        if (!sender.hasPermission("qol.mod.mute")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

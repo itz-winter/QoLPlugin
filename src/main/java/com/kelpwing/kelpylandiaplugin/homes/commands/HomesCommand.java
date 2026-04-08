@@ -34,7 +34,7 @@ public class HomesCommand implements CommandExecutor {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.homes.list")) {
+        if (!player.hasPermission("qol.homes.list")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to list homes.");
             return true;
         }

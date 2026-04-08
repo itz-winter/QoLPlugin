@@ -36,7 +36,7 @@ public class SpawnCommand implements CommandExecutor, TabCompleter {
                 return true;
             }
 
-            if (!player.hasPermission("kelpylandia.spawn")) {
+            if (!player.hasPermission("qol.spawn")) {
                 player.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
                 return true;
             }
@@ -46,7 +46,7 @@ public class SpawnCommand implements CommandExecutor, TabCompleter {
         }
 
         // Teleport another player
-        if (!sender.hasPermission("kelpylandia.spawn.others")) {
+        if (!sender.hasPermission("qol.spawn.others")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to teleport other players to spawn.");
             return true;
         }
@@ -82,7 +82,7 @@ public class SpawnCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1 && sender.hasPermission("kelpylandia.spawn.others")) {
+        if (args.length == 1 && sender.hasPermission("qol.spawn.others")) {
             List<String> names = new ArrayList<>();
             String partial = args[0].toLowerCase();
             for (Player p : plugin.getServer().getOnlinePlayers()) {

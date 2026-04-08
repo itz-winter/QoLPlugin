@@ -24,7 +24,7 @@ public class ChannelCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("kelpylandia.channel.admin")) {
+        if (!sender.hasPermission("qol.channel.admin")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to manage channels.");
             return true;
         }

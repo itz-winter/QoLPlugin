@@ -42,7 +42,7 @@ public class HomeCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.homes.teleport")) {
+        if (!player.hasPermission("qol.homes.teleport")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to use homes.");
             return true;
         }
@@ -80,7 +80,7 @@ public class HomeCommand implements CommandExecutor, TabCompleter {
         String homeName = args[0];
 
         // Check for admin syntax: user:homename
-        if (homeName.contains(":") && player.hasPermission("kelpylandia.homes.others")) {
+        if (homeName.contains(":") && player.hasPermission("qol.homes.others")) {
             String[] parts = homeName.split(":", 2);
             String targetName = parts[0];
             String targetHomeName = parts[1].isEmpty() ? "home" : parts[1];
@@ -159,7 +159,7 @@ public class HomeCommand implements CommandExecutor, TabCompleter {
             }
 
             // Admin syntax: user:homename
-            if (player.hasPermission("kelpylandia.homes.others") && partial.contains(":")) {
+            if (player.hasPermission("qol.homes.others") && partial.contains(":")) {
                 String[] parts = partial.split(":", 2);
                 String targetName = parts[0];
                 String homePartial = parts.length > 1 ? parts[1] : "";
@@ -174,7 +174,7 @@ public class HomeCommand implements CommandExecutor, TabCompleter {
                         }
                     }
                 }
-            } else if (player.hasPermission("kelpylandia.homes.others")) {
+            } else if (player.hasPermission("qol.homes.others")) {
                 // Suggest online player names with colon suffix
                 for (Player p : Bukkit.getOnlinePlayers()) {
                     String name = p.getName().toLowerCase();

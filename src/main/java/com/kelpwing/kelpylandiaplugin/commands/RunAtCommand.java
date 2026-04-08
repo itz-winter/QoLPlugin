@@ -42,7 +42,7 @@ public class RunAtCommand implements CommandExecutor, TabCompleter {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         // Console can always use this. Players need the permission.
-        if (sender instanceof Player && !sender.hasPermission("kelpylandia.runat")) {
+        if (sender instanceof Player && !sender.hasPermission("qol.runat")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

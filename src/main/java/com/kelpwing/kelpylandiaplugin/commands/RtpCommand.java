@@ -152,7 +152,7 @@ public class RtpCommand implements CommandExecutor {
                 ChatColor.GRAY + "(" + safe.getBlockX() + ", " + safe.getBlockY() + ", " + safe.getBlockZ() + ")");
 
         // Apply cooldown (skip if player has bypass permission)
-        if (player.hasPermission("kelpylandia.rtp.bypass.cooldown")) {
+        if (player.hasPermission("qol.rtp.bypass.cooldown")) {
             cooldowns.remove(player.getUniqueId());
         } else {
             long expiresAt = System.currentTimeMillis() + (cooldownSec * 1000L);

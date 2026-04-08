@@ -2,6 +2,16 @@
 # Combined chat and moderation system for Kelpylandia
 # (Formerly KelpylandiaPlugin — old folder is auto-migrated)
 
+# ===== UPDATE CHECKER =====
+update-checker:
+  # Set to false to completely disable the update checker.
+  enabled: true
+  # Players/operators with kelpylandia.update.notify will see a
+  # clickable notification in chat when they join, if a newer
+  # version is available on Modrinth.
+  # Use /kpupdate check  — to see current vs. latest version
+  # Use /kpupdate download — to download the latest jar to plugins/
+
 # ===== CHAT SYSTEM CONFIGURATION =====
 
 # Channel Configurations

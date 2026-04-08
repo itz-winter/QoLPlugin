@@ -33,7 +33,7 @@ public class HatCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.hat")) {
+        if (!player.hasPermission("qol.hat")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

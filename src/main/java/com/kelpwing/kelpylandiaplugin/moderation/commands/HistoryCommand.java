@@ -21,7 +21,7 @@ public class HistoryCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        if (!sender.hasPermission("kelpylandia.mod.history")) {
+        if (!sender.hasPermission("qol.mod.history")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

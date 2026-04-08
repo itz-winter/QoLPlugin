@@ -80,7 +80,7 @@ public class ReportCommand implements CommandExecutor, TabCompleter {
                 + ChatColor.RED + ": " + ChatColor.GRAY + reason;
 
         for (Player online : Bukkit.getOnlinePlayers()) {
-            if (online.hasPermission("kelpylandia.report.notify")) {
+            if (online.hasPermission("qol.report.notify")) {
                 online.sendMessage(staffMessage);
             }
         }

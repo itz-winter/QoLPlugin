@@ -36,7 +36,7 @@ public class InvseeCommand implements CommandExecutor, TabCompleter {
 
         Player admin = (Player) sender;
         
-        if (!admin.hasPermission("kelpylandia.invsee")) {
+        if (!admin.hasPermission("qol.invsee")) {
             admin.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

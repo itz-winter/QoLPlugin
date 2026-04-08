@@ -36,7 +36,7 @@ public class VanishCommand implements CommandExecutor {
 
         Player player = (Player) sender;
         
-        if (!player.hasPermission("kelpylandia.vanish")) {
+        if (!player.hasPermission("qol.vanish")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }
@@ -46,7 +46,7 @@ public class VanishCommand implements CommandExecutor {
             toggleVanish(player);
         } else if (args.length == 1) {
             // Toggle vanish for target player
-            if (!player.hasPermission("kelpylandia.vanish.others")) {
+            if (!player.hasPermission("qol.vanish.others")) {
                 player.sendMessage(ChatColor.RED + "You don't have permission to vanish other players.");
                 return true;
             }
@@ -88,7 +88,7 @@ public class VanishCommand implements CommandExecutor {
         // Hide player from all online players (respecting vanish levels)
         for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
             if (onlinePlayer.equals(player)) continue;
-            if (!onlinePlayer.hasPermission("kelpylandia.vanish.see")
+            if (!onlinePlayer.hasPermission("qol.vanish.see")
                     || !LevelManager.canObserve(onlinePlayer, player, "vanish")) {
                 onlinePlayer.hidePlayer(plugin, player);
             }
@@ -231,7 +231,7 @@ public class VanishCommand implements CommandExecutor {
         
         for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
             if (onlinePlayer.equals(player)) continue;
-            if (!onlinePlayer.hasPermission("kelpylandia.vanish.see")
+            if (!onlinePlayer.hasPermission("qol.vanish.see")
                     || !LevelManager.canObserve(onlinePlayer, player, "vanish")) {
                 onlinePlayer.hidePlayer(plugin, player);
             }

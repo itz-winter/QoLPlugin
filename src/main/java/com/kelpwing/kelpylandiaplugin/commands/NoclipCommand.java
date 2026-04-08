@@ -47,7 +47,7 @@ public class NoclipCommand implements CommandExecutor, TabCompleter, Listener {
         Player target;
 
         if (args.length > 0) {
-            if (!sender.hasPermission("kelpylandia.noclip.others")) {
+            if (!sender.hasPermission("qol.noclip.others")) {
                 sender.sendMessage(ChatColor.RED + "You don't have permission to use noclip on others.");
                 return true;
             }

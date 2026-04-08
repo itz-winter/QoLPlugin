@@ -36,7 +36,7 @@ public class FeedCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!sender.hasPermission("kelpylandia.feed.others")) {
+        if (!sender.hasPermission("qol.feed.others")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to feed others.");
             return true;
         }
@@ -73,7 +73,7 @@ public class FeedCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1 && sender.hasPermission("kelpylandia.feed.others")) {
+        if (args.length == 1 && sender.hasPermission("qol.feed.others")) {
             String prefix = args[0].toLowerCase();
             List<String> names = new ArrayList<>();
             names.add("*");

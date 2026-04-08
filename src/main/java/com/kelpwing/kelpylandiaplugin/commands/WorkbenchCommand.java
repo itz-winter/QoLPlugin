@@ -64,7 +64,7 @@ public class WorkbenchCommand implements CommandExecutor, TabCompleter {
 
         // Determine which workbench to open + optional target player
         Player target = player;
-        if (args.length >= 1 && player.hasPermission("kelpylandia.workbench.others")) {
+        if (args.length >= 1 && player.hasPermission("qol.workbench.others")) {
             Player found = Bukkit.getPlayer(args[0]);
             if (found != null) {
                 target = found;
@@ -95,7 +95,7 @@ public class WorkbenchCommand implements CommandExecutor, TabCompleter {
     // ===================== Workbench Openers =====================
 
     private void openCraftingTable(Player opener, Player target) {
-        if (!checkPerm(opener, "kelpylandia.workbench.craft")) return;
+        if (!checkPerm(opener, "qol.workbench.craft")) return;
         if (!checkEnabled(opener, "workbenches.craft")) return;
 
         target.openWorkbench(target.getLocation(), true);
@@ -103,7 +103,7 @@ public class WorkbenchCommand implements CommandExecutor, TabCompleter {
     }
 
     private void openEnderChest(Player opener, Player target) {
-        if (!checkPerm(opener, "kelpylandia.workbench.enderchest")) return;
+        if (!checkPerm(opener, "qol.workbench.enderchest")) return;
         if (!checkEnabled(opener, "workbenches.enderchest")) return;
 
         opener.openInventory(target.getEnderChest());
@@ -111,7 +111,7 @@ public class WorkbenchCommand implements CommandExecutor, TabCompleter {
     }
 
     private void openAnvil(Player opener, Player target) {
-        if (!checkPerm(opener, "kelpylandia.workbench.anvil")) return;
+        if (!checkPerm(opener, "qol.workbench.anvil")) return;
         if (!checkEnabled(opener, "workbenches.anvil")) return;
 
         if (!openPaperWorkbench(target, "openAnvil")) {
@@ -123,7 +123,7 @@ public class WorkbenchCommand implements CommandExecutor, TabCompleter {
     }
 
     private void openGrindstone(Player opener, Player target) {
-        if (!checkPerm(opener, "kelpylandia.workbench.grindstone")) return;
+        if (!checkPerm(opener, "qol.workbench.grindstone")) return;
         if (!checkEnabled(opener, "workbenches.grindstone")) return;
 
         if (!openPaperWorkbench(target, "openGrindstone")) {
@@ -135,7 +135,7 @@ public class WorkbenchCommand implements CommandExecutor, TabCompleter {
     }
 
     private void openStonecutter(Player opener, Player target) {
-        if (!checkPerm(opener, "kelpylandia.workbench.stonecutter")) return;
+        if (!checkPerm(opener, "qol.workbench.stonecutter")) return;
         if (!checkEnabled(opener, "workbenches.stonecutter")) return;
 
         if (!openPaperWorkbench(target, "openStonecutter")) {
@@ -147,7 +147,7 @@ public class WorkbenchCommand implements CommandExecutor, TabCompleter {
     }
 
     private void openSmithingTable(Player opener, Player target) {
-        if (!checkPerm(opener, "kelpylandia.workbench.smithing")) return;
+        if (!checkPerm(opener, "qol.workbench.smithing")) return;
         if (!checkEnabled(opener, "workbenches.smithing")) return;
 
         if (!openPaperWorkbench(target, "openSmithingTable")) {
@@ -159,7 +159,7 @@ public class WorkbenchCommand implements CommandExecutor, TabCompleter {
     }
 
     private void openCartographyTable(Player opener, Player target) {
-        if (!checkPerm(opener, "kelpylandia.workbench.cartography")) return;
+        if (!checkPerm(opener, "qol.workbench.cartography")) return;
         if (!checkEnabled(opener, "workbenches.cartography")) return;
 
         if (!openPaperWorkbench(target, "openCartographyTable")) {
@@ -171,7 +171,7 @@ public class WorkbenchCommand implements CommandExecutor, TabCompleter {
     }
 
     private void openLoom(Player opener, Player target) {
-        if (!checkPerm(opener, "kelpylandia.workbench.loom")) return;
+        if (!checkPerm(opener, "qol.workbench.loom")) return;
         if (!checkEnabled(opener, "workbenches.loom")) return;
 
         if (!openPaperWorkbench(target, "openLoom")) {
@@ -248,7 +248,7 @@ public class WorkbenchCommand implements CommandExecutor, TabCompleter {
         if (!(sender instanceof Player player)) return Collections.emptyList();
 
         // Only suggest player names if they have the .others permission
-        if (args.length == 1 && player.hasPermission("kelpylandia.workbench.others")) {
+        if (args.length == 1 && player.hasPermission("qol.workbench.others")) {
             String partial = args[0].toLowerCase();
             List<String> names = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) {

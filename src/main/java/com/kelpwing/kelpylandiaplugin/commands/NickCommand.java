@@ -38,7 +38,7 @@ public class NickCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(ChatColor.RED + "Usage: /nick <player> [nickname]");
                 return true;
             }
-            if (!player.hasPermission("kelpylandia.nickname")) {
+            if (!player.hasPermission("qol.nickname")) {
                 player.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
                 return true;
             }
@@ -51,7 +51,7 @@ public class NickCommand implements CommandExecutor, TabCompleter {
         if (args.length == 1) {
             // Check if the argument matches an online player AND the sender has the admin perm
             Player target = Bukkit.getPlayerExact(args[0]);
-            if (target != null && sender.hasPermission("kelpylandia.nickname.others") && !target.equals(sender)) {
+            if (target != null && sender.hasPermission("qol.nickname.others") && !target.equals(sender)) {
                 // Admin reset another player's nickname
                 nickManager.removeNickname(target);
                 sender.sendMessage(ChatColor.GREEN + "Reset " + target.getName() + "'s nickname.");
@@ -64,7 +64,7 @@ public class NickCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(ChatColor.RED + "Usage: /nick <player> <nickname>");
                 return true;
             }
-            if (!player.hasPermission("kelpylandia.nickname")) {
+            if (!player.hasPermission("qol.nickname")) {
                 player.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
                 return true;
             }
@@ -76,7 +76,7 @@ public class NickCommand implements CommandExecutor, TabCompleter {
         }
 
         // --- Two+ arguments: admin setting another player's nickname ---
-        if (!sender.hasPermission("kelpylandia.nickname.others")) {
+        if (!sender.hasPermission("qol.nickname.others")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to change other players' nicknames.");
             return true;
         }
@@ -103,7 +103,7 @@ public class NickCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1 && sender.hasPermission("kelpylandia.nickname.others")) {
+        if (args.length == 1 && sender.hasPermission("qol.nickname.others")) {
             // Suggest online player names for admins
             List<String> names = new ArrayList<>();
             String prefix = args[0].toLowerCase();

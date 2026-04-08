@@ -247,7 +247,7 @@ public class HomeGUI implements Listener {
                 // Apply cooldown/invulnerability if teleport system is available
                 TpaManager tpaManager = plugin.getTpaManager();
                 if (tpaManager != null) {
-                    if (tpaManager.isOnCooldown(player) && !player.hasPermission("kelpylandia.teleport.bypass.cooldown")) {
+                    if (tpaManager.isOnCooldown(player) && !player.hasPermission("qol.teleport.bypass.cooldown")) {
                         long remaining = tpaManager.getCooldownRemaining(player);
                         player.sendMessage(ChatColor.RED + "You must wait " + ChatColor.GOLD + String.format("%.1f", remaining / 1000.0) + "s" + ChatColor.RED + " before teleporting again.");
                         return;

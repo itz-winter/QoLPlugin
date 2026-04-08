@@ -41,7 +41,7 @@ public class Channel {
     // Simple constructor for ChannelCommand
     public Channel(String name, String displayName) {
         this(name, displayName, "{prefix}{player}{suffix}: {message}", 
-             "kelpylandia.chat." + name.toLowerCase(), false, 100.0, 
+             "qol.chat." + name.toLowerCase(), false, 100.0, 
              false, null, false);
     }
     

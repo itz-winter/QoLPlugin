@@ -88,7 +88,7 @@ public class GamemodeCommand implements CommandExecutor, TabCompleter {
         Player target;
         if (args.length >= 1) {
             // Changing another player's gamemode
-            if (!sender.hasPermission("kelpylandia.gamemode.others")) {
+            if (!sender.hasPermission("qol.gamemode.others")) {
                 sender.sendMessage(ChatColor.RED + "You don't have permission to change other players' gamemode.");
                 return true;
             }
@@ -136,11 +136,11 @@ public class GamemodeCommand implements CommandExecutor, TabCompleter {
 
     private String getPermissionForMode(GameMode mode) {
         switch (mode) {
-            case CREATIVE: return "kelpylandia.gamemode.creative";
-            case SURVIVAL: return "kelpylandia.gamemode.survival";
-            case ADVENTURE: return "kelpylandia.gamemode.adventure";
-            case SPECTATOR: return "kelpylandia.gamemode.spectator";
-            default: return "kelpylandia.gamemode";
+            case CREATIVE: return "qol.gamemode.creative";
+            case SURVIVAL: return "qol.gamemode.survival";
+            case ADVENTURE: return "qol.gamemode.adventure";
+            case SPECTATOR: return "qol.gamemode.spectator";
+            default: return "qol.gamemode";
         }
     }
 
@@ -179,7 +179,7 @@ public class GamemodeCommand implements CommandExecutor, TabCompleter {
     }
 
     private List<String> getOnlinePlayerNames(String partial, CommandSender sender) {
-        if (!sender.hasPermission("kelpylandia.gamemode.others")) {
+        if (!sender.hasPermission("qol.gamemode.others")) {
             return Collections.emptyList();
         }
         List<String> names = new ArrayList<>();

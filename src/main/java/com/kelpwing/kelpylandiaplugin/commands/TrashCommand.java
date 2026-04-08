@@ -43,7 +43,7 @@ public class TrashCommand implements CommandExecutor, TabCompleter, Listener {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.trash")) {
+        if (!player.hasPermission("qol.trash")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

@@ -36,7 +36,7 @@ public class DelHomeCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!player.hasPermission("kelpylandia.homes.delete")) {
+        if (!player.hasPermission("qol.homes.delete")) {
             player.sendMessage(ChatColor.RED + "You don't have permission to delete homes.");
             return true;
         }

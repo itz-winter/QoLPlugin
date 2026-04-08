@@ -175,7 +175,7 @@ public class PlayerStateManager {
                 if (!player.isOnline()) return;
                 for (Player onlinePlayer : Bukkit.getOnlinePlayers()) {
                     if (onlinePlayer.equals(player)) continue;
-                    if (!onlinePlayer.hasPermission("kelpylandia.vanish.see")) {
+                    if (!onlinePlayer.hasPermission("qol.vanish.see")) {
                         onlinePlayer.hidePlayer(plugin, player);
                     }
                 }

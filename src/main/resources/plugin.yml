@@ -3,7 +3,7 @@ version: '${project.version}'
 main: com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin
 api-version: '1.16'
 author: Kelpwing
-description: Combined multichat and moderation plugin for Kelpylandia
+description: A collection of quality-of-life features and commands for Minecraft servers, including chat channels, moderation tools, teleportation commands, and more!!
 depend: [LuckPerms]
 softdepend: [PlaceholderAPI]
 
@@ -13,106 +13,114 @@ commands:
     description: Channel management command
     usage: /channel <subcommand>
     aliases: [ch]
-    permission: kelpylandia.channel.use
+    permission: qol.channel.use
   multichat:
     description: MultiChat admin command
     usage: /multichat <subcommand>
-    permission: kelpylandia.admin
+    permission: qol.admin
     
   # Moderation Commands
   kelpylandiaReload:
     description: Reload the plugin configuration
     usage: /kelpylandiaReload
-    permission: kelpylandia.reload
-    aliases: [kpreload, kreload]
+    permission: qol.reload
+    aliases: [qolreload, qreload, kpreload, kreload]
+    permission-message: "You don't have permission to use this command."
+
+  # Update checker
+  kpupdate:
+    description: Check for and download QoLPlugin updates from Modrinth.
+    usage: /kpupdate <check|download>
+    permission: qol.update
+    aliases: [pluginupdate, qolupdate]
     permission-message: "You don't have permission to use this command."
   mute:
     description: Mute a player.
     usage: /mute <player> [duration] [reason]
-    permission: kelpylandia.mod.mute
+    permission: qol.mod.mute
     permission-message: "You don't have permission to use this command."
   warn:
     description: Warn a player.
     usage: /warn <player> [reason]
-    permission: kelpylandia.mod.warn
+    permission: qol.mod.warn
     permission-message: "You don't have permission to use this command."
   kick:
     description: Kick a player.
     usage: /kick <player> [reason]
-    permission: kelpylandia.mod.kick
+    permission: qol.mod.kick
     permission-message: "You don't have permission to use this command."
   ban:
     description: Ban a player.
     usage: /ban <player> [duration] [reason]
-    permission: kelpylandia.mod.ban
+    permission: qol.mod.ban
     permission-message: "You don't have permission to use this command."
   ipban:
     description: Ban a player's IP.
     usage: /ipban <player> [duration] [reason]
-    permission: kelpylandia.mod.ipban
+    permission: qol.mod.ipban
     permission-message: "You don't have permission to use this command."
   warns:
     description: View a player's warnings.
     usage: /warns <player>
-    permission: kelpylandia.mod.warns
+    permission: qol.mod.warns
     permission-message: "You don't have permission to use this command."
   hist:
     description: View a player's punishment history.
     usage: /hist <player>
-    permission: kelpylandia.mod.history
+    permission: qol.mod.history
     permission-message: "You don't have permission to use this command."
   unban:
     description: Unban a player.
     usage: /unban <player>
-    permission: kelpylandia.mod.unban
+    permission: qol.mod.unban
     permission-message: "You don't have permission to use this command."
   unwarn:
     description: Remove a warning from a player.
     usage: /unwarn <player>
-    permission: kelpylandia.mod.unwarn
+    permission: qol.mod.unwarn
     permission-message: "You don't have permission to use this command."
   unmute:
     description: Unmute a player.
     usage: /unmute <player>
-    permission: kelpylandia.mod.unmute
+    permission: qol.mod.unmute
     permission-message: "You don't have permission to use this command."
   vanish:
     description: Toggle vanish mode for moderation.
     usage: /vanish [player]
-    permission: kelpylandia.vanish
+    permission: qol.vanish
     aliases: [v]
     permission-message: "You don't have permission to use this command."
   invsee:
     description: View and modify another player's inventory in real-time.
     usage: /invsee <player> [inv|armor|ender]
-    permission: kelpylandia.invsee
+    permission: qol.invsee
     aliases: [inv, openinv]
     permission-message: "You don't have permission to use this command."
   pvp:
     description: Toggle your PvP status on or off.
     usage: /pvp [on|off|status]
-    permission: kelpylandia.pvp
+    permission: qol.pvp
     aliases: [pvptoggle]
   jail:
     description: Jail a player for a specified duration.
     usage: /jail <player> <duration> [reason]
-    permission: kelpylandia.mod.jail
+    permission: qol.mod.jail
     permission-message: "You don't have permission to use this command."
   release:
     description: Release a player from jail.
     usage: /release <player> [reason]
-    permission: kelpylandia.mod.jail
+    permission: qol.mod.jail
     aliases: [unjail]
     permission-message: "You don't have permission to use this command."
   freeze:
     description: Freeze a player in place.
     usage: /freeze <player>
-    permission: kelpylandia.mod.freeze
+    permission: qol.mod.freeze
     permission-message: "You don't have permission to use this command."
   unfreeze:
     description: Unfreeze a player.
     usage: /unfreeze <player>
-    permission: kelpylandia.mod.freeze
+    permission: qol.mod.freeze
     aliases: [thaw]
     permission-message: "You don't have permission to use this command."
 
@@ -121,524 +129,1204 @@ commands:
   # conflicting with other plugins when disabled.
 
 permissions:
-  kelpylandia.*:
+  qol.*:
     description: Grants all permissions
     default: op
     children:
-      kelpylandia.admin: true
-      kelpylandia.mod.*: true
-      kelpylandia.channel.*: true
-      kelpylandia.pvp: true
-      kelpylandia.homes: true
-      kelpylandia.tpa: true
-      kelpylandia.tpa.here: true
-      kelpylandia.teleport.bypass.cooldown: true
-      kelpylandia.back: true
-      kelpylandia.dback: true
-      kelpylandia.back.bypass.cooldown: true
-      kelpylandia.spawn: true
-      kelpylandia.spawn.others: true
-      kelpylandia.gamemode.*: true
-      kelpylandia.workbench.*: true
-      kelpylandia.nickname: true
-      kelpylandia.nickname.others: true
-      kelpylandia.enchant: true
-      kelpylandia.enchant.unsafe: true
-      kelpylandia.afk: true
-      kelpylandia.msg: true
-      kelpylandia.msg.reply: true
-      kelpylandia.msg.whispertoggle: true
-      kelpylandia.suicide: true
-      kelpylandia.skull: true
-      kelpylandia.repair: true
-      kelpylandia.repair.others: true
-      kelpylandia.sudo: true
-      kelpylandia.socialspy: true
-      kelpylandia.commandspy: true
-      kelpylandia.fly: true
-      kelpylandia.fly.others: true
-      kelpylandia.god: true
-      kelpylandia.god.others: true
-      kelpylandia.heal: true
-      kelpylandia.heal.others: true
-      kelpylandia.starve: true
-      kelpylandia.starve.others: true
-      kelpylandia.feed: true
-      kelpylandia.feed.others: true
-      kelpylandia.flyspeed: true
-      kelpylandia.flyspeed.others: true
-      kelpylandia.trash: true
-      kelpylandia.lore: true
-      kelpylandia.hat: true
-      kelpylandia.warp: true
-      kelpylandia.setwarp: true
-      kelpylandia.delwarp: true
-      kelpylandia.rtp: true
-      kelpylandia.rtp.bypass.cooldown: true
-      kelpylandia.seen: true
-      kelpylandia.stuck: true
-      kelpylandia.noclip: true
-      kelpylandia.homes.others: true
-      kelpylandia.rules: true
-      kelpylandia.smite: true
-      kelpylandia.report: true
-      kelpylandia.report.notify: true
-      kelpylandia.recipe: true
-      kelpylandia.kit: true
-      kelpylandia.kit.admin: true
+      qol.admin: true
+      qol.mod.*: true
+      qol.channel.*: true
+      qol.pvp: true
+      qol.homes: true
+      qol.tpa: true
+      qol.tpa.here: true
+      qol.teleport.bypass.cooldown: true
+      qol.back: true
+      qol.dback: true
+      qol.back.bypass.cooldown: true
+      qol.spawn: true
+      qol.spawn.others: true
+      qol.gamemode.*: true
+      qol.workbench.*: true
+      qol.nickname: true
+      qol.nickname.others: true
+      qol.enchant: true
+      qol.enchant.unsafe: true
+      qol.afk: true
+      qol.msg: true
+      qol.msg.reply: true
+      qol.msg.whispertoggle: true
+      qol.suicide: true
+      qol.skull: true
+      qol.repair: true
+      qol.repair.others: true
+      qol.sudo: true
+      qol.socialspy: true
+      qol.commandspy: true
+      qol.fly: true
+      qol.fly.others: true
+      qol.god: true
+      qol.god.others: true
+      qol.heal: true
+      qol.heal.others: true
+      qol.starve: true
+      qol.starve.others: true
+      qol.feed: true
+      qol.feed.others: true
+      qol.flyspeed: true
+      qol.flyspeed.others: true
+      qol.trash: true
+      qol.lore: true
+      qol.hat: true
+      qol.warp: true
+      qol.setwarp: true
+      qol.delwarp: true
+      qol.rtp: true
+      qol.rtp.bypass.cooldown: true
+      qol.seen: true
+      qol.stuck: true
+      qol.noclip: true
+      qol.noclip.others: true
+      qol.runat: true
+      qol.anvil.color: true
+      qol.homes.others: true
+      qol.rules: true
+      qol.smite: true
+      qol.report: true
+      qol.report.notify: true
+      qol.recipe: true
+      qol.kit: true
+      qol.kit.admin: true
       
-  kelpylandia.admin:
+  qol.admin:
     description: Allows admin commands
     default: op
+
+  qol.update:
+    description: Check for and download plugin updates via /kpupdate
+    default: op
+
+  qol.update.notify:
+    description: Receive an in-game notification on join when a plugin update is available
+    default: op
     
-  kelpylandia.reload:
+  qol.reload:
     description: Allows reloading the plugin configuration
     default: op
     
-  kelpylandia.mod.*:
+  qol.mod.*:
     description: Grants all moderation permissions
     default: op
     children:
-      kelpylandia.mod.mute: true
-      kelpylandia.mod.warn: true
-      kelpylandia.mod.kick: true
-      kelpylandia.mod.ban: true
-      kelpylandia.mod.ipban: true
-      kelpylandia.mod.warns: true
-      kelpylandia.mod.history: true
-      kelpylandia.mod.unban: true
-      kelpylandia.mod.unwarn: true
-      kelpylandia.mod.unmute: true
-      kelpylandia.vanish: true
-      kelpylandia.vanish.others: true
-      kelpylandia.vanish.see: true
-      kelpylandia.invsee: true
-      kelpylandia.mod.jail: true
-      kelpylandia.mod.freeze: true
+      qol.mod.mute: true
+      qol.mod.warn: true
+      qol.mod.kick: true
+      qol.mod.ban: true
+      qol.mod.ipban: true
+      qol.mod.warns: true
+      qol.mod.history: true
+      qol.mod.unban: true
+      qol.mod.unwarn: true
+      qol.mod.unmute: true
+      qol.vanish: true
+      qol.vanish.others: true
+      qol.vanish.see: true
+      qol.invsee: true
+      qol.mod.jail: true
+      qol.mod.freeze: true
       
-  kelpylandia.mod.basic:
+  qol.mod.basic:
     description: Basic moderation permissions
     default: false
     children:
-      kelpylandia.mod.mute: true
-      kelpylandia.mod.warn: true
-      kelpylandia.mod.kick: true
-      kelpylandia.mod.warns: true
-      kelpylandia.mod.history: true
-      kelpylandia.mod.unmute: true
-      kelpylandia.mod.unwarn: true
+      qol.mod.mute: true
+      qol.mod.warn: true
+      qol.mod.kick: true
+      qol.mod.warns: true
+      qol.mod.history: true
+      qol.mod.unmute: true
+      qol.mod.unwarn: true
       
-  kelpylandia.mod.advanced:
+  qol.mod.advanced:
     description: Advanced moderation permissions
     default: false
     children:
-      kelpylandia.mod.ban: true
-      kelpylandia.mod.ipban: true
-      kelpylandia.mod.unban: true
+      qol.mod.ban: true
+      qol.mod.ipban: true
+      qol.mod.unban: true
       
-  kelpylandia.channel.*:
+  qol.channel.*:
     description: Grants all channel permissions
     default: false
     children:
-      kelpylandia.channel.use: true
-      kelpylandia.channel.admin: true
+      qol.channel.use: true
+      qol.channel.admin: true
       
-  kelpylandia.channel.use:
+  qol.channel.use:
     description: Allows basic channel usage
     default: true
     
-  kelpylandia.channel.admin:
+  qol.channel.admin:
     description: Allows channel administration
     default: op
     
-  kelpylandia.vanish:
+  qol.vanish:
     description: Allows vanishing and unvanishing
     default: op
     
-  kelpylandia.vanish.others:
+  qol.vanish.others:
     description: Allows vanishing other players
     default: op
     
-  kelpylandia.vanish.see:
+  qol.vanish.see:
     description: Allows seeing vanished players
     default: op
     
-  kelpylandia.invsee:
+  qol.invsee:
     description: Allows viewing and modifying other players' inventories
     default: op
     
-  kelpylandia.pvp:
+  qol.pvp:
     description: Allows toggling PvP status
     default: true
     
   # Home Permissions
-  kelpylandia.homes:
+  qol.homes:
     description: Grants all home permissions
     default: true
     children:
-      kelpylandia.homes.teleport: true
-      kelpylandia.homes.set: true
-      kelpylandia.homes.delete: true
-      kelpylandia.homes.list: true
+      qol.homes.teleport: true
+      qol.homes.set: true
+      qol.homes.delete: true
+      qol.homes.list: true
 
-  kelpylandia.homes.teleport:
+  qol.homes.teleport:
     description: Allows using /home to teleport to homes
     default: true
 
-  kelpylandia.homes.set:
+  qol.homes.set:
     description: Allows using /sethome to create homes
     default: true
 
-  kelpylandia.homes.delete:
+  qol.homes.delete:
     description: Allows using /delhome to delete homes
     default: true
 
-  kelpylandia.homes.list:
+  qol.homes.list:
     description: Allows using /homes to list homes
     default: true
     
   # TPA Permissions
-  kelpylandia.tpa:
+  qol.tpa:
     description: Allows sending and receiving teleport requests
     default: true
     
-  kelpylandia.tpa.here:
+  qol.tpa.here:
     description: Allows using /tpahere to request others teleport to you
     default: true
     
-  kelpylandia.teleport.bypass.cooldown:
+  qol.teleport.bypass.cooldown:
     description: Bypass teleport cooldown
     default: op
 
   # Workbench Permissions
-  kelpylandia.workbench.*:
+  qol.workbench.*:
     description: Grants all workbench permissions
     default: true
     children:
-      kelpylandia.workbench.craft: true
-      kelpylandia.workbench.enderchest: true
-      kelpylandia.workbench.anvil: true
-      kelpylandia.workbench.grindstone: true
-      kelpylandia.workbench.stonecutter: true
-      kelpylandia.workbench.smithing: true
-      kelpylandia.workbench.cartography: true
-      kelpylandia.workbench.loom: true
+      qol.workbench.craft: true
+      qol.workbench.enderchest: true
+      qol.workbench.anvil: true
+      qol.workbench.grindstone: true
+      qol.workbench.stonecutter: true
+      qol.workbench.smithing: true
+      qol.workbench.cartography: true
+      qol.workbench.loom: true
 
-  kelpylandia.workbench.craft:
+  qol.workbench.craft:
     description: Allows opening a virtual crafting table
     default: true
 
-  kelpylandia.workbench.enderchest:
+  qol.workbench.enderchest:
     description: Allows opening your ender chest
     default: true
 
-  kelpylandia.workbench.anvil:
+  qol.workbench.anvil:
     description: Allows opening a virtual anvil
     default: true
 
-  kelpylandia.workbench.grindstone:
+  qol.workbench.grindstone:
     description: Allows opening a virtual grindstone
     default: true
 
-  kelpylandia.workbench.stonecutter:
+  qol.workbench.stonecutter:
     description: Allows opening a virtual stonecutter
     default: true
 
-  kelpylandia.workbench.smithing:
+  qol.workbench.smithing:
     description: Allows opening a virtual smithing table
     default: true
 
-  kelpylandia.workbench.cartography:
+  qol.workbench.cartography:
     description: Allows opening a virtual cartography table
     default: true
 
-  kelpylandia.workbench.loom:
+  qol.workbench.loom:
     description: Allows opening a virtual loom
     default: true
 
-  kelpylandia.workbench.others:
+  qol.workbench.others:
     description: Allows opening workbenches for other players
     default: op
 
-  kelpylandia.back:
+  qol.back:
     description: Allows using /back to return to previous location
     default: true
 
-  kelpylandia.dback:
+  qol.dback:
     description: Allows using /dback to return to death location
     default: true
 
-  kelpylandia.back.bypass.cooldown:
+  qol.back.bypass.cooldown:
     description: Bypass the back command cooldown
     default: op
 
   # Spawn Permissions
-  kelpylandia.spawn:
+  qol.spawn:
     description: Allows using /spawn to teleport to world spawn
     default: true
 
-  kelpylandia.spawn.others:
+  qol.spawn.others:
     description: Allows teleporting other players to spawn
     default: op
 
   # Gamemode Permissions
-  kelpylandia.gamemode.*:
+  qol.gamemode.*:
     description: Grants all gamemode permissions
     default: op
     children:
-      kelpylandia.gamemode.survival: true
-      kelpylandia.gamemode.creative: true
-      kelpylandia.gamemode.adventure: true
-      kelpylandia.gamemode.spectator: true
-      kelpylandia.gamemode.others: true
+      qol.gamemode.survival: true
+      qol.gamemode.creative: true
+      qol.gamemode.adventure: true
+      qol.gamemode.spectator: true
+      qol.gamemode.others: true
 
-  kelpylandia.gamemode.survival:
+  qol.gamemode.survival:
     description: Allows switching to survival mode
     default: op
 
-  kelpylandia.gamemode.creative:
+  qol.gamemode.creative:
     description: Allows switching to creative mode
     default: op
 
-  kelpylandia.gamemode.adventure:
+  qol.gamemode.adventure:
     description: Allows switching to adventure mode
     default: op
 
-  kelpylandia.gamemode.spectator:
+  qol.gamemode.spectator:
     description: Allows switching to spectator mode
     default: op
 
-  kelpylandia.gamemode.others:
+  qol.gamemode.others:
     description: Allows changing other players' gamemode
     default: op
 
   # Nickname Permissions
-  kelpylandia.nickname:
+  qol.nickname:
     description: Allows using /nick to set or reset your own nickname
     default: true
 
-  kelpylandia.nickname.others:
+  qol.nickname.others:
     description: Allows setting or resetting other players' nicknames
     default: op
 
   # Enchant Permissions
-  kelpylandia.enchant:
+  qol.enchant:
     description: Allows using /enchant to enchant items
     default: op
 
-  kelpylandia.enchant.unsafe:
+  qol.enchant.unsafe:
     description: Allows bypassing enchantment limits (any level, any item)
     default: op
 
   # AFK Permissions
-  kelpylandia.afk:
+  qol.afk:
     description: Allows using /afk to toggle AFK status
     default: true
 
   # Messaging Permissions
-  kelpylandia.msg:
+  qol.msg:
     description: Allows sending private messages with /w
     default: true
 
-  kelpylandia.msg.reply:
+  qol.msg.reply:
     description: Allows using /r to reply to private messages
     default: true
 
-  kelpylandia.msg.whispertoggle:
+  qol.msg.whispertoggle:
     description: Allows using /wt to set or clear whisper target
     default: true
 
   # Suicide Permission
-  kelpylandia.suicide:
+  qol.suicide:
     description: Allows using /suicide to kill yourself
     default: true
 
   # Skull Permission
-  kelpylandia.skull:
+  qol.skull:
     description: Allows using /skull to get a player head
     default: op
 
   # Repair Permissions
-  kelpylandia.repair:
+  qol.repair:
     description: Allows using /repair to repair your own items
     default: op
 
-  kelpylandia.repair.others:
+  qol.repair.others:
     description: Allows using /repair on other players
     default: op
 
   # Sudo Permission
-  kelpylandia.sudo:
+  qol.sudo:
     description: Allows using /sudo to force players to run commands
     default: op
 
   # SocialSpy Permission
-  kelpylandia.socialspy:
+  qol.socialspy:
     description: Allows using /ss to spy on private messages and channel chat
     default: op
 
   # CommandSpy Permission
-  kelpylandia.commandspy:
+  qol.commandspy:
     description: Allows using /cs to spy on commands other players run
     default: op
 
   # Fly Permissions
-  kelpylandia.fly:
+  qol.fly:
     description: Allows using /fly to toggle flight mode
     default: op
 
-  kelpylandia.fly.others:
+  qol.fly.others:
     description: Allows using /fly on other players or * for all
     default: op
 
   # God Permissions
-  kelpylandia.god:
+  qol.god:
     description: Allows using /god to toggle invincibility
     default: op
 
-  kelpylandia.god.others:
+  qol.god.others:
     description: Allows using /god on other players or * for all
     default: op
 
   # Heal Permissions
-  kelpylandia.heal:
+  qol.heal:
     description: Allows using /heal to heal yourself
     default: op
 
-  kelpylandia.heal.others:
+  qol.heal.others:
     description: Allows using /heal on other players or * for all
     default: op
 
   # Starve Permissions
-  kelpylandia.starve:
+  qol.starve:
     description: Allows using /starve to starve yourself
     default: op
 
-  kelpylandia.starve.others:
+  qol.starve.others:
     description: Allows using /starve on other players or * for all
     default: op
 
   # Feed Permissions
-  kelpylandia.feed:
+  qol.feed:
     description: Allows using /feed to fill your food bar
     default: op
 
-  kelpylandia.feed.others:
+  qol.feed.others:
     description: Allows using /feed on other players or * for all
     default: op
 
   # FlySpeed/WalkSpeed Permissions
-  kelpylandia.flyspeed:
+  qol.flyspeed:
     description: Allows using /flyspeed and /walkspeed to change your speed
     default: op
 
-  kelpylandia.flyspeed.others:
+  qol.flyspeed.others:
     description: Allows using /flyspeed and /walkspeed on other players
     default: op
 
   # Trash Permission
-  kelpylandia.trash:
+  qol.trash:
     description: Allows using /trash to open a disposal inventory
     default: true
 
   # Lore Permission
-  kelpylandia.lore:
+  qol.lore:
     description: Allows using /lore to edit item lore
     default: op
 
   # Hat Permission
-  kelpylandia.hat:
+  qol.hat:
     description: Allows using /hat to wear items on your head
     default: true
 
   # Warp Permissions
-  kelpylandia.warp:
+  qol.warp:
     description: Allows using /warp and /warps
     default: true
 
-  kelpylandia.setwarp:
+  qol.setwarp:
     description: Allows creating warps with /setwarp
     default: op
 
-  kelpylandia.delwarp:
+  qol.delwarp:
     description: Allows deleting warps with /delwarp
     default: op
 
   # Random Teleport Permission
-  kelpylandia.rtp:
+  qol.rtp:
     description: Allows using /rtp for random teleportation
     default: true
-  kelpylandia.rtp.bypass.cooldown:
+  qol.rtp.bypass.cooldown:
     description: Bypass /rtp cooldown
     default: op
 
   # Seen Permission
-  kelpylandia.seen:
+  qol.seen:
     description: Allows using /seen to check when a player was last online
     default: op
 
   # Jail Permission
-  kelpylandia.mod.jail:
+  qol.mod.jail:
     description: Allows jailing and releasing players
     default: op
 
   # Freeze Permission
-  kelpylandia.mod.freeze:
+  qol.mod.freeze:
     description: Allows freezing and unfreezing players
     default: op
 
   # Stuck Permission
-  kelpylandia.stuck:
+  qol.stuck:
     description: Allows using /stuck to escape nether roof or void
     default: true
 
   # Noclip Permission
-  kelpylandia.noclip:
+  qol.noclip:
     description: Allows using /noclip to fly through blocks
     default: op
 
+  qol.noclip.others:
+    description: Allows using /noclip on other players
+    default: op
+
+  # RunAt Permission
+  qol.runat:
+    description: Allows using /runat to run commands as another player (in-game)
+    default: op
+
+  # Anvil Color Permission
+  qol.anvil.color:
+    description: Allows using color codes in anvil renames
+    default: op
+
   # Admin Home Access Permission
-  kelpylandia.homes.others:
+  qol.homes.others:
     description: Allows teleporting to other players' homes
     default: op
 
   # Rules Permission
-  kelpylandia.rules:
+  qol.rules:
     description: Allows using /rules to view server rules
     default: true
 
   # Smite Permission
-  kelpylandia.smite:
+  qol.smite:
     description: Allows using /smite to strike lightning on a player
     default: op
 
   # Report Permissions
-  kelpylandia.report:
+  qol.report:
     description: Allows using /report to submit player or bug reports
     default: true
 
-  kelpylandia.report.notify:
+  qol.report.notify:
     description: Receive staff notifications when reports are submitted
     default: op
 
   # Recipe Permissions
-  kelpylandia.recipe:
+  qol.recipe:
     description: Allows using /recipe to view crafting recipes
     default: true
 
   # Kit Permissions
-  kelpylandia.kit:
+  qol.kit:
     description: Allows using /kit to claim kits
     default: true
 
-  kelpylandia.kit.admin:
+  qol.kit.admin:
     description: Allows creating, editing, deleting, and managing kits
     default: op
 
-  kelpylandia.kit.starter:
+  qol.kit.starter:
     description: Allows claiming the starter kit
     default: true
 
-  kelpylandia.kit.tools:
+  qol.kit.tools:
     description: Allows claiming the tools kit
     default: true
+
+  # ─────────────────────────────────────────────────────────────
+  # Legacy permission aliases — backward-compat for servers that
+  # already granted the old "kelpylandia.*" nodes.
+  # Granting any of these automatically grants the matching qol.*
+  # node via Bukkit's children mechanism, so no re-configuration
+  # is needed after updating to QoLPlugin.
+  # ─────────────────────────────────────────────────────────────
+  kelpylandia.*:
+    description: "[Legacy] Grants all permissions (alias for qol.*)"
+    default: false
+    children:
+      qol.*: true
+
+  kelpylandia.admin:
+    description: "[Legacy] Alias for qol.admin"
+    default: false
+    children:
+      qol.admin: true
+
+  kelpylandia.update:
+    description: "[Legacy] Alias for qol.update"
+    default: false
+    children:
+      qol.update: true
+
+  kelpylandia.update.notify:
+    description: "[Legacy] Alias for qol.update.notify"
+    default: false
+    children:
+      qol.update.notify: true
+
+  kelpylandia.reload:
+    description: "[Legacy] Alias for qol.reload"
+    default: false
+    children:
+      qol.reload: true
+
+  kelpylandia.mod.*:
+    description: "[Legacy] Alias for qol.mod.*"
+    default: false
+    children:
+      qol.mod.*: true
+
+  kelpylandia.mod.basic:
+    description: "[Legacy] Alias for qol.mod.basic"
+    default: false
+    children:
+      qol.mod.basic: true
+
+  kelpylandia.mod.advanced:
+    description: "[Legacy] Alias for qol.mod.advanced"
+    default: false
+    children:
+      qol.mod.advanced: true
+
+  kelpylandia.mod.mute:
+    description: "[Legacy] Alias for qol.mod.mute"
+    default: false
+    children:
+      qol.mod.mute: true
+
+  kelpylandia.mod.warn:
+    description: "[Legacy] Alias for qol.mod.warn"
+    default: false
+    children:
+      qol.mod.warn: true
+
+  kelpylandia.mod.kick:
+    description: "[Legacy] Alias for qol.mod.kick"
+    default: false
+    children:
+      qol.mod.kick: true
+
+  kelpylandia.mod.ban:
+    description: "[Legacy] Alias for qol.mod.ban"
+    default: false
+    children:
+      qol.mod.ban: true
+
+  kelpylandia.mod.ipban:
+    description: "[Legacy] Alias for qol.mod.ipban"
+    default: false
+    children:
+      qol.mod.ipban: true
+
+  kelpylandia.mod.warns:
+    description: "[Legacy] Alias for qol.mod.warns"
+    default: false
+    children:
+      qol.mod.warns: true
+
+  kelpylandia.mod.history:
+    description: "[Legacy] Alias for qol.mod.history"
+    default: false
+    children:
+      qol.mod.history: true
+
+  kelpylandia.mod.unban:
+    description: "[Legacy] Alias for qol.mod.unban"
+    default: false
+    children:
+      qol.mod.unban: true
+
+  kelpylandia.mod.unwarn:
+    description: "[Legacy] Alias for qol.mod.unwarn"
+    default: false
+    children:
+      qol.mod.unwarn: true
+
+  kelpylandia.mod.unmute:
+    description: "[Legacy] Alias for qol.mod.unmute"
+    default: false
+    children:
+      qol.mod.unmute: true
+
+  kelpylandia.mod.jail:
+    description: "[Legacy] Alias for qol.mod.jail"
+    default: false
+    children:
+      qol.mod.jail: true
+
+  kelpylandia.mod.freeze:
+    description: "[Legacy] Alias for qol.mod.freeze"
+    default: false
+    children:
+      qol.mod.freeze: true
+
+  kelpylandia.vanish:
+    description: "[Legacy] Alias for qol.vanish"
+    default: false
+    children:
+      qol.vanish: true
+
+  kelpylandia.vanish.others:
+    description: "[Legacy] Alias for qol.vanish.others"
+    default: false
+    children:
+      qol.vanish.others: true
+
+  kelpylandia.vanish.see:
+    description: "[Legacy] Alias for qol.vanish.see"
+    default: false
+    children:
+      qol.vanish.see: true
+
+  kelpylandia.invsee:
+    description: "[Legacy] Alias for qol.invsee"
+    default: false
+    children:
+      qol.invsee: true
+
+  kelpylandia.pvp:
+    description: "[Legacy] Alias for qol.pvp"
+    default: false
+    children:
+      qol.pvp: true
+
+  kelpylandia.channel.*:
+    description: "[Legacy] Alias for qol.channel.*"
+    default: false
+    children:
+      qol.channel.*: true
+
+  kelpylandia.channel.use:
+    description: "[Legacy] Alias for qol.channel.use"
+    default: false
+    children:
+      qol.channel.use: true
+
+  kelpylandia.channel.admin:
+    description: "[Legacy] Alias for qol.channel.admin"
+    default: false
+    children:
+      qol.channel.admin: true
+
+  kelpylandia.homes:
+    description: "[Legacy] Alias for qol.homes"
+    default: false
+    children:
+      qol.homes: true
+
+  kelpylandia.homes.teleport:
+    description: "[Legacy] Alias for qol.homes.teleport"
+    default: false
+    children:
+      qol.homes.teleport: true
+
+  kelpylandia.homes.set:
+    description: "[Legacy] Alias for qol.homes.set"
+    default: false
+    children:
+      qol.homes.set: true
+
+  kelpylandia.homes.delete:
+    description: "[Legacy] Alias for qol.homes.delete"
+    default: false
+    children:
+      qol.homes.delete: true
+
+  kelpylandia.homes.list:
+    description: "[Legacy] Alias for qol.homes.list"
+    default: false
+    children:
+      qol.homes.list: true
+
+  kelpylandia.homes.others:
+    description: "[Legacy] Alias for qol.homes.others"
+    default: false
+    children:
+      qol.homes.others: true
+
+  kelpylandia.tpa:
+    description: "[Legacy] Alias for qol.tpa"
+    default: false
+    children:
+      qol.tpa: true
+
+  kelpylandia.tpa.here:
+    description: "[Legacy] Alias for qol.tpa.here"
+    default: false
+    children:
+      qol.tpa.here: true
+
+  kelpylandia.teleport.bypass.cooldown:
+    description: "[Legacy] Alias for qol.teleport.bypass.cooldown"
+    default: false
+    children:
+      qol.teleport.bypass.cooldown: true
+
+  kelpylandia.back:
+    description: "[Legacy] Alias for qol.back"
+    default: false
+    children:
+      qol.back: true
+
+  kelpylandia.dback:
+    description: "[Legacy] Alias for qol.dback"
+    default: false
+    children:
+      qol.dback: true
+
+  kelpylandia.back.bypass.cooldown:
+    description: "[Legacy] Alias for qol.back.bypass.cooldown"
+    default: false
+    children:
+      qol.back.bypass.cooldown: true
+
+  kelpylandia.spawn:
+    description: "[Legacy] Alias for qol.spawn"
+    default: false
+    children:
+      qol.spawn: true
+
+  kelpylandia.spawn.others:
+    description: "[Legacy] Alias for qol.spawn.others"
+    default: false
+    children:
+      qol.spawn.others: true
+
+  kelpylandia.gamemode.*:
+    description: "[Legacy] Alias for qol.gamemode.*"
+    default: false
+    children:
+      qol.gamemode.*: true
+
+  kelpylandia.gamemode.survival:
+    description: "[Legacy] Alias for qol.gamemode.survival"
+    default: false
+    children:
+      qol.gamemode.survival: true
+
+  kelpylandia.gamemode.creative:
+    description: "[Legacy] Alias for qol.gamemode.creative"
+    default: false
+    children:
+      qol.gamemode.creative: true
+
+  kelpylandia.gamemode.adventure:
+    description: "[Legacy] Alias for qol.gamemode.adventure"
+    default: false
+    children:
+      qol.gamemode.adventure: true
+
+  kelpylandia.gamemode.spectator:
+    description: "[Legacy] Alias for qol.gamemode.spectator"
+    default: false
+    children:
+      qol.gamemode.spectator: true
+
+  kelpylandia.gamemode.others:
+    description: "[Legacy] Alias for qol.gamemode.others"
+    default: false
+    children:
+      qol.gamemode.others: true
+
+  kelpylandia.workbench.*:
+    description: "[Legacy] Alias for qol.workbench.*"
+    default: false
+    children:
+      qol.workbench.*: true
+
+  kelpylandia.workbench.craft:
+    description: "[Legacy] Alias for qol.workbench.craft"
+    default: false
+    children:
+      qol.workbench.craft: true
+
+  kelpylandia.workbench.enderchest:
+    description: "[Legacy] Alias for qol.workbench.enderchest"
+    default: false
+    children:
+      qol.workbench.enderchest: true
+
+  kelpylandia.workbench.anvil:
+    description: "[Legacy] Alias for qol.workbench.anvil"
+    default: false
+    children:
+      qol.workbench.anvil: true
+
+  kelpylandia.workbench.grindstone:
+    description: "[Legacy] Alias for qol.workbench.grindstone"
+    default: false
+    children:
+      qol.workbench.grindstone: true
+
+  kelpylandia.workbench.stonecutter:
+    description: "[Legacy] Alias for qol.workbench.stonecutter"
+    default: false
+    children:
+      qol.workbench.stonecutter: true
+
+  kelpylandia.workbench.smithing:
+    description: "[Legacy] Alias for qol.workbench.smithing"
+    default: false
+    children:
+      qol.workbench.smithing: true
+
+  kelpylandia.workbench.cartography:
+    description: "[Legacy] Alias for qol.workbench.cartography"
+    default: false
+    children:
+      qol.workbench.cartography: true
+
+  kelpylandia.workbench.loom:
+    description: "[Legacy] Alias for qol.workbench.loom"
+    default: false
+    children:
+      qol.workbench.loom: true
+
+  kelpylandia.workbench.others:
+    description: "[Legacy] Alias for qol.workbench.others"
+    default: false
+    children:
+      qol.workbench.others: true
+
+  kelpylandia.nickname:
+    description: "[Legacy] Alias for qol.nickname"
+    default: false
+    children:
+      qol.nickname: true
+
+  kelpylandia.nickname.others:
+    description: "[Legacy] Alias for qol.nickname.others"
+    default: false
+    children:
+      qol.nickname.others: true
+
+  kelpylandia.enchant:
+    description: "[Legacy] Alias for qol.enchant"
+    default: false
+    children:
+      qol.enchant: true
+
+  kelpylandia.enchant.unsafe:
+    description: "[Legacy] Alias for qol.enchant.unsafe"
+    default: false
+    children:
+      qol.enchant.unsafe: true
+
+  kelpylandia.afk:
+    description: "[Legacy] Alias for qol.afk"
+    default: false
+    children:
+      qol.afk: true
+
+  kelpylandia.msg:
+    description: "[Legacy] Alias for qol.msg"
+    default: false
+    children:
+      qol.msg: true
+
+  kelpylandia.msg.reply:
+    description: "[Legacy] Alias for qol.msg.reply"
+    default: false
+    children:
+      qol.msg.reply: true
+
+  kelpylandia.msg.whispertoggle:
+    description: "[Legacy] Alias for qol.msg.whispertoggle"
+    default: false
+    children:
+      qol.msg.whispertoggle: true
+
+  kelpylandia.suicide:
+    description: "[Legacy] Alias for qol.suicide"
+    default: false
+    children:
+      qol.suicide: true
+
+  kelpylandia.skull:
+    description: "[Legacy] Alias for qol.skull"
+    default: false
+    children:
+      qol.skull: true
+
+  kelpylandia.repair:
+    description: "[Legacy] Alias for qol.repair"
+    default: false
+    children:
+      qol.repair: true
+
+  kelpylandia.repair.others:
+    description: "[Legacy] Alias for qol.repair.others"
+    default: false
+    children:
+      qol.repair.others: true
+
+  kelpylandia.sudo:
+    description: "[Legacy] Alias for qol.sudo"
+    default: false
+    children:
+      qol.sudo: true
+
+  kelpylandia.socialspy:
+    description: "[Legacy] Alias for qol.socialspy"
+    default: false
+    children:
+      qol.socialspy: true
+
+  kelpylandia.commandspy:
+    description: "[Legacy] Alias for qol.commandspy"
+    default: false
+    children:
+      qol.commandspy: true
+
+  kelpylandia.fly:
+    description: "[Legacy] Alias for qol.fly"
+    default: false
+    children:
+      qol.fly: true
+
+  kelpylandia.fly.others:
+    description: "[Legacy] Alias for qol.fly.others"
+    default: false
+    children:
+      qol.fly.others: true
+
+  kelpylandia.god:
+    description: "[Legacy] Alias for qol.god"
+    default: false
+    children:
+      qol.god: true
+
+  kelpylandia.god.others:
+    description: "[Legacy] Alias for qol.god.others"
+    default: false
+    children:
+      qol.god.others: true
+
+  kelpylandia.heal:
+    description: "[Legacy] Alias for qol.heal"
+    default: false
+    children:
+      qol.heal: true
+
+  kelpylandia.heal.others:
+    description: "[Legacy] Alias for qol.heal.others"
+    default: false
+    children:
+      qol.heal.others: true
+
+  kelpylandia.starve:
+    description: "[Legacy] Alias for qol.starve"
+    default: false
+    children:
+      qol.starve: true
+
+  kelpylandia.starve.others:
+    description: "[Legacy] Alias for qol.starve.others"
+    default: false
+    children:
+      qol.starve.others: true
+
+  kelpylandia.feed:
+    description: "[Legacy] Alias for qol.feed"
+    default: false
+    children:
+      qol.feed: true
+
+  kelpylandia.feed.others:
+    description: "[Legacy] Alias for qol.feed.others"
+    default: false
+    children:
+      qol.feed.others: true
+
+  kelpylandia.flyspeed:
+    description: "[Legacy] Alias for qol.flyspeed"
+    default: false
+    children:
+      qol.flyspeed: true
+
+  kelpylandia.flyspeed.others:
+    description: "[Legacy] Alias for qol.flyspeed.others"
+    default: false
+    children:
+      qol.flyspeed.others: true
+
+  kelpylandia.trash:
+    description: "[Legacy] Alias for qol.trash"
+    default: false
+    children:
+      qol.trash: true
+
+  kelpylandia.lore:
+    description: "[Legacy] Alias for qol.lore"
+    default: false
+    children:
+      qol.lore: true
+
+  kelpylandia.hat:
+    description: "[Legacy] Alias for qol.hat"
+    default: false
+    children:
+      qol.hat: true
+
+  kelpylandia.warp:
+    description: "[Legacy] Alias for qol.warp"
+    default: false
+    children:
+      qol.warp: true
+
+  kelpylandia.setwarp:
+    description: "[Legacy] Alias for qol.setwarp"
+    default: false
+    children:
+      qol.setwarp: true
+
+  kelpylandia.delwarp:
+    description: "[Legacy] Alias for qol.delwarp"
+    default: false
+    children:
+      qol.delwarp: true
+
+  kelpylandia.rtp:
+    description: "[Legacy] Alias for qol.rtp"
+    default: false
+    children:
+      qol.rtp: true
+
+  kelpylandia.rtp.bypass.cooldown:
+    description: "[Legacy] Alias for qol.rtp.bypass.cooldown"
+    default: false
+    children:
+      qol.rtp.bypass.cooldown: true
+
+  kelpylandia.seen:
+    description: "[Legacy] Alias for qol.seen"
+    default: false
+    children:
+      qol.seen: true
+
+  kelpylandia.stuck:
+    description: "[Legacy] Alias for qol.stuck"
+    default: false
+    children:
+      qol.stuck: true
+
+  kelpylandia.noclip:
+    description: "[Legacy] Alias for qol.noclip"
+    default: false
+    children:
+      qol.noclip: true
+
+  kelpylandia.noclip.others:
+    description: "[Legacy] Alias for qol.noclip.others"
+    default: false
+    children:
+      qol.noclip.others: true
+
+  kelpylandia.rules:
+    description: "[Legacy] Alias for qol.rules"
+    default: false
+    children:
+      qol.rules: true
+
+  kelpylandia.smite:
+    description: "[Legacy] Alias for qol.smite"
+    default: false
+    children:
+      qol.smite: true
+
+  kelpylandia.report:
+    description: "[Legacy] Alias for qol.report"
+    default: false
+    children:
+      qol.report: true
+
+  kelpylandia.report.notify:
+    description: "[Legacy] Alias for qol.report.notify"
+    default: false
+    children:
+      qol.report.notify: true
+
+  kelpylandia.recipe:
+    description: "[Legacy] Alias for qol.recipe"
+    default: false
+    children:
+      qol.recipe: true
+
+  kelpylandia.runat:
+    description: "[Legacy] Alias for qol.runat"
+    default: false
+    children:
+      qol.runat: true
+
+  kelpylandia.kit:
+    description: "[Legacy] Alias for qol.kit"
+    default: false
+    children:
+      qol.kit: true
+
+  kelpylandia.kit.admin:
+    description: "[Legacy] Alias for qol.kit.admin"
+    default: false
+    children:
+      qol.kit.admin: true
+
+  kelpylandia.kit.starter:
+    description: "[Legacy] Alias for qol.kit.starter"
+    default: false
+    children:
+      qol.kit.starter: true
+
+  kelpylandia.kit.tools:
+    description: "[Legacy] Alias for qol.kit.tools"
+    default: false
+    children:
+      qol.kit.tools: true
+
+  kelpylandia.anvil.color:
+    description: "[Legacy] Alias for qol.anvil.color"
+    default: false
+    children:
+      qol.anvil.color: true

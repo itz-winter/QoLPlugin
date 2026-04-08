@@ -16,7 +16,7 @@ public class ReloadCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         // Check permission
-        if (!sender.hasPermission("kelpylandia.reload")) {
+        if (!sender.hasPermission("qol.reload")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to use this command.");
             return true;
         }

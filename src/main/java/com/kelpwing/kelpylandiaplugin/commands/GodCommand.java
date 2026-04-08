@@ -36,7 +36,7 @@ public class GodCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!sender.hasPermission("kelpylandia.god.others")) {
+        if (!sender.hasPermission("qol.god.others")) {
             sender.sendMessage(ChatColor.RED + "You don't have permission to toggle god mode for others.");
             return true;
         }
@@ -100,7 +100,7 @@ public class GodCommand implements CommandExecutor, TabCompleter {
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
-        if (args.length == 1 && sender.hasPermission("kelpylandia.god.others")) {
+        if (args.length == 1 && sender.hasPermission("qol.god.others")) {
             String prefix = args[0].toLowerCase();
             List<String> names = new ArrayList<>();
             names.add("*");

@@ -46,7 +46,7 @@ public class RepairCommand implements CommandExecutor, TabCompleter {
 
         Player target;
         if (args.length >= 2) {
-            if (!sender.hasPermission("kelpylandia.repair.others")) {
+            if (!sender.hasPermission("qol.repair.others")) {
                 sender.sendMessage(ChatColor.RED + "You don't have permission to repair other players' items.");
                 return true;
             }
@@ -126,7 +126,7 @@ public class RepairCommand implements CommandExecutor, TabCompleter {
             }
             return matches;
         }
-        if (args.length == 2 && sender.hasPermission("kelpylandia.repair.others")) {
+        if (args.length == 2 && sender.hasPermission("qol.repair.others")) {
             String prefix = args[1].toLowerCase();
             List<String> names = new ArrayList<>();
             for (Player p : Bukkit.getOnlinePlayers()) {

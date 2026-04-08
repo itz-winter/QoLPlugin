@@ -126,7 +126,7 @@ public class HomeManager {
     public int getMaxHomes(Player player) {
         // Check permission-based limits (higher = better)
         for (int i = 100; i >= 1; i--) {
-            if (player.hasPermission("kelpylandia.homes.max." + i)) {
+            if (player.hasPermission("qol.homes.max." + i)) {
                 return i;
             }
         }
