@@ -1,53 +1,82 @@
 package com.kelpwing.kelpylandiaplugin.listeners;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
+import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.server.ServerCommandEvent;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.logging.Handler;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
 public class ConsoleListener extends Handler implements Listener {
-    
+
     private final KelpylandiaPlugin plugin;
-    
+
+    /**
+     * Records that arrived before DiscordIntegration was ready.
+     * Flushed and cleared the first time Discord becomes available.
+     */
+    private final List<LogRecord> pendingRecords = new ArrayList<>();
+    private boolean discordReady = false;
+
     public ConsoleListener(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
-        
-        plugin.getLogger().info("[CONSOLE DEBUG] ConsoleListener initialized");
-        
+
         // Attach to the root logger so ALL server output is captured.
         // The "Minecraft" named logger only receives plugin-specific messages;
         // the root logger ("") gets everything (vanilla, Paper internals, etc.).
         Logger.getLogger("").addHandler(this);
-        plugin.getLogger().info("[CONSOLE DEBUG] Handler added to root logger");
     }
-    
+
     @Override
     public void publish(LogRecord record) {
         if (record == null || record.getMessage() == null) return;
-        
-        if (plugin.getDiscordIntegration() != null && plugin.getDiscordIntegration().isEnabled()) {
-            String message = record.getMessage();
-            String level = record.getLevel().getName();
-            
-            // Filter out some spam messages and format for Discord
-            if (shouldLogMessage(message)) {
-                plugin.getDiscordIntegration().sendConsoleMessage(message, level);
+
+        synchronized (pendingRecords) {
+            if (!discordReady) {
+                // Discord not up yet — check if it is now
+                DiscordIntegration discord = plugin.getDiscordIntegration();
+                if (discord == null || !discord.isEnabled()) {
+                    // Still not ready; buffer this record (cap at 500 to avoid unbounded growth)
+                    if (pendingRecords.size() < 500) {
+                        pendingRecords.add(record);
+                    }
+                    return;
+                }
+
+                // Discord just became ready — flush buffered records first
+                discordReady = true;
+                for (LogRecord pending : pendingRecords) {
+                    relay(discord, pending.getMessage(), pending.getLevel().getName());
+                }
+                pendingRecords.clear();
             }
         }
-    }
-    
-    @EventHandler
-    public void onServerCommand(ServerCommandEvent event) {
-        if (plugin.getDiscordIntegration() != null && plugin.getDiscordIntegration().isEnabled()) {
-            String command = event.getCommand();
-            plugin.getDiscordIntegration().sendConsoleMessage("Executed command: /" + command, "INFO");
+
+        DiscordIntegration discord = plugin.getDiscordIntegration();
+        if (discord != null && discord.isEnabled()) {
+            relay(discord, record.getMessage(), record.getLevel().getName());
         }
     }
-    
+
+    private void relay(DiscordIntegration discord, String message, String level) {
+        if (shouldLogMessage(message)) {
+            discord.sendConsoleMessage(message, level);
+        }
+    }
+
+    @EventHandler
+    public void onServerCommand(ServerCommandEvent event) {
+        DiscordIntegration discord = plugin.getDiscordIntegration();
+        if (discord != null && discord.isEnabled()) {
+            discord.sendConsoleMessage("Executed command: /" + event.getCommand(), "INFO");
+        }
+    }
+
     private boolean shouldLogMessage(String message) {
         // Don't log our own Discord-relay messages to prevent feedback loops
         if (message.contains("[Discord]") || message.contains("Discord Integration")
@@ -66,15 +95,12 @@ public class ConsoleListener extends Handler implements Listener {
 
         return true;
     }
-    
+
     @Override
-    public void flush() {
-        // Not needed for our implementation
-    }
-    
+    public void flush() {}
+
     @Override
     public void close() throws SecurityException {
-        // Clean up when plugin is disabled
         Logger.getLogger("").removeHandler(this);
     }
 }

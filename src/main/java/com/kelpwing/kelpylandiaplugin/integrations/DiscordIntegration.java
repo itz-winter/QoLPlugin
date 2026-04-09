@@ -50,6 +50,7 @@ public class DiscordIntegration extends ListenerAdapter {
     private boolean enabled;
     private String punishmentChannelId;
     private String chatChannelId;
+    private String serverChannelId;
     private String consoleChannelId;
     private final ConcurrentHashMap<String, String> webhookUrls = new ConcurrentHashMap<>();
 
@@ -73,10 +74,12 @@ public class DiscordIntegration extends ListenerAdapter {
         this.punishmentChannelId = plugin.getConfig().getString("discord.moderation-channel-id");
         this.chatChannelId = plugin.getConfig().getString("channels.global.discord-channel");
         this.consoleChannelId = plugin.getConfig().getString("discord.console.console-channel-id");
+        this.serverChannelId = resolveServerChannelId();
         
         plugin.getLogger().info("Discord Integration Initialization:");
         plugin.getLogger().info("- Bot Token: " + (token != null && !token.equals("your-bot-token-here") ? "✓ Configured" : "✗ Missing/Default"));
         plugin.getLogger().info("- Chat Channel ID: " + (chatChannelId != null && !chatChannelId.isEmpty() ? chatChannelId : "✗ Missing/Default"));
+        plugin.getLogger().info("- Server Events Channel ID: " + serverChannelId);
         plugin.getLogger().info("- Console Channel ID: " + (consoleChannelId != null && !consoleChannelId.equals("your-console-channel-id") ? consoleChannelId : "✗ Missing/Default"));
         plugin.getLogger().info("- Moderation Channel ID: " + (punishmentChannelId != null && !punishmentChannelId.equals("your-moderation-channel-id") ? punishmentChannelId : "✗ Missing/Default"));
         
@@ -509,10 +512,10 @@ public class DiscordIntegration extends ListenerAdapter {
      * Send a message to the global chat Discord channel
      */
     public void sendToGlobalChat(String message) {
-        if (!enabled || chatChannelId == null) return;
+        if (!enabled || serverChannelId == null || serverChannelId.isEmpty()) return;
         
         try {
-            TextChannel channel = jda.getTextChannelById(chatChannelId);
+            TextChannel channel = jda.getTextChannelById(serverChannelId);
             if (channel != null) {
                 channel.sendMessage(stripSectionCodes(message)).queue();
             }
@@ -525,10 +528,10 @@ public class DiscordIntegration extends ListenerAdapter {
      * Send a player join embed to Discord
      */
     public void sendPlayerJoinEmbed(Player player) {
-        if (!enabled || chatChannelId == null || chatChannelId.equals("your-chat-channel-id")) return;
+        if (!enabled || serverChannelId == null || serverChannelId.isEmpty()) return;
         
         try {
-            TextChannel channel = jda.getTextChannelById(chatChannelId);
+            TextChannel channel = jda.getTextChannelById(serverChannelId);
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
                 embed.setColor(getColorFromConfig("discord.embeds.join-color", Color.GREEN));
@@ -548,10 +551,10 @@ public class DiscordIntegration extends ListenerAdapter {
      * @param deathMessage the final (color-stripped) death message shown in-game
      */
     public void sendDeathMessage(Player player, String deathMessage) {
-        if (!enabled || chatChannelId == null || chatChannelId.equals("your-chat-channel-id")) return;
+        if (!enabled || serverChannelId == null || serverChannelId.isEmpty()) return;
 
         try {
-            TextChannel channel = jda.getTextChannelById(chatChannelId);
+            TextChannel channel = jda.getTextChannelById(serverChannelId);
             if (channel == null) return;
 
             if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
@@ -575,10 +578,10 @@ public class DiscordIntegration extends ListenerAdapter {
      * Send a player leave embed to Discord
      */
     public void sendPlayerLeaveEmbed(Player player) {
-        if (!enabled || chatChannelId == null || chatChannelId.equals("your-chat-channel-id")) return;
+        if (!enabled || serverChannelId == null || serverChannelId.isEmpty()) return;
         
         try {
-            TextChannel channel = jda.getTextChannelById(chatChannelId);
+            TextChannel channel = jda.getTextChannelById(serverChannelId);
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
                 embed.setColor(getColorFromConfig("discord.embeds.leave-color", Color.RED));
@@ -596,10 +599,10 @@ public class DiscordIntegration extends ListenerAdapter {
      * Send an advancement embed to Discord
      */
     public void sendAdvancementEmbed(Player player, String advancementTitle, String advancementDescription) {
-        if (!enabled || chatChannelId == null) return;
+        if (!enabled || serverChannelId == null || serverChannelId.isEmpty()) return;
         
         try {
-            TextChannel channel = jda.getTextChannelById(chatChannelId);
+            TextChannel channel = jda.getTextChannelById(serverChannelId);
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
                 embed.setColor(getColorFromConfig("discord.embeds.advancement-color", Color.YELLOW));
@@ -618,10 +621,10 @@ public class DiscordIntegration extends ListenerAdapter {
      * Send an achievement embed to Discord (for legacy achievements or custom ones)
      */
     public void sendAchievementEmbed(Player player, String achievementTitle, String achievementDescription) {
-        if (!enabled || chatChannelId == null) return;
+        if (!enabled || serverChannelId == null || serverChannelId.isEmpty()) return;
         
         try {
-            TextChannel channel = jda.getTextChannelById(chatChannelId);
+            TextChannel channel = jda.getTextChannelById(serverChannelId);
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
                 embed.setColor(getColorFromConfig("discord.embeds.achievement-color", Color.ORANGE));
@@ -681,6 +684,7 @@ public class DiscordIntegration extends ListenerAdapter {
         this.punishmentChannelId = plugin.getConfig().getString("discord.moderation-channel-id");
         this.chatChannelId = plugin.getConfig().getString("channels.global.discord-channel");
         this.consoleChannelId = plugin.getConfig().getString("discord.console.console-channel-id");
+        this.serverChannelId = resolveServerChannelId();
         
         // Validate configuration
         validateConfiguration();
@@ -708,6 +712,20 @@ public class DiscordIntegration extends ListenerAdapter {
             enabled = false;
         }
     }
+
+    /**
+     * Resolves the channel ID to use for server events (join/leave/death/server start/stop).
+     * Uses discord.server-channel-id if configured; falls back to the default channel's
+     * discord-channel (channels.global.discord-channel).
+     */
+    private String resolveServerChannelId() {
+        String explicit = plugin.getConfig().getString("discord.server-channel-id", "");
+        if (explicit != null && !explicit.isEmpty() && !explicit.equals("your-server-channel-id")) {
+            return explicit;
+        }
+        // Fall back to the default channel's Discord channel ID
+        return plugin.getConfig().getString("channels.global.discord-channel", "");
+    }
     
     private void validateConfiguration() {
         plugin.getLogger().info("=== Discord Configuration Validation ===");
@@ -722,6 +740,7 @@ public class DiscordIntegration extends ListenerAdapter {
         String consoleId = plugin.getConfig().getString("discord.console.console-channel-id");
         
         plugin.getLogger().info("Chat Channel ID: " + (chatId != null && !chatId.isEmpty() ? "✓ " + chatId : "✗ Missing/Default"));
+        plugin.getLogger().info("Server Events Channel ID: " + (serverChannelId != null && !serverChannelId.isEmpty() ? "✓ " + serverChannelId : "✗ Not set (will use chat channel)"));
         plugin.getLogger().info("Moderation Channel ID: " + (modId != null && !modId.equals("your-moderation-channel-id") ? "✓ " + modId : "✗ Missing/Default"));
         plugin.getLogger().info("Console Channel ID: " + (consoleId != null && !consoleId.equals("your-console-channel-id") ? "✓ " + consoleId : "✗ Missing/Default"));
         
@@ -1619,10 +1638,10 @@ public class DiscordIntegration extends ListenerAdapter {
     
     // Server lifecycle event methods
     public void sendServerStartEmbed() {
-        if (!enabled || chatChannelId == null) return;
+        if (!enabled || serverChannelId == null || serverChannelId.isEmpty()) return;
         
         try {
-            TextChannel channel = jda.getTextChannelById(chatChannelId);
+            TextChannel channel = jda.getTextChannelById(serverChannelId);
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
                 embed.setColor(getColorFromConfig("discord.embeds.server-start-color", Color.GREEN));
@@ -1655,10 +1674,10 @@ public class DiscordIntegration extends ListenerAdapter {
     }
     
     public void sendServerStopEmbed() {
-        if (!enabled || chatChannelId == null) return;
+        if (!enabled || serverChannelId == null || serverChannelId.isEmpty()) return;
         
         try {
-            TextChannel channel = jda.getTextChannelById(chatChannelId);
+            TextChannel channel = jda.getTextChannelById(serverChannelId);
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
                 embed.setColor(getColorFromConfig("discord.embeds.server-stop-color", Color.RED));
@@ -1680,10 +1699,10 @@ public class DiscordIntegration extends ListenerAdapter {
     }
     
     public void sendServerRestartEmbed() {
-        if (!enabled || chatChannelId == null) return;
+        if (!enabled || serverChannelId == null || serverChannelId.isEmpty()) return;
         
         try {
-            TextChannel channel = jda.getTextChannelById(chatChannelId);
+            TextChannel channel = jda.getTextChannelById(serverChannelId);
             if (channel != null) {
                 EmbedBuilder embed = new EmbedBuilder();
                 embed.setColor(getColorFromConfig("discord.embeds.server-restart-color", Color.ORANGE));

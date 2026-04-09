@@ -55,6 +55,9 @@ discord:
   bot-token: "your-bot-token-here"
   # Channel for moderation actions
   moderation-channel-id: "your-moderation-channel-id"
+  # Channel for server events: join/leave messages, deaths, advancements, server start/stop.
+  # Leave blank (or omit) to use the default channel's discord-channel (channels.global.discord-channel).
+  server-channel-id: ""
   # Role ID required to use Discord slash moderation commands
   moderator-role-id: "your-moderator-role-id"
   # Role ID for admin commands (rules, echo, restart, etc.)
