@@ -71,12 +71,12 @@ public class DiscordIntegration extends ListenerAdapter {
         
         String token = plugin.getConfig().getString("discord.bot-token");
         this.punishmentChannelId = plugin.getConfig().getString("discord.moderation-channel-id");
-        this.chatChannelId = plugin.getConfig().getString("discord.chat-channel-id");
-        this.consoleChannelId = plugin.getConfig().getString("discord.console-channel-id");
+        this.chatChannelId = plugin.getConfig().getString("channels.global.discord-channel");
+        this.consoleChannelId = plugin.getConfig().getString("discord.console.console-channel-id");
         
         plugin.getLogger().info("Discord Integration Initialization:");
         plugin.getLogger().info("- Bot Token: " + (token != null && !token.equals("your-bot-token-here") ? "✓ Configured" : "✗ Missing/Default"));
-        plugin.getLogger().info("- Chat Channel ID: " + (chatChannelId != null && !chatChannelId.equals("your-chat-channel-id") ? chatChannelId : "✗ Missing/Default"));
+        plugin.getLogger().info("- Chat Channel ID: " + (chatChannelId != null && !chatChannelId.isEmpty() ? chatChannelId : "✗ Missing/Default"));
         plugin.getLogger().info("- Console Channel ID: " + (consoleChannelId != null && !consoleChannelId.equals("your-console-channel-id") ? consoleChannelId : "✗ Missing/Default"));
         plugin.getLogger().info("- Moderation Channel ID: " + (punishmentChannelId != null && !punishmentChannelId.equals("your-moderation-channel-id") ? punishmentChannelId : "✗ Missing/Default"));
         
@@ -84,7 +84,7 @@ public class DiscordIntegration extends ListenerAdapter {
             try {
                 plugin.getLogger().info("Connecting to Discord...");
                 jda = JDABuilder.createDefault(token)
-                    .enableIntents(GatewayIntent.MESSAGE_CONTENT)
+                    .enableIntents(GatewayIntent.MESSAGE_CONTENT, GatewayIntent.GUILD_MEMBERS)
                     .addEventListeners(this)
                     .build();
                 jda.awaitReady();
@@ -443,15 +443,23 @@ public class DiscordIntegration extends ListenerAdapter {
 
     /** Check whether the Discord member has the configured console role. */
     private boolean hasConsoleRole(Member member) {
-        // getMember() can be null if the member isn't cached — try to resolve from the guild
-        if (member == null) return false;
-        String consoleRoleId = plugin.getConfig().getString("discord.console.commands.console-role-id", "");
-        // If unconfigured or left as default placeholder, deny
-        if (consoleRoleId.isEmpty() || consoleRoleId.equals("your-console-role-id")) {
-            plugin.getLogger().warning("[Discord] Console command attempted but discord.console.commands.console-role-id is not configured.");
+        if (member == null) {
+            plugin.getLogger().warning("[Discord] Console command denied: could not resolve member (null).");
             return false;
         }
-        return member.getRoles().stream().anyMatch(r -> r.getId().equals(consoleRoleId));
+        String consoleRoleId = plugin.getConfig().getString("discord.console.commands.console-role-id", "");
+        if (consoleRoleId.isEmpty() || consoleRoleId.equals("your-console-role-id")) {
+            plugin.getLogger().warning("[Discord] Console command denied: discord.console.commands.console-role-id is not configured.");
+            return false;
+        }
+        boolean hasRole = member.getRoles().stream().anyMatch(r -> r.getId().equals(consoleRoleId));
+        if (!hasRole) {
+            plugin.getLogger().warning("[Discord] Console command denied for " + member.getUser().getName()
+                    + ": required role " + consoleRoleId + " not found in [" 
+                    + member.getRoles().stream().map(r -> r.getId() + "(" + r.getName() + ")")
+                            .collect(java.util.stream.Collectors.joining(", ")) + "]");
+        }
+        return hasRole;
     }
 
     /** Resolve a Member from a MessageReceivedEvent, even if getMember() is null. */
@@ -534,6 +542,35 @@ public class DiscordIntegration extends ListenerAdapter {
         }
     }
     
+    /**
+     * Send a player death embed/message to Discord.
+     * @param player      the player who died
+     * @param deathMessage the final (color-stripped) death message shown in-game
+     */
+    public void sendDeathMessage(Player player, String deathMessage) {
+        if (!enabled || chatChannelId == null || chatChannelId.equals("your-chat-channel-id")) return;
+
+        try {
+            TextChannel channel = jda.getTextChannelById(chatChannelId);
+            if (channel == null) return;
+
+            if (plugin.getConfig().getBoolean("discord.events.use-embeds", true)) {
+                EmbedBuilder embed = new EmbedBuilder();
+                embed.setColor(getColorFromConfig("discord.embeds.death-color", new java.awt.Color(0x8B0000)));
+                embed.setAuthor(deathMessage, null,
+                        "https://mc-heads.net/avatar/" + player.getUniqueId() + "/64");
+                channel.sendMessageEmbeds(embed.build()).queue();
+            } else {
+                String format = plugin.getConfig().getString("discord.formats.death", "{death_message}");
+                String msg = format.replace("{death_message}", deathMessage)
+                                   .replace("{player}", player.getName());
+                channel.sendMessage(msg).queue();
+            }
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to send death message to Discord: " + e.getMessage());
+        }
+    }
+
     /**
      * Send a player leave embed to Discord
      */
@@ -642,8 +679,8 @@ public class DiscordIntegration extends ListenerAdapter {
         // Re-read configuration
         String token = plugin.getConfig().getString("discord.bot-token");
         this.punishmentChannelId = plugin.getConfig().getString("discord.moderation-channel-id");
-        this.chatChannelId = plugin.getConfig().getString("discord.chat-channel-id");
-        this.consoleChannelId = plugin.getConfig().getString("discord.console-channel-id");
+        this.chatChannelId = plugin.getConfig().getString("channels.global.discord-channel");
+        this.consoleChannelId = plugin.getConfig().getString("discord.console.console-channel-id");
         
         // Validate configuration
         validateConfiguration();
@@ -680,11 +717,11 @@ public class DiscordIntegration extends ListenerAdapter {
         plugin.getLogger().info("Bot Token: " + (token != null && !token.equals("your-bot-token-here") ? "✓ Configured" : "✗ Missing/Default"));
         
         // Check channel IDs
-        String chatId = plugin.getConfig().getString("discord.chat-channel-id");
+        String chatId = plugin.getConfig().getString("channels.global.discord-channel");
         String modId = plugin.getConfig().getString("discord.moderation-channel-id");
-        String consoleId = plugin.getConfig().getString("discord.console-channel-id");
+        String consoleId = plugin.getConfig().getString("discord.console.console-channel-id");
         
-        plugin.getLogger().info("Chat Channel ID: " + (chatId != null && !chatId.equals("your-chat-channel-id") ? "✓ " + chatId : "✗ Missing/Default"));
+        plugin.getLogger().info("Chat Channel ID: " + (chatId != null && !chatId.isEmpty() ? "✓ " + chatId : "✗ Missing/Default"));
         plugin.getLogger().info("Moderation Channel ID: " + (modId != null && !modId.equals("your-moderation-channel-id") ? "✓ " + modId : "✗ Missing/Default"));
         plugin.getLogger().info("Console Channel ID: " + (consoleId != null && !consoleId.equals("your-console-channel-id") ? "✓ " + consoleId : "✗ Missing/Default"));
         
@@ -899,7 +936,7 @@ public class DiscordIntegration extends ListenerAdapter {
                 return;
             }
         } else if (isModerationCommand(commandName)) {
-            requiredRoleId = plugin.getConfig().getString("discord.moderation-role-id");
+            requiredRoleId = plugin.getConfig().getString("discord.moderator-role-id");
             if (requiredRoleId == null || !hasRequiredRole(event.getMember(), requiredRoleId)) {
                 event.reply("❌ You don't have permission to use moderation commands!").setEphemeral(true).queue();
                 return;

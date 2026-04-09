@@ -18,9 +18,11 @@ public class ConsoleListener extends Handler implements Listener {
         
         plugin.getLogger().info("[CONSOLE DEBUG] ConsoleListener initialized");
         
-        // Add this handler to the root logger to intercept console messages
-        Logger.getLogger("Minecraft").addHandler(this);
-        plugin.getLogger().info("[CONSOLE DEBUG] Handler added to Minecraft logger");
+        // Attach to the root logger so ALL server output is captured.
+        // The "Minecraft" named logger only receives plugin-specific messages;
+        // the root logger ("") gets everything (vanilla, Paper internals, etc.).
+        Logger.getLogger("").addHandler(this);
+        plugin.getLogger().info("[CONSOLE DEBUG] Handler added to root logger");
     }
     
     @Override
@@ -47,24 +49,21 @@ public class ConsoleListener extends Handler implements Listener {
     }
     
     private boolean shouldLogMessage(String message) {
-        // Don't log our own Discord messages to prevent loops
-        if (message.contains("Discord") && message.contains("KelpylandiaPlugin")) {
+        // Don't log our own Discord-relay messages to prevent feedback loops
+        if (message.contains("[Discord]") || message.contains("Discord Integration")
+                || message.contains("Failed to send console message")
+                || message.contains("Failed to edit console message")) {
             return false;
         }
-        
-        // Don't log debug messages
-        if (message.contains("[DEBUG]") || message.contains("DEBUG")) {
-            return false;
-        }
-        
-        // Filter out some common spam
+
+        // Filter out some common high-frequency spam
         String[] spamKeywords = {"Can't keep up!", "Is the server overloaded?", "KeepAlive", "ping"};
         for (String keyword : spamKeywords) {
             if (message.contains(keyword)) {
                 return false;
             }
         }
-        
+
         return true;
     }
     
@@ -76,6 +75,6 @@ public class ConsoleListener extends Handler implements Listener {
     @Override
     public void close() throws SecurityException {
         // Clean up when plugin is disabled
-        Logger.getLogger("Minecraft").removeHandler(this);
+        Logger.getLogger("").removeHandler(this);
     }
 }

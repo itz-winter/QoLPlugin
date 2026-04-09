@@ -55,12 +55,8 @@ discord:
   bot-token: "your-bot-token-here"
   # Channel for moderation actions
   moderation-channel-id: "your-moderation-channel-id"
-  # Channel for general chat (global) 
-  chat-channel-id: "your-chat-channel-id"
-  # Channel for console logs and server events
-  console-channel-id: "your-console-channel-id"
   # Role ID required to use Discord slash moderation commands
-  moderation-role-id: "your-moderator-role-id"
+  moderator-role-id: "your-moderator-role-id"
   # Role ID for admin commands (rules, echo, restart, etc.)
   admin-role-id: "your-admin-role-id"
   # Role to ping when server starts
@@ -86,6 +82,8 @@ discord:
   
   # Console command execution settings
   console:
+    # Channel for console logs and commands
+    console-channel-id: "your-console-channel-id"
     commands:
       # Allow messages sent in the console channel to be executed as server commands.
       # Only users with the configured console-role-id can do this.
@@ -104,6 +102,7 @@ discord:
     # Broadcast join/leave messages to global chat
     broadcast-joins: true
     broadcast-leaves: true
+    broadcast-deaths: true
     broadcast-advancements: true
     broadcast-achievements: true
     # Send server events to console channel
@@ -136,6 +135,7 @@ discord:
   embeds:
     join-color: "#00FF00"      # Green
     leave-color: "#FF0000"     # Red  
+    death-color: "#8B0000"     # Dark red
     advancement-color: "#FFFF00"  # Yellow
     achievement-color: "#FFA500"  # Orange
     punishment-color: "#FF4500"   # Red-Orange
@@ -161,6 +161,7 @@ discord:
     # Event formats for Discord
     join: "{player} joined the game"
     leave: "{player} left the game"
+    death: "{death_message}"
     advancement: "**{player}** has made the advancement **{advancement}**!"
     achievement: "**{player}** has completed the achievement **{achievement}**!"
     

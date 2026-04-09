@@ -1,6 +1,7 @@
 package com.kelpwing.kelpylandiaplugin.utils;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
+import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
 import com.kelpwing.kelpylandiaplugin.moderation.commands.VanishCommand;
 import org.bukkit.ChatColor;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -75,6 +76,34 @@ public class DeathMessagesManager implements Listener {
 
         String customMessage = getRandomMessage(player);
         event.setDeathMessage(customMessage);
+    }
+
+    /**
+     * Relay the final death message to Discord after all other listeners have run.
+     * Fires at MONITOR priority so it reads the message exactly as it appears in-game,
+     * whether set by us (suicide) or by vanilla/other plugins (regular death).
+     */
+    @SuppressWarnings("deprecation")
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerDeathDiscordRelay(PlayerDeathEvent event) {
+        Player player = event.getEntity();
+
+        // Skip vanished players — no message was shown in-game
+        VanishCommand vc = plugin.getVanishCommand();
+        if (vc != null && vc.isVanished(player)) return;
+
+        if (!plugin.getConfig().getBoolean("discord.events.broadcast-deaths", true)) return;
+
+        DiscordIntegration discord = plugin.getDiscordIntegration();
+        if (discord == null || !discord.isEnabled()) return;
+
+        // Use the in-game death message (may be vanilla or our custom one)
+        String rawMessage = event.getDeathMessage();
+        if (rawMessage == null || rawMessage.isEmpty()) return;
+
+        // Strip Minecraft colour codes before sending to Discord
+        String cleanMessage = ChatColor.stripColor(rawMessage);
+        discord.sendDeathMessage(player, cleanMessage);
     }
 
     // ===================== Message Loading =====================
