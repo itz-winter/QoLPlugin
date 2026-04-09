@@ -59,6 +59,7 @@ import com.kelpwing.kelpylandiaplugin.listeners.NickListener;
 import com.kelpwing.kelpylandiaplugin.listeners.AfkListener;
 import com.kelpwing.kelpylandiaplugin.listeners.MsgListener;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
+import com.kelpwing.kelpylandiaplugin.integrations.InteractiveChatIntegration;
 import com.kelpwing.kelpylandiaplugin.integrations.LuckPermsIntegration;
 import com.kelpwing.kelpylandiaplugin.integrations.PlaceholderAPIIntegration;
 import com.kelpwing.kelpylandiaplugin.config.ConfigManager;
@@ -113,6 +114,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
     private LuckPermsIntegration luckPermsIntegration;
     private PlaceholderAPIIntegration placeholderAPIIntegration;
     private DiscordIntegration discordIntegration;
+    private InteractiveChatIntegration interactiveChatIntegration;
     
     // Moderation-related components
     private ConfigManager configManager;
@@ -692,6 +694,14 @@ public class KelpylandiaPlugin extends JavaPlugin {
             new KpauPlaceholders(this).register();
             getLogger().info("PlaceholderAPI integration enabled!");
         }
+        
+        // InteractiveChat integration (optional, Discord-side only)
+        // Always instantiate so ChatListener can query isEnabled() safely.
+        interactiveChatIntegration = new InteractiveChatIntegration(this);
+        if (interactiveChatIntegration.isEnabled()) {
+            getServer().getPluginManager().registerEvents(interactiveChatIntegration, this);
+            getLogger().info("InteractiveChat integration active — processed messages will be used for Discord relay.");
+        }
     }
     
     /**
@@ -745,6 +755,10 @@ public class KelpylandiaPlugin extends JavaPlugin {
     
     public DiscordIntegration getDiscordIntegration() {
         return discordIntegration;
+    }
+    
+    public InteractiveChatIntegration getInteractiveChatIntegration() {
+        return interactiveChatIntegration;
     }
     
     // Moderation-related getters

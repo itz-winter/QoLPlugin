@@ -115,8 +115,17 @@ public class ChatListener implements Listener {
         }
         
         
-        // Send to Discord if enabled
-        if (playerChannel.isDiscordEnabled() && plugin.getDiscordIntegration() != null && plugin.getDiscordIntegration().isEnabled()) {
+        // Send to Discord if enabled.
+        // When InteractiveChat is present and its integration is active, we defer
+        // the Discord relay to InteractiveChatIntegration (which runs at MONITOR,
+        // after IC has processed the message).  Otherwise we send the raw message now.
+        com.kelpwing.kelpylandiaplugin.integrations.InteractiveChatIntegration icInt =
+                plugin.getInteractiveChatIntegration();
+        boolean icHandlesDiscord = icInt != null && icInt.isEnabled();
+        if (!icHandlesDiscord
+                && playerChannel.isDiscordEnabled()
+                && plugin.getDiscordIntegration() != null
+                && plugin.getDiscordIntegration().isEnabled()) {
             plugin.getDiscordIntegration().sendChatMessage(player, message, playerChannel.getDiscordChannel());
         }
         

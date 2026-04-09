@@ -23,18 +23,23 @@ import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
 import com.kelpwing.kelpylandiaplugin.utils.VersionHelper;
 
+import net.dv8tion.jda.api.entities.Message;
 import javax.annotation.Nonnull;
 import java.awt.Color;
 import java.time.Instant;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayDeque;
 import java.util.Date;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicReference;
 import java.io.OutputStream;
+import java.lang.reflect.Method;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -47,6 +52,18 @@ public class DiscordIntegration extends ListenerAdapter {
     private String chatChannelId;
     private String consoleChannelId;
     private final ConcurrentHashMap<String, String> webhookUrls = new ConcurrentHashMap<>();
+
+    // ── Rolling console log (DiscordSRV-style edit-in-place) ─────────────────
+    /** Lines accumulated in the current rolling message, in order. */
+    private final Deque<String> consoleLineBuffer = new ArrayDeque<>();
+    /** Current total character length of all buffered lines (including newlines). */
+    private int consoleBufferLen = 0;
+    /** The Discord message that is currently being edited with new lines. */
+    private final AtomicReference<Message> consoleCurrentMessage = new AtomicReference<>(null);
+    /** Lock for the rolling buffer so concurrent async tasks don't corrupt it. */
+    private final Object consoleLock = new Object();
+    /** Max characters kept in the rolling message before starting a new one. */
+    private static final int CONSOLE_MAX_CHARS = 1900;
     
     public DiscordIntegration(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
@@ -347,7 +364,7 @@ public class DiscordIntegration extends ListenerAdapter {
         boolean prefixEnabled = plugin.getConfig().getBoolean("discord.console.commands.prefix-command-enabled", true);
 
         if (prefixEnabled && content.startsWith(cmdPrefix)) {
-            if (!hasConsoleRole(event.getMember())) {
+            if (!hasConsoleRole(resolveMember(event))) {
                 event.getMessage().addReaction(Emoji.fromUnicode("❌")).queue(null, e -> {});
                 return;
             }
@@ -362,7 +379,7 @@ public class DiscordIntegration extends ListenerAdapter {
         if (channelId.equals(consoleChannelId)) {
             boolean consoleCommandsEnabled = plugin.getConfig().getBoolean("discord.console.commands.enabled", true);
             if (consoleCommandsEnabled) {
-                if (!hasConsoleRole(event.getMember())) {
+                if (!hasConsoleRole(resolveMember(event))) {
                     event.getMessage().addReaction(Emoji.fromUnicode("❌")).queue(null, e -> {});
                     return;
                 }
@@ -426,20 +443,53 @@ public class DiscordIntegration extends ListenerAdapter {
 
     /** Check whether the Discord member has the configured console role. */
     private boolean hasConsoleRole(Member member) {
+        // getMember() can be null if the member isn't cached — try to resolve from the guild
         if (member == null) return false;
         String consoleRoleId = plugin.getConfig().getString("discord.console.commands.console-role-id", "");
         // If unconfigured or left as default placeholder, deny
-        if (consoleRoleId.isEmpty() || consoleRoleId.equals("your-console-role-id")) return false;
+        if (consoleRoleId.isEmpty() || consoleRoleId.equals("your-console-role-id")) {
+            plugin.getLogger().warning("[Discord] Console command attempted but discord.console.commands.console-role-id is not configured.");
+            return false;
+        }
         return member.getRoles().stream().anyMatch(r -> r.getId().equals(consoleRoleId));
+    }
+
+    /** Resolve a Member from a MessageReceivedEvent, even if getMember() is null. */
+    private Member resolveMember(MessageReceivedEvent event) {
+        Member member = event.getMember();
+        if (member != null) return member;
+        // Fallback: look up from guild (may be null in DMs, which shouldn't reach console anyway)
+        if (event.isFromGuild()) {
+            try {
+                return event.getGuild().retrieveMember(event.getAuthor()).complete();
+            } catch (Exception ignored) {}
+        }
+        return null;
     }
 
     /** Dispatch a raw command string on the server console and react/reply on Discord. */
     private void dispatchConsoleCommand(String command, MessageReceivedEvent event, String username) {
         plugin.getLogger().info("[Console-Discord] " + username + " issued: " + command);
         event.getMessage().addReaction(Emoji.fromUnicode("✅")).queue(null, e -> {});
+
         Bukkit.getScheduler().runTask(plugin, () -> {
             try {
-                Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                // Use CraftServer.dispatchServerCommand so vanilla brigadier commands (clear, give, tp, etc.)
+                // resolve offline player names exactly as the real server console would.
+                // Falls back to Bukkit.dispatchCommand if the method is unavailable on this build.
+                boolean dispatched = false;
+                try {
+                    Object craftServer = Bukkit.getServer();
+                    Method dispatchServerMethod = craftServer.getClass()
+                            .getMethod("dispatchServerCommand", org.bukkit.command.CommandSender.class, String.class);
+                    dispatchServerMethod.invoke(craftServer, Bukkit.getConsoleSender(), command);
+                    dispatched = true;
+                } catch (NoSuchMethodException ignored) {
+                    // Older/non-CraftBukkit build — fall through
+                }
+                if (!dispatched) {
+                    Bukkit.dispatchCommand(Bukkit.getConsoleSender(), command);
+                }
             } catch (Exception e) {
                 sendToConsole("Error executing command '" + command + "': " + e.getMessage());
                 event.getMessage().addReaction(Emoji.fromUnicode("❌")).queue(null, err -> {});
@@ -579,6 +629,12 @@ public class DiscordIntegration extends ListenerAdapter {
         // Clear webhook cache but don't delete actual webhooks 
         // (they can be reused on restart)
         webhookUrls.clear();
+        // Reset the rolling console buffer so the next session starts fresh
+        synchronized (consoleLock) {
+            consoleLineBuffer.clear();
+            consoleBufferLen = 0;
+            consoleCurrentMessage.set(null);
+        }
         enabled = false;
     }
     
@@ -1748,65 +1804,63 @@ public class DiscordIntegration extends ListenerAdapter {
     // Console message sending for server monitoring
     public void sendConsoleMessage(String message, String level) {
         if (!enabled || consoleChannelId == null) return;
-
         if (!plugin.getConfig().getBoolean("discord.events.console-logging", true)) return;
 
         // Filter blocked levels
         List<String> blockedLevels = plugin.getConfig().getStringList("discord.console-logging.blocked-levels");
         if (blockedLevels.contains(level.toUpperCase())) return;
 
+        // Build the new line first (outside the lock — no blocking calls here)
+        String timestamp = DateTimeFormatter.ofPattern("HH:mm:ss").format(LocalTime.now());
+        String normalizedLevel = level.toUpperCase();
+        if (normalizedLevel.equals("SEVERE")) normalizedLevel = "ERROR";
+        if (normalizedLevel.equals("WARNING")) normalizedLevel = "WARN";
+
+        String cleanMsg = stripSectionCodes(message);
+        // Truncate a single line that is unreasonably long
+        if (cleanMsg.length() > 400) cleanMsg = cleanMsg.substring(0, 397) + "...";
+        String newLine = "[" + timestamp + " " + normalizedLevel + "]: " + cleanMsg;
+
+        final String finalLine = newLine;
         CompletableFuture.runAsync(() -> {
             try {
                 TextChannel channel = jda.getTextChannelById(consoleChannelId);
                 if (channel == null) return;
 
-                // DiscordSRV-style: [HH:mm:ss Level]: message
-                // Use diff for ERROR/SEVERE (red lines), fix for WARN (yellow), plain for INFO
-                String timestamp = DateTimeFormatter
-                        .ofPattern("HH:mm:ss")
-                        .format(LocalTime.now());
+                synchronized (consoleLock) {
+                    // Will the buffer overflow if we add this line?
+                    int addedLen = finalLine.length() + 1; // +1 for newline
+                    if (consoleBufferLen + addedLen > CONSOLE_MAX_CHARS || consoleCurrentMessage.get() == null) {
+                        // Start a fresh message
+                        consoleLineBuffer.clear();
+                        consoleBufferLen = 0;
+                        consoleLineBuffer.add(finalLine);
+                        consoleBufferLen = finalLine.length();
 
-                String normalizedLevel = level.toUpperCase();
-                // Map Java level names to shorter labels
-                if (normalizedLevel.equals("SEVERE")) normalizedLevel = "ERROR";
-                if (normalizedLevel.equals("WARNING")) normalizedLevel = "WARN";
+                        String block = "```\n" + finalLine + "\n```";
+                        // Send and store the message reference so future lines edit it
+                        Message sent = channel.sendMessage(block).complete();
+                        consoleCurrentMessage.set(sent);
+                    } else {
+                        // Append to existing message via edit
+                        consoleLineBuffer.add(finalLine);
+                        consoleBufferLen += addedLen;
 
-                String lang;
-                String prefix;
-                switch (normalizedLevel) {
-                    case "ERROR":
-                        lang = "diff";
-                        prefix = "- ";   // diff red line
-                        break;
-                    case "WARN":
-                        lang = "fix";
-                        prefix = "";     // fix shows in yellow
-                        break;
-                    default:
-                        lang = "";
-                        prefix = "";
-                        break;
+                        StringBuilder sb = new StringBuilder("```\n");
+                        for (String l : consoleLineBuffer) {
+                            sb.append(l).append("\n");
+                        }
+                        sb.append("```");
+
+                        Message current = consoleCurrentMessage.get();
+                        if (current != null) {
+                            current.editMessage(sb.toString()).queue(
+                                    updated -> consoleCurrentMessage.set(updated),
+                                    err -> plugin.getLogger().warning("Failed to edit console message: " + err.getMessage())
+                            );
+                        }
+                    }
                 }
-
-                String header = String.format("[%s %s]: ", timestamp, normalizedLevel);
-                // Strip Minecraft colour codes
-                String cleanMsg = stripSectionCodes(message);
-                String line = prefix + header + cleanMsg;
-
-                // Discord message limit is 2000 chars; truncate safely
-                int maxContent = 1994 - lang.length(); // backticks + lang overhead
-                if (line.length() > maxContent) {
-                    line = line.substring(0, maxContent - 3) + "...";
-                }
-
-                String formatted = lang.isEmpty()
-                        ? "`" + line.replace("`", "'") + "`"
-                        : "```" + lang + "\n" + line + "\n```";
-
-                channel.sendMessage(formatted).queue(
-                        null,
-                        err -> plugin.getLogger().warning("Failed to send console message to Discord: " + err.getMessage())
-                );
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to send console message to Discord: " + e.getMessage());
             }

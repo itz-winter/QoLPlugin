@@ -66,6 +66,17 @@ discord:
   # Role to ping when server starts
   server-start-ping-role-id: "your-server-start-role-id"
   
+  # ===== INTERACTIVECHAT INTEGRATION =====
+  # When InteractiveChat is installed, this plugin can use its processed message
+  # for Discord relay instead of the raw player input.
+  # Processed messages have mentions resolved, colour codes translated, and
+  # custom-placeholder text expanded (e.g. [item], [inv], [ender] are replaced
+  # with plain descriptions before being sent to Discord).
+  # This has no effect on Minecraft-side chat — only the Discord message changes.
+  # InteractiveChat does NOT need to be installed for the plugin to function.
+  interactivechat:
+    use-processed-message: true
+
   # Webhook Configuration
   webhooks:
     # Whether to reuse existing webhooks instead of creating new ones

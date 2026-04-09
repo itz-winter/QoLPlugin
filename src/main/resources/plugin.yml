@@ -5,7 +5,7 @@ api-version: '1.16'
 author: Kelpwing
 description: A collection of quality-of-life features and commands for Minecraft servers, including chat channels, moderation tools, teleportation commands, and more!!
 depend: [LuckPerms]
-softdepend: [PlaceholderAPI]
+softdepend: [PlaceholderAPI, InteractiveChat, InteractiveChatDiscordSrvAddon]
 
 commands:
   # Chat Commands
