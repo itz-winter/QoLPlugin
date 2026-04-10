@@ -10,7 +10,7 @@
     <packaging>jar</packaging>
 
     <name>QoLPlugin</name>
-    <description>All-purpose plugin for any and all uses!</description>
+    <description>The one-and-done all-purpose plugin for any and all uses!</description>
 
     <properties>
         <maven.compiler.source>17</maven.compiler.source>
