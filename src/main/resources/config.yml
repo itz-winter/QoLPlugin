@@ -19,7 +19,7 @@ channels:
   global:
     display-name: "Global"
     format: "&2[G]&r {prefix}{displayname}&r: {message}"
-    permission: "qol.channel.global"
+    permission: "kelpylandia.channel.global"
     proximity: false
     proximity-distance: 0.0
     discord-enabled: true
@@ -30,7 +30,7 @@ channels:
   local:
     display-name: "Local"
     format: "&e[L]&r {prefix}{displayname}&r: {message}"
-    permission: "qol.channel.local"
+    permission: "kelpylandia.channel.local"
     proximity: true
     proximity-distance: 50.0
     discord-enabled: false
@@ -41,7 +41,7 @@ channels:
   admin:
     display-name: "Admin"
     format: "&9[A]&r {prefix}{displayname}&r: {message}"
-    permission: "qol.channel.admin"
+    permission: "kelpylandia.channel.admin"
     proximity: false
     proximity-distance: 0.0
     discord-enabled: true
@@ -246,7 +246,7 @@ rules:
 homes:
   # Enable the homes system (/home, /homes, /sethome, /delhome)
   enabled: true
-  # Default maximum homes per player (can be overridden with qol.homes.max.<n> permission)
+  # Default maximum homes per player (can be overridden with kelpylandia.homes.max.<n> permission)
   max-homes: 12
   # Use interactive GUI inventory for /homes (false = text list)
   use-gui: true

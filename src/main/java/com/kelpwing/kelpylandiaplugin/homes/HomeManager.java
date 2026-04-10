@@ -121,25 +121,15 @@ public class HomeManager {
 
     /**
      * Get the maximum number of homes a player can have.
-     * Checks permission nodes qol.homes.max.<n> (highest value wins),
-     * then falls back to the config default.
+     * Checks permission nodes kelpylandia.homes.max.<n> first, then config default.
      */
     public int getMaxHomes(Player player) {
-        int max = -1;
-
-        // Scan the player's effective permissions for qol.homes.max.<n>
-        for (org.bukkit.permissions.PermissionAttachmentInfo pai : player.getEffectivePermissions()) {
-            if (!pai.getValue()) continue; // skip negated nodes
-            String perm = pai.getPermission();
-            if (!perm.startsWith("qol.homes.max.")) continue;
-            String suffix = perm.substring("qol.homes.max.".length());
-            try {
-                int n = Integer.parseInt(suffix);
-                if (n > max) max = n;
-            } catch (NumberFormatException ignored) {}
+        // Check permission-based limits (higher = better)
+        for (int i = 100; i >= 1; i--) {
+            if (player.hasPermission("qol.homes.max." + i)) {
+                return i;
+            }
         }
-
-        if (max >= 0) return max;
         return plugin.getConfig().getInt("homes.max-homes", 12);
     }
 

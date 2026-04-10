@@ -12,7 +12,6 @@ import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.server.ServerCommandEvent;
-import org.bukkit.command.ConsoleCommandSender;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -69,22 +68,23 @@ public class ConsoleListener extends Handler implements Listener {
             String message = event.getMessage().getFormattedMessage();
             if (message == null) return;
 
+            // Skip messages that come from our JUL handler too, to avoid doubles.
+            // JUL messages are forwarded by the JUL-to-log4j bridge and carry the
+            // logger name "jul" or contain familiar plugin markers. Simplest heuristic:
+            // skip anything that contains the JUL bridge marker, or that originates
+            // from a logger whose name contains "net.minecraft" is fine to keep — 
+            // but we need to deduplicate with JUL. The reliable approach: only relay
+            // log4j events whose logger name starts with "net.minecraft" or "Minecraft",
+            // since those are the NMS loggers that bypass JUL entirely.
             String loggerName = event.getLoggerName();
-            if (loggerName == null) loggerName = "";
+            if (loggerName == null) return;
+            boolean isNmsLogger = loggerName.startsWith("net.minecraft")
+                    || loggerName.startsWith("Minecraft")
+                    || loggerName.equals(""); // root log4j logger (vanilla output)
 
-            // Only relay events from NMS/vanilla loggers that never go through JUL.
-            // - "net.minecraft.*"  — pure NMS loggers (say output, [Not Secure], etc.)
-            // - "Minecraft"        — Spigot's main server logger (some vanilla output)
-            // Explicitly EXCLUDE:
-            // - ""  (root)         — JUL-bridged messages land here; already handled by publish()
-            // - "com.*", "org.*"   — plugin/library loggers already in JUL
-            // - anything containing "jul" or "jdk" — JUL bridge markers
-            boolean isNmsOnly = loggerName.startsWith("net.minecraft")
-                    || loggerName.equals("Minecraft");
+            if (!isNmsLogger) return;
 
-            if (!isNmsOnly) return;
-
-            String level = event.getLevel().name();
+            String level = event.getLevel().name(); // INFO, WARN, ERROR, etc.
             relayLog4j(message, level);
         }
     }
@@ -141,8 +141,6 @@ public class ConsoleListener extends Handler implements Listener {
 
     @EventHandler
     public void onServerCommand(ServerCommandEvent event) {
-        // Only relay commands run by the actual console, not command blocks or other non-human senders.
-        if (!(event.getSender() instanceof ConsoleCommandSender)) return;
         DiscordIntegration discord = plugin.getDiscordIntegration();
         if (discord != null && discord.isEnabled()) {
             discord.sendConsoleMessage("Executed command: /" + event.getCommand(), "INFO");
@@ -157,10 +155,8 @@ public class ConsoleListener extends Handler implements Listener {
             return false;
         }
 
-        // Filter out common high-frequency spam
-        String[] spamKeywords = {
-            "Can't keep up!", "Is the server overloaded?", "KeepAlive", "ping"
-        };
+        // Filter out some common high-frequency spam
+        String[] spamKeywords = {"Can't keep up!", "Is the server overloaded?", "KeepAlive", "ping"};
         for (String keyword : spamKeywords) {
             if (message.contains(keyword)) {
                 return false;
