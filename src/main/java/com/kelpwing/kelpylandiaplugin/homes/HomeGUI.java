@@ -124,7 +124,7 @@ public class HomeGUI implements Listener {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
-            meta.setDisplayName(ChatColor.GREEN + "" + ChatColor.BOLD + home.getName());
+            meta.setDisplayName(ChatColor.GREEN + home.getName());
 
             List<String> lore = new ArrayList<>();
             lore.add(ChatColor.GRAY + "World: " + ChatColor.WHITE + home.getWorldName());
