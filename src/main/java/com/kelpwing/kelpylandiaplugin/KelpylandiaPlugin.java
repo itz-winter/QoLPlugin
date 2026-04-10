@@ -617,11 +617,18 @@ public class KelpylandiaPlugin extends JavaPlugin {
         if (getConfig().getBoolean("update-checker.enabled", true)) {
             updateChecker = new UpdateChecker(this);
             UpdateCommand updateCmd = new UpdateCommand(this);
-            registerCommand("kpupdate", updateCmd,
-                    "Check for and download plugin updates.",
-                    "/kpupdate <check|download>",
-                    "qol.update",
-                    "pluginupdate", "qolupdate");
+            PluginCommand kpupdateCmd = getCommand("kpupdate");
+            if (kpupdateCmd != null) {
+                kpupdateCmd.setExecutor(updateCmd);
+                kpupdateCmd.setTabCompleter(updateCmd);
+            } else {
+                // Fallback: dynamic registration (e.g. plugin.yml missing entry)
+                registerCommand("kpupdate", updateCmd,
+                        "Check for and download plugin updates.",
+                        "/kpupdate <check|download>",
+                        "qol.update",
+                        "pluginupdate", "qolupdate");
+            }
             getServer().getPluginManager().registerEvents(new UpdateNotifyListener(this), this);
             // Run the first check 3 seconds after startup so it never delays boot
             Bukkit.getScheduler().runTaskLater(this, () ->

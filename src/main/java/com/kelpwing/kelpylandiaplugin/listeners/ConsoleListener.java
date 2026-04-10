@@ -2,6 +2,13 @@ package com.kelpwing.kelpylandiaplugin.listeners;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.core.LoggerContext;
+import org.apache.logging.log4j.core.appender.AbstractAppender;
+import org.apache.logging.log4j.core.config.Configuration;
+import org.apache.logging.log4j.core.config.Property;
+import org.apache.logging.log4j.core.layout.PatternLayout;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.server.ServerCommandEvent;
@@ -23,14 +30,77 @@ public class ConsoleListener extends Handler implements Listener {
     private final List<LogRecord> pendingRecords = new ArrayList<>();
     private boolean discordReady = false;
 
+    /** log4j2 appender that captures NMS/vanilla output (say, [Not Secure], etc.) */
+    private Log4jAppender log4jAppender;
+
     public ConsoleListener(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
 
-        // Attach to the root logger so ALL server output is captured.
-        // The "Minecraft" named logger only receives plugin-specific messages;
-        // the root logger ("") gets everything (vanilla, Paper internals, etc.).
+        // Attach to the root JUL logger so plugin messages are captured.
         Logger.getLogger("").addHandler(this);
+
+        // Also attach a log4j2 appender to capture vanilla/NMS server output
+        // (e.g. [Not Secure] [Server] messages from the `say` command)
+        // that only goes through log4j2 and never reaches the JUL root logger.
+        try {
+            LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+            Configuration config = ctx.getConfiguration();
+            log4jAppender = new Log4jAppender();
+            log4jAppender.start();
+            config.getRootLogger().addAppender(log4jAppender, null, null);
+            ctx.updateLoggers();
+        } catch (Exception e) {
+            plugin.getLogger().warning("[ConsoleListener] Could not attach log4j2 appender: " + e.getMessage());
+        }
     }
+
+    // ── log4j2 appender ──────────────────────────────────────────────────────
+
+    private class Log4jAppender extends AbstractAppender {
+        Log4jAppender() {
+            super("KelpylandiaDiscordAppender", null,
+                    PatternLayout.createDefaultLayout(), true, Property.EMPTY_ARRAY);
+        }
+
+        @Override
+        public void append(LogEvent event) {
+            if (event == null) return;
+            String message = event.getMessage().getFormattedMessage();
+            if (message == null) return;
+
+            // Skip messages that come from our JUL handler too, to avoid doubles.
+            // JUL messages are forwarded by the JUL-to-log4j bridge and carry the
+            // logger name "jul" or contain familiar plugin markers. Simplest heuristic:
+            // skip anything that contains the JUL bridge marker, or that originates
+            // from a logger whose name contains "net.minecraft" is fine to keep — 
+            // but we need to deduplicate with JUL. The reliable approach: only relay
+            // log4j events whose logger name starts with "net.minecraft" or "Minecraft",
+            // since those are the NMS loggers that bypass JUL entirely.
+            String loggerName = event.getLoggerName();
+            if (loggerName == null) return;
+            boolean isNmsLogger = loggerName.startsWith("net.minecraft")
+                    || loggerName.startsWith("Minecraft")
+                    || loggerName.equals(""); // root log4j logger (vanilla output)
+
+            if (!isNmsLogger) return;
+
+            String level = event.getLevel().name(); // INFO, WARN, ERROR, etc.
+            relayLog4j(message, level);
+        }
+    }
+
+    private void relayLog4j(String message, String level) {
+        synchronized (pendingRecords) {
+            DiscordIntegration discord = plugin.getDiscordIntegration();
+            if (discord == null || !discord.isEnabled()) return;
+        }
+        DiscordIntegration discord = plugin.getDiscordIntegration();
+        if (discord != null && discord.isEnabled() && shouldLogMessage(message)) {
+            discord.sendConsoleMessage(message, level);
+        }
+    }
+
+    // ── JUL handler ──────────────────────────────────────────────────────────
 
     @Override
     public void publish(LogRecord record) {
@@ -102,5 +172,15 @@ public class ConsoleListener extends Handler implements Listener {
     @Override
     public void close() throws SecurityException {
         Logger.getLogger("").removeHandler(this);
+        // Detach log4j2 appender on shutdown
+        try {
+            if (log4jAppender != null) {
+                LoggerContext ctx = (LoggerContext) LogManager.getContext(false);
+                Configuration config = ctx.getConfiguration();
+                config.getRootLogger().removeAppender("KelpylandiaDiscordAppender");
+                log4jAppender.stop();
+                ctx.updateLoggers();
+            }
+        } catch (Exception ignored) {}
     }
 }

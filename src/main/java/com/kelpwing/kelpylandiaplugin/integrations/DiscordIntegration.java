@@ -35,7 +35,6 @@ import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.io.OutputStream;
@@ -113,48 +112,59 @@ public class DiscordIntegration extends ListenerAdapter {
     }
     
     public void sendChatMessage(Player player, String message, String channelId) {
-        if (!enabled || channelId == null) return;
-        
+        if (!enabled || channelId == null || channelId.isEmpty()) return;
+
         // Use webhook for chat messages to show player avatar and name
         sendWebhookMessage(player, message, channelId);
     }
-    
+
     public void sendWebhookMessage(Player player, String message, String channelId) {
-        if (!enabled || channelId == null) return;
-        
-        CompletableFuture.runAsync(() -> {
+        if (!enabled || channelId == null || channelId.isEmpty()) return;
+
+        // Capture all values on the calling thread before going async
+        final String playerName = player.getName();
+        final String displayName = player.getDisplayName();
+        final String uuidStr = player.getUniqueId().toString();
+
+        final String content = stripSectionCodes(
+                plugin.getConfig().getString("discord.formats.minecraft-to-discord", "{message}")
+                        .replace("{message}", message)
+                        .replace("{player}", playerName)
+                        .replace("{displayname}", displayName));
+
+        final String username = stripSectionCodes(
+                plugin.getConfig().getString("discord.formats.username-format", "{displayname}")
+                        .replace("{player}", playerName)
+                        .replace("{displayname}", displayName));
+
+        final String avatarUrl = plugin.getConfig()
+                .getString("discord.formats.avatar-url", "https://mc-heads.net/avatar/{uuid}/64")
+                .replace("{uuid}", uuidStr)
+                .replace("{player}", playerName);
+
+        // Use Bukkit's async scheduler — avoids ForkJoin pool deadlock with JDA's .complete()
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
-                // Get or create webhook for this channel
                 String webhookUrl = getWebhookUrl(channelId);
-                if (webhookUrl == null) return;
-                
-                // Format message content
-                String content = stripSectionCodes(plugin.getConfig().getString("discord.formats.minecraft-to-discord", "{message}")
-                    .replace("{message}", message)
-                    .replace("{player}", player.getName())
-                    .replace("{displayname}", player.getDisplayName()));
-                
-                // Format username
-                String username = stripSectionCodes(plugin.getConfig().getString("discord.formats.username-format", "{displayname}")
-                    .replace("{player}", player.getName())
-                    .replace("{displayname}", player.getDisplayName()));
-                
-                // Get avatar URL
-                String avatarUrl = plugin.getConfig().getString("discord.formats.avatar-url", "https://mc-heads.net/avatar/{uuid}/64")
-                    .replace("{uuid}", player.getUniqueId().toString())
-                    .replace("{player}", player.getName());
-                
-                // Create webhook payload
+                if (webhookUrl == null) {
+                    // Fallback: plain message via JDA
+                    TextChannel ch = jda.getTextChannelById(channelId);
+                    if (ch != null) {
+                        ch.sendMessage("[" + username + "] " + content).queue(
+                                null,
+                                e -> plugin.getLogger().warning("Fallback chat send failed: " + e.getMessage()));
+                    }
+                    return;
+                }
+
                 String payload = String.format(
-                    "{\"content\":\"%s\",\"username\":\"%s\",\"avatar_url\":\"%s\"}", 
-                    escapeJson(content), 
-                    escapeJson(username), 
-                    avatarUrl
-                );
-                
-                // Send webhook request
+                        "{\"content\":\"%s\",\"username\":\"%s\",\"avatar_url\":\"%s\"}",
+                        escapeJson(content),
+                        escapeJson(username),
+                        avatarUrl);
+
                 sendWebhookRequest(webhookUrl, payload);
-                
+
             } catch (Exception e) {
                 plugin.getLogger().warning("Failed to send webhook message: " + e.getMessage());
             }
@@ -1821,7 +1831,7 @@ public class DiscordIntegration extends ListenerAdapter {
             return;
         }
         
-        CompletableFuture.runAsync(() -> {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 TextChannel channel = jda.getTextChannelById(chatChannelId);
                 if (channel != null) {
@@ -1878,7 +1888,7 @@ public class DiscordIntegration extends ListenerAdapter {
         String newLine = "[" + timestamp + " " + normalizedLevel + "]: " + cleanMsg;
 
         final String finalLine = newLine;
-        CompletableFuture.runAsync(() -> {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
                 TextChannel channel = jda.getTextChannelById(consoleChannelId);
                 if (channel == null) return;

@@ -119,6 +119,31 @@ public class ChatListener implements Listener {
         // When InteractiveChat is present and its integration is active, we defer
         // the Discord relay to InteractiveChatIntegration (which runs at MONITOR,
         // after IC has processed the message).  Otherwise we send the raw message now.
+        // Note: Discord relay is handled in the MONITOR handler below to ensure the
+        // final (post-cancellation-check) message is relayed.
+        
+        // Log the message
+        plugin.getLogger().info("[" + playerChannel.getName() + "] " + player.getName() + ": " + message);
+    }
+
+    /**
+     * MONITOR priority handler — fires last, after all other plugins.
+     * Used exclusively to relay the final chat message to Discord,
+     * so we skip cancelled events and get the fully-processed message.
+     */
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onPlayerChatMonitor(AsyncPlayerChatEvent event) {
+        // Skip events that were cancelled (muted players, etc.)
+        if (event.isCancelled()) return;
+
+        Player player = event.getPlayer();
+        String message = event.getMessage();
+
+        Channel playerChannel = plugin.getChannelManager().getPlayerChannel(player);
+        if (playerChannel == null) {
+            playerChannel = plugin.getChannelManager().getDefaultChannel();
+        }
+
         com.kelpwing.kelpylandiaplugin.integrations.InteractiveChatIntegration icInt =
                 plugin.getInteractiveChatIntegration();
         boolean icHandlesDiscord = icInt != null && icInt.isEnabled();
@@ -128,9 +153,6 @@ public class ChatListener implements Listener {
                 && plugin.getDiscordIntegration().isEnabled()) {
             plugin.getDiscordIntegration().sendChatMessage(player, message, playerChannel.getDiscordChannel());
         }
-        
-        // Log the message
-        plugin.getLogger().info("[" + playerChannel.getName() + "] " + player.getName() + ": " + message);
     }
     
     private boolean shouldReceiveMessage(Player recipient, Player sender, Channel channel) {

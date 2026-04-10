@@ -29,6 +29,7 @@ public class UpdateChecker {
     private volatile String  latestVersion   = null;
     private volatile String  downloadUrl     = null;
     private volatile String  versionName     = null; // human-readable release title
+    private volatile boolean checkCompleted  = false; // true once any check has finished
 
     public UpdateChecker(KelpylandiaPlugin plugin) {
         this.plugin         = plugin;
@@ -38,6 +39,7 @@ public class UpdateChecker {
     // ─── Public API ────────────────────────────────────────────────────────────
 
     public boolean isUpdateAvailable()  { return updateAvailable; }
+    public boolean hasChecked()         { return checkCompleted;  }
     public String  getLatestVersion()   { return latestVersion;   }
     public String  getCurrentVersion()  { return currentVersion;  }
     public String  getDownloadUrl()     { return downloadUrl;      }
@@ -107,6 +109,7 @@ public class UpdateChecker {
         } else {
             plugin.getLogger().info("[UpdateChecker] Plugin is up to date (v" + currentVersion + ").");
         }
+        checkCompleted = true;
     }
 
     // ─── Helpers ───────────────────────────────────────────────────────────────
