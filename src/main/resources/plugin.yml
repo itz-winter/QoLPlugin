@@ -315,6 +315,41 @@ permissions:
   qol.homes.list:
     description: Allows using /homes to list homes
     default: true
+
+  qol.homes.max.*:
+    description: Wildcard — grants all qol.homes.max.<n> nodes (do not assign directly)
+    default: false
+
+  qol.homes.max.1:
+    description: Allows a maximum of 1 home
+    default: false
+  qol.homes.max.2:
+    description: Allows a maximum of 2 homes
+    default: false
+  qol.homes.max.3:
+    description: Allows a maximum of 3 homes
+    default: false
+  qol.homes.max.5:
+    description: Allows a maximum of 5 homes
+    default: false
+  qol.homes.max.10:
+    description: Allows a maximum of 10 homes
+    default: false
+  qol.homes.max.15:
+    description: Allows a maximum of 15 homes
+    default: false
+  qol.homes.max.20:
+    description: Allows a maximum of 20 homes
+    default: false
+  qol.homes.max.25:
+    description: Allows a maximum of 25 homes
+    default: false
+  qol.homes.max.50:
+    description: Allows a maximum of 50 homes
+    default: false
+  qol.homes.max.100:
+    description: Allows a maximum of 100 homes
+    default: false
     
   # TPA Permissions
   qol.tpa:
