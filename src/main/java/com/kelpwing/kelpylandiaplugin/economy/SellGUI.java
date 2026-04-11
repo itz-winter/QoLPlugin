@@ -112,6 +112,7 @@ public class SellGUI implements Listener {
         // Deposit earnings
         if (netEarnings.compareTo(BigDecimal.ZERO) > 0) {
             eco.deposit(player.getUniqueId(), netEarnings);
+            eco.sendTransactionHUD(player, netEarnings, true);
         }
 
         // Return unsellable items

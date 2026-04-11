@@ -1,7 +1,10 @@
 package com.kelpwing.kelpylandiaplugin.economy;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
+import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
+import org.bukkit.ChatColor;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.OfflinePlayer;
@@ -10,6 +13,7 @@ import org.bukkit.block.ShulkerBox;
 import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.configuration.file.FileConfiguration;
 import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.BlockStateMeta;
 
@@ -543,6 +547,17 @@ public class EconomyManager {
 
     public String formatMoney(double amount) {
         return formatMoney(BigDecimal.valueOf(amount));
+    }
+
+    /**
+     * Show a transaction notification above the hotbar (action bar).
+     * Gain = green "+$X.XX", loss = red "-$X.XX".
+     */
+    public void sendTransactionHUD(Player player, BigDecimal amount, boolean gain) {
+        if (player == null || !player.isOnline()) return;
+        String sign = gain ? ChatColor.GREEN + "+" : ChatColor.RED + "-";
+        String text = sign + formatMoney(amount.abs());
+        player.spigot().sendMessage(ChatMessageType.ACTION_BAR, new TextComponent(text));
     }
 
     /** Get a message from economy.yml, applying color codes. */

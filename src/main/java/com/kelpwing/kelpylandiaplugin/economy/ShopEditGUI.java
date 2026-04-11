@@ -8,6 +8,7 @@ import org.bukkit.Material;
 import org.bukkit.Tag;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
+import org.bukkit.event.EventPriority;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
@@ -193,10 +194,16 @@ public class ShopEditGUI implements Listener {
     @EventHandler
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player)) return;
-        // Clean up page tracking if needed (keep it for re-opening)
+        Player player = (Player) event.getPlayer();
+        if (event.getView().getTitle() == null) return;
+        if (!event.getView().getTitle().startsWith(GUI_TITLE_PREFIX)) return;
+        // If the player was mid-search, clear it so re-opening starts fresh
+        if (!awaitingChatInput.containsKey(player.getUniqueId())) {
+            playerSearch.remove(player.getUniqueId());
+        }
     }
 
-    @EventHandler
+    @EventHandler(priority = EventPriority.LOWEST)
     public void onPlayerChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
         ChatInputState state = awaitingChatInput.remove(player.getUniqueId());
@@ -222,6 +229,7 @@ public class ShopEditGUI implements Listener {
 
             case ADD_ITEM:
                 // They typed an item/category name — now ask for price
+                String configKey;
                 if (input.startsWith("#")) {
                     String tagName = input.substring(1);
                     Tag<Material> tag = EconomyManager.resolveTag(tagName);
@@ -230,6 +238,7 @@ public class ShopEditGUI implements Listener {
                         Bukkit.getScheduler().runTask(plugin, () -> openGUI(player, playerPages.getOrDefault(player.getUniqueId(), 0)));
                         return;
                     }
+                    configKey = input; // keep as-is: "#minecraft:planks"
                 } else {
                     Material mat = EconomyManager.parseMaterial(input);
                     if (mat == null) {
@@ -237,10 +246,10 @@ public class ShopEditGUI implements Listener {
                         Bukkit.getScheduler().runTask(plugin, () -> openGUI(player, playerPages.getOrDefault(player.getUniqueId(), 0)));
                         return;
                     }
-                    input = mat.name().toLowerCase(); // normalize
+                    configKey = mat.name().toLowerCase(); // normalize to canonical name
                 }
-                player.sendMessage(ChatColor.YELLOW + "Now enter the sell price for " + ChatColor.WHITE + input + ChatColor.YELLOW + ":");
-                awaitingChatInput.put(player.getUniqueId(), new ChatInputState(ChatInputType.EDIT_PRICE, input.startsWith("#") ? input : input));
+                player.sendMessage(ChatColor.YELLOW + "Now enter the sell price for " + ChatColor.WHITE + configKey + ChatColor.YELLOW + ":");
+                awaitingChatInput.put(player.getUniqueId(), new ChatInputState(ChatInputType.EDIT_PRICE, configKey));
                 break;
 
             case EDIT_PRICE:

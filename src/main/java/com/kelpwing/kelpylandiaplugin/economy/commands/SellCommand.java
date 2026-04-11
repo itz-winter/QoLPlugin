@@ -148,6 +148,8 @@ public class SellCommand implements CommandExecutor, TabCompleter {
 
         eco.deposit(player.getUniqueId(), totalEarned);
 
+        eco.sendTransactionHUD(player, totalEarned, true);
+
         String totalStr = totalEarned.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
         sender.sendMessage(eco.getMessage("sell-summary")
                 .replace("{count}", String.valueOf(totalSold))

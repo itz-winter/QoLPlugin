@@ -95,6 +95,9 @@ public class PayCommand implements CommandExecutor, TabCompleter {
                 .replace("{amount}", rcvStr)
                 .replace("{player}", player.getName()));
 
+        eco.sendTransactionHUD(player, amount, false);
+        eco.sendTransactionHUD(target, received, true);
+
         if (tax.compareTo(BigDecimal.ZERO) > 0) {
             String taxStr = tax.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
             String rateStr = eco.getTaxRate().toPlainString();
