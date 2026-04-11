@@ -5,7 +5,7 @@ api-version: '1.16'
 author: Kelpwing
 description: A collection of quality-of-life features and commands for Minecraft servers, including chat channels, moderation tools, teleportation commands, and more!!
 depend: [LuckPerms]
-softdepend: [PlaceholderAPI, InteractiveChat, InteractiveChatDiscordSrvAddon]
+softdepend: [PlaceholderAPI, InteractiveChat, InteractiveChatDiscordSrvAddon, Vault]
 
 commands:
   # Chat Commands
@@ -197,6 +197,7 @@ permissions:
       qol.recipe: true
       qol.kit: true
       qol.kit.admin: true
+      qol.economy.*: true
       
   qol.admin:
     description: Allows admin commands
@@ -710,6 +711,72 @@ permissions:
   qol.kit.tools:
     description: Allows claiming the tools kit
     default: true
+
+  # Economy Permissions
+  qol.economy.*:
+    description: Grants all economy permissions
+    default: op
+    children:
+      qol.economy.balance: true
+      qol.economy.balance.others: true
+      qol.economy.pay: true
+      qol.economy.baltop: true
+      qol.economy.sell: true
+      qol.economy.price: true
+      qol.economy.value: true
+      qol.economy.tax: true
+      qol.economy.tax.edit: true
+      qol.economy.setprice: true
+      qol.economy.delprice: true
+      qol.economy.shopedit: true
+
+  qol.economy.balance:
+    description: Allows checking your own balance
+    default: true
+
+  qol.economy.balance.others:
+    description: Allows checking other players' balances
+    default: op
+
+  qol.economy.pay:
+    description: Allows paying other players
+    default: true
+
+  qol.economy.baltop:
+    description: Allows viewing the balance leaderboard
+    default: true
+
+  qol.economy.sell:
+    description: Allows selling items (/sell and /sellgui)
+    default: true
+
+  qol.economy.price:
+    description: Allows checking item prices
+    default: true
+
+  qol.economy.value:
+    description: Allows checking total item value
+    default: true
+
+  qol.economy.tax:
+    description: Allows viewing tax info
+    default: true
+
+  qol.economy.tax.edit:
+    description: Allows setting the tax rate
+    default: op
+
+  qol.economy.setprice:
+    description: Allows setting item sell prices
+    default: op
+
+  qol.economy.delprice:
+    description: Allows removing item sell prices
+    default: op
+
+  qol.economy.shopedit:
+    description: Allows using the shop editor GUI
+    default: op
 
   # ─────────────────────────────────────────────────────────────
   # Legacy permission aliases — backward-compat for servers that

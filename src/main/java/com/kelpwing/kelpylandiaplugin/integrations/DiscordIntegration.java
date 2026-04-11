@@ -120,6 +120,7 @@ public class DiscordIntegration extends ListenerAdapter {
 
     public void sendWebhookMessage(Player player, String message, String channelId) {
         if (!enabled || channelId == null || channelId.isEmpty()) return;
+        if (message == null || message.isBlank()) return;
 
         // Capture all values on the calling thread before going async
         final String playerName = player.getName();
@@ -409,16 +410,26 @@ public class DiscordIntegration extends ListenerAdapter {
                 plugin.getLogger().info("Relaying Discord message to Minecraft: " + username + ": " + content);
             }
 
+            // Collect attachments (images, videos, gifs, files) from the Discord message
+            List<net.dv8tion.jda.api.entities.Message.Attachment> attachments =
+                    event.getMessage().getAttachments();
+
             String format = plugin.getConfig().getString("discord.formats.discord-to-minecraft",
                     "&9[Discord] &r{user}&r: {message}");
+            // For pure-attachment messages (no text), use a blank {message} placeholder —
+            // the attachment components are appended separately below.
+            String effectiveContent = content.isEmpty() && !attachments.isEmpty() ? "" : content;
             String minecraftMessage = format
                     .replace("{user}", username)
-                    .replace("{message}", content);
+                    .replace("{message}", effectiveContent);
+
+            // Snapshot attachments for use inside the lambda
+            final List<net.dv8tion.jda.api.entities.Message.Attachment> finalAttachments =
+                    java.util.Collections.unmodifiableList(new java.util.ArrayList<>(attachments));
+            final String jumpUrl = event.getMessage().getJumpUrl();
 
             Bukkit.getScheduler().runTask(plugin, () -> {
                 try {
-                    String coloredMessage = org.bukkit.ChatColor.translateAlternateColorCodes('&', minecraftMessage);
-
                     com.kelpwing.kelpylandiaplugin.chat.Channel targetChannel = null;
                     for (com.kelpwing.kelpylandiaplugin.chat.Channel ch : plugin.getChannelManager().getChannels()) {
                         if (ch.isDiscordEnabled() && channelId.equals(ch.getDiscordChannel())) {
@@ -431,19 +442,83 @@ public class DiscordIntegration extends ListenerAdapter {
                         if (targetChannel == null) targetChannel = plugin.getChannelManager().getDefaultChannel();
                     }
 
-                    if (targetChannel != null) {
-                        for (Player player : Bukkit.getOnlinePlayers()) {
+                    // Build the text portion of the message
+                    String coloredMessage = org.bukkit.ChatColor.translateAlternateColorCodes('&', minecraftMessage);
+
+                    // Build clickable attachment components (one per attachment)
+                    // Each looks like: §9[📷 image] (Ctrl+Click to open)
+                    java.util.List<net.md_5.bungee.api.chat.TextComponent> attachmentComponents =
+                            new java.util.ArrayList<>();
+                    for (net.dv8tion.jda.api.entities.Message.Attachment att : finalAttachments) {
+                        String label = getAttachmentLabel(att);
+                        String url   = att.getUrl();
+
+                        net.md_5.bungee.api.chat.TextComponent link =
+                                new net.md_5.bungee.api.chat.TextComponent(" " + label);
+                        link.setColor(net.md_5.bungee.api.ChatColor.AQUA);
+                        link.setUnderlined(true);
+                        link.setClickEvent(new net.md_5.bungee.api.chat.ClickEvent(
+                                net.md_5.bungee.api.chat.ClickEvent.Action.OPEN_URL, url));
+                        link.setHoverEvent(new net.md_5.bungee.api.chat.HoverEvent(
+                                net.md_5.bungee.api.chat.HoverEvent.Action.SHOW_TEXT,
+                                new net.md_5.bungee.api.chat.BaseComponent[]{
+                                    new net.md_5.bungee.api.chat.TextComponent(
+                                            net.md_5.bungee.api.ChatColor.YELLOW + "Ctrl+Click to open\n"
+                                            + net.md_5.bungee.api.ChatColor.GRAY + url)
+                                }));
+                        attachmentComponents.add(link);
+                    }
+
+                    // Deliver to all players in the target channel
+                    final com.kelpwing.kelpylandiaplugin.chat.Channel deliverTo = targetChannel;
+                    java.util.function.Consumer<Player> deliver = player -> {
+                        if (deliverTo != null) {
                             String playerChannelName = plugin.getChannelManager().getPlayerChannel(player.getUniqueId());
-                            if (targetChannel.getName().equalsIgnoreCase(playerChannelName)
-                                    && plugin.getChannelManager().hasPermission(player, targetChannel.getName())) {
-                                player.sendMessage(coloredMessage);
+                            if (!deliverTo.getName().equalsIgnoreCase(playerChannelName)
+                                    || !plugin.getChannelManager().hasPermission(player, deliverTo.getName())) {
+                                return;
                             }
                         }
+
+                        if (attachmentComponents.isEmpty()) {
+                            // No attachments — plain text send (original behaviour)
+                            player.sendMessage(coloredMessage);
+                        } else {
+                            // Build a single BaseComponent array: text prefix + attachment links
+                            net.md_5.bungee.api.chat.TextComponent base =
+                                    new net.md_5.bungee.api.chat.TextComponent(
+                                            net.md_5.bungee.api.chat.TextComponent.fromLegacyText(coloredMessage));
+                            for (net.md_5.bungee.api.chat.TextComponent link : attachmentComponents) {
+                                base.addExtra(link);
+                            }
+                            player.spigot().sendMessage(base);
+                        }
+                    };
+
+                    if (deliverTo != null) {
+                        for (Player player : Bukkit.getOnlinePlayers()) {
+                            deliver.accept(player);
+                        }
                         if (debugRelay) {
-                            plugin.getLogger().info("Relayed Discord message to channel '" + targetChannel.getName() + "': " + coloredMessage);
+                            plugin.getLogger().info("Relayed Discord message to channel '"
+                                    + deliverTo.getName() + "': " + coloredMessage
+                                    + (finalAttachments.isEmpty() ? "" : " [+" + finalAttachments.size() + " attachment(s)]"));
                         }
                     } else {
-                        Bukkit.broadcastMessage(coloredMessage);
+                        // No channel found — broadcast to everyone
+                        if (attachmentComponents.isEmpty()) {
+                            Bukkit.broadcastMessage(coloredMessage);
+                        } else {
+                            net.md_5.bungee.api.chat.TextComponent base =
+                                    new net.md_5.bungee.api.chat.TextComponent(
+                                            net.md_5.bungee.api.chat.TextComponent.fromLegacyText(coloredMessage));
+                            for (net.md_5.bungee.api.chat.TextComponent link : attachmentComponents) {
+                                base.addExtra(link);
+                            }
+                            for (Player player : Bukkit.getOnlinePlayers()) {
+                                player.spigot().sendMessage(base);
+                            }
+                        }
                     }
                 } catch (Exception e) {
                     plugin.getLogger().warning("Failed to relay Discord message to Minecraft: " + e.getMessage());
@@ -452,6 +527,29 @@ public class DiscordIntegration extends ListenerAdapter {
         } else if (debugRelay) {
             plugin.getLogger().info("Discord message in non-chat channel (" + channelId + "), not relaying.");
         }
+    }
+
+    /**
+     * Returns a labelled emoji string for a Discord attachment based on its content type.
+     * Used to build clickable links in the Minecraft chat relay.
+     */
+    private String getAttachmentLabel(net.dv8tion.jda.api.entities.Message.Attachment att) {
+        if (att.isImage()) {
+            // GIFs are technically images in JDA but we can check the file extension
+            String ext = att.getFileExtension() == null ? "" : att.getFileExtension().toLowerCase();
+            if ("gif".equals(ext)) return "🎞 [gif]";
+            return "🖼 [image]";
+        }
+        if (att.isVideo()) return "🎬 [video]";
+        // Fallback: classify by extension
+        String ext = att.getFileExtension() == null ? "" : att.getFileExtension().toLowerCase();
+        return switch (ext) {
+            case "mp3", "ogg", "wav", "flac", "m4a" -> "🎵 [audio]";
+            case "pdf"                               -> "📄 [pdf]";
+            case "zip", "rar", "7z", "tar", "gz"    -> "🗜 [archive]";
+            case "txt", "log", "md"                 -> "📝 [text]";
+            default                                  -> "📎 [file]";
+        };
     }
 
     /** Check whether the Discord member has the configured console role. */

@@ -1,8 +1,6 @@
-### **! MAKE SURE TO USE THE LATEST VERSION !**
-
 # QoLPlugin
 
-A lil' custom plugin with a cringe name :3
+The one-and-done all-purpose plugin for any and all uses!
 
 ## Overview
 

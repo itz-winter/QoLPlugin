@@ -1,0 +1,143 @@
+# ╔══════════════════════════════════════════════════════════════╗
+# ║                    Economy Configuration                    ║
+# ╚══════════════════════════════════════════════════════════════╝
+# Whether the economy system is enabled. If false, all economy-related commands will be disabled.
+enabled: true
+
+# Register as a Vault economy provider so other plugins (QuickShop, etc.) can use our balances.
+use-vault: true
+
+# Storage backend: "yaml" (flat-file) or "sqlite" (database). SQLite recommended for larger servers.
+storage: "yaml"
+
+# The symbol used to represent currency values in messages.
+unit: "$"
+
+# Singular and plural names for the currency (used by Vault).
+currency-name-singular: "dollar"
+currency-name-plural: "dollars"
+
+# Number of decimal places to show for currency values.
+decimals: 2
+
+# Default starting balance for new players.
+starting-balance: 100
+
+# ── Tax Configuration ─────────────────────────────────────────
+tax:
+  enabled: false
+  # The percentage of tax to apply (e.g. 9.25 for 9.25%)
+  rate: 9.25
+  # Apply tax when players sell items to the server (/sell, /sellgui)?
+  # If false, tax only applies to player-to-player transactions (/pay).
+  apply-when-selling-to-server: false
+  # Apply tax to player-to-player payments (/pay)?
+  apply-when-paying-player: false
+
+# ── Baltop Configuration ─────────────────────────────────────
+baltop:
+  # Number of entries per page
+  page-size: 10
+  # Exclude players with zero balance from baltop
+  exclude-no-money: true
+  # Exclude server operators from baltop
+  exclude-ops: false
+  # Specific player names to exclude
+  exclude-players: []
+  # LuckPerms groups to exclude (e.g. "admin", "moderator")
+  exclude-groups: []
+
+# ── Messages ─────────────────────────────────────────────────
+messages:
+  balance-self: "&aYour balance: &b{unit}{balance}"
+  balance-other: "&a{player}'s balance: &b{unit}{balance}"
+  pay-sent: "&aYou paid &b{unit}{amount} &ato &b{player}&a."
+  pay-received: "&aYou received &b{unit}{amount} &afrom &b{player}&a."
+  pay-tax-notice: "&7(Tax: {unit}{tax} at {rate}%)"
+  insufficient-funds: "&cYou don't have enough money! Your balance: {unit}{balance}"
+  sell-summary: "&6Sold &b{count} item(s) &6for &b{unit}{total}"
+  sell-nothing: "&cNo sellable items found."
+  sell-gui-title: "&2&lSell Items"
+  sell-gui-success: "&6Sold &b{amount} item(s) &6for &b{total}"
+  sell-gui-summary: "&6Sold &b{count} item(s) &6for &b{unit}{total}"
+  sell-gui-returned: "&eReturned &b{count} &eunsellable item(s) to your inventory."
+  sell-gui-dropped: "&cYour inventory was full! &b{count} &citem(s) dropped at your feet."
+  sell-tax: "&7(Tax: {rate} = {tax})"
+  price-info: "&aPrice of &b{item}&a: &b{unit}{price} each"
+  price-category: "&7(Category price from &b{category}&7)"
+  price-unsellable: "&cThat item is not sellable{reason}"
+  value-info: "&aValue of &b{amount}x {item}&a: &b{unit}{total}"
+  value-tax: "&7(Tax: {rate} = {unit}{tax})"
+  value-shulker: "&aShulker box contents value: &b{unit}{total} &a({count} sellable items)"
+  tax-info: "&aCurrent tax rate: &b{rate}%"
+  tax-calc: "&aTax on &b{unit}{amount}&a: &b{unit}{tax} &a(you'd receive: &b{unit}{net}&a)"
+  tax-set: "&aTax rate set to &b{rate}%"
+  setprice-success: "&aPrice for &b{item} &aset to &b{unit}{price}"
+  delprice-success: "&aPrice for &b{item} &aremoved. It is now unsellable."
+  no-permission: "&cYou don't have permission to do that."
+  baltop-header: "&aShowing top &b{top} &abalances: &8(page {page} of {pages})"
+  baltop-entry: "&b{rank}&a. {player} - &b{unit}{balance}"
+  baltop-footer: "&aUse &b/baltop {next} &ato see the next page."
+  baltop-self: "&aYour rank: &b#{rank}&a, Balance: &b{unit}{balance}"
+  baltop-excluded: "&cYou are excluded from the baltop rankings."
+
+# ── Sellable Items & Categories ──────────────────────────────
+# Format: "MATERIAL_NAME": price (case-insensitive, optional minecraft: prefix)
+# Categories use Bukkit Tag names prefixed with #: "#minecraft:planks": 0.25
+# Per-item prices take priority over category prices.
+# Negative, null, or missing = unsellable. 0 = sellable for free.
+sellable:
+  # ─ spawners ─
+  "zombie_spawner": 250.00
+  "skeleton_spawner": 250.00
+  "magma_cube_spawner": 250.00
+
+  # ─ earthy blocks ─
+  "cobblestone": 0.01
+  "dirt": 0.01
+
+  # ─ silk touch blocks ─
+  "stone": 0.02
+  "grass_block": 0.02
+  "mycelium": 0.02
+  "podzol": 0.02
+
+  # ─ ores / ingots ─
+  "coal": 0.25
+  "iron_ingot": 0.75
+  "gold_ingot": 0.75
+  "diamond": 2.25
+  "emerald": 0.95
+  "redstone": 0.35
+  "quartz": 0.50
+  "ancient_debris": 10.00
+  "netherite_scrap": 10.25
+  "netherite_ingot": 43.25
+
+  # ─ ore blocks (silk touch) ─
+  "coal_ore": 0.10
+  "iron_ore": 0.50
+  "gold_ore": 0.50
+  "diamond_ore": 3.50
+  "emerald_ore": 4.75
+  "redstone_ore": 0.25
+  "nether_gold_ore": 0.75
+  "nether_quartz_ore": 0.50
+
+  # ─ categories (Bukkit Tags) ─
+  "#minecraft:planks": 0.25
+
+# ── Unsellable Items ─────────────────────────────────────────
+# Format: "MATERIAL_NAME": "reason suffix"
+# Player sees: "You cannot sell <item><reason>"
+unsellable:
+  "AIR": ", it is not possible to sell air, silly!"
+  "BEDROCK": ", it is an illegal item."
+  "BARRIER": ", it is an illegal item."
+  "COMMAND_BLOCK": ", it is an illegal item."
+  "CHAIN_COMMAND_BLOCK": ", it is an illegal item."
+  "REPEATING_COMMAND_BLOCK": ", it is an illegal item."
+  "STRUCTURE_BLOCK": ", it is an illegal item."
+  "STRUCTURE_VOID": ", it is an illegal item."
+  "JIGSAW": ", it is an illegal item."
+  "DEBUG_STICK": ", it is an illegal item."

@@ -1,0 +1,574 @@
+package com.kelpwing.kelpylandiaplugin.economy;
+
+import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
+import org.bukkit.Bukkit;
+import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
+import org.bukkit.OfflinePlayer;
+import org.bukkit.Tag;
+import org.bukkit.block.ShulkerBox;
+import org.bukkit.configuration.ConfigurationSection;
+import org.bukkit.configuration.file.FileConfiguration;
+import org.bukkit.configuration.file.YamlConfiguration;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BlockStateMeta;
+
+import java.io.File;
+import java.io.IOException;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
+import java.util.stream.Collectors;
+
+/**
+ * Core economy manager: balance storage, price lookups, tax calculations.
+ * Supports YAML flat-file storage. SQLite can be added later.
+ */
+public class EconomyManager {
+
+    private final KelpylandiaPlugin plugin;
+
+    // ── Config (loaded from economy.yml) ─────────────────────────
+    private File economyFile;
+    private FileConfiguration economyConfig;
+
+    // ── Balance storage (YAML backend) ──────────────────────────
+    private File balancesFile;
+    private FileConfiguration balancesConfig;
+    private final Map<UUID, BigDecimal> balanceCache = new ConcurrentHashMap<>();
+
+    // ── Price caches (built from economy.yml on load) ───────────
+    /** Exact material -> price */
+    private final Map<Material, BigDecimal> itemPrices = new LinkedHashMap<>();
+    /** Tag-based category -> price (lower priority than item prices) */
+    private final Map<Tag<Material>, BigDecimal> categoryPrices = new LinkedHashMap<>();
+    /** Category display names for messages */
+    private final Map<Tag<Material>, String> categoryNames = new LinkedHashMap<>();
+    /** Explicit unsellable items with reason suffixes */
+    private final Map<Material, String> unsellableItems = new LinkedHashMap<>();
+
+    // ── Derived settings ─────────────────────────────────────────
+    private boolean enabled;
+    private boolean useVault;
+    private String unit;
+    private int decimals;
+    private BigDecimal startingBalance;
+    private boolean taxEnabled;
+    private BigDecimal taxRate;          // e.g. 9.25 for 9.25%
+    private boolean taxOnServerSell;
+
+    public EconomyManager(KelpylandiaPlugin plugin) {
+        this.plugin = plugin;
+        loadConfig();
+        loadBalances();
+        loadPrices();
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  Config loading
+    // ════════════════════════════════════════════════════════════════
+
+    public void loadConfig() {
+        // Save default economy.yml if missing
+        economyFile = new File(plugin.getDataFolder(), "economy.yml");
+        if (!economyFile.exists()) {
+            plugin.saveResource("economy.yml", false);
+        }
+        economyConfig = YamlConfiguration.loadConfiguration(economyFile);
+
+        enabled = economyConfig.getBoolean("enabled", true);
+        useVault = economyConfig.getBoolean("use-vault", true);
+        unit = economyConfig.getString("unit", "$");
+        decimals = economyConfig.getInt("decimals", 2);
+        startingBalance = BigDecimal.valueOf(economyConfig.getDouble("starting-balance", 100));
+
+        taxEnabled = economyConfig.getBoolean("tax.enabled", false);
+        taxRate = BigDecimal.valueOf(economyConfig.getDouble("tax.rate", 9.25));
+        taxOnServerSell = economyConfig.getBoolean("tax.apply-when-selling-to-server", false);
+    }
+
+    private void loadBalances() {
+        balancesFile = new File(plugin.getDataFolder(), "balances.yml");
+        if (!balancesFile.exists()) {
+            try {
+                plugin.getDataFolder().mkdirs();
+                balancesFile.createNewFile();
+            } catch (IOException e) {
+                plugin.getLogger().severe("Could not create balances.yml!");
+                e.printStackTrace();
+            }
+        }
+        balancesConfig = YamlConfiguration.loadConfiguration(balancesFile);
+
+        balanceCache.clear();
+        for (String key : balancesConfig.getKeys(false)) {
+            try {
+                UUID uuid = UUID.fromString(key);
+                double val = balancesConfig.getDouble(key);
+                balanceCache.put(uuid, BigDecimal.valueOf(val).setScale(decimals, RoundingMode.HALF_UP));
+            } catch (IllegalArgumentException ignored) {}
+        }
+        plugin.getLogger().info("[Economy] Loaded " + balanceCache.size() + " player balance(s).");
+    }
+
+    private void loadPrices() {
+        itemPrices.clear();
+        categoryPrices.clear();
+        categoryNames.clear();
+        unsellableItems.clear();
+
+        // ── Sellable section ─────────────────────────────────────
+        ConfigurationSection sellable = economyConfig.getConfigurationSection("sellable");
+        if (sellable != null) {
+            for (String key : sellable.getKeys(false)) {
+                double price = sellable.getDouble(key, -1);
+                if (price < 0) continue;
+
+                if (key.startsWith("#")) {
+                    // Category (Bukkit Tag)
+                    String tagName = key.substring(1); // e.g. "minecraft:planks"
+                    Tag<Material> tag = resolveTag(tagName);
+                    if (tag != null) {
+                        categoryPrices.put(tag, BigDecimal.valueOf(price));
+                        categoryNames.put(tag, tagName);
+                    } else {
+                        plugin.getLogger().warning("[Economy] Unknown item tag: " + tagName);
+                    }
+                } else {
+                    // Individual item
+                    Material mat = parseMaterial(key);
+                    if (mat != null) {
+                        itemPrices.put(mat, BigDecimal.valueOf(price));
+                    } else {
+                        plugin.getLogger().warning("[Economy] Unknown material: " + key);
+                    }
+                }
+            }
+        }
+
+        // ── Unsellable section ───────────────────────────────────
+        ConfigurationSection unsellableSection = economyConfig.getConfigurationSection("unsellable");
+        if (unsellableSection != null) {
+            for (String key : unsellableSection.getKeys(false)) {
+                String reason = unsellableSection.getString(key, "");
+                Material mat = parseMaterial(key);
+                if (mat != null) {
+                    unsellableItems.put(mat, reason);
+                }
+            }
+        }
+
+        plugin.getLogger().info("[Economy] Loaded " + itemPrices.size() + " item price(s) and "
+                + categoryPrices.size() + " category price(s).");
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  Balance operations
+    // ════════════════════════════════════════════════════════════════
+
+    public BigDecimal getBalance(UUID uuid) {
+        return balanceCache.computeIfAbsent(uuid, k -> startingBalance);
+    }
+
+    public BigDecimal getBalance(OfflinePlayer player) {
+        return getBalance(player.getUniqueId());
+    }
+
+    public void setBalance(UUID uuid, BigDecimal amount) {
+        amount = amount.setScale(decimals, RoundingMode.HALF_UP);
+        balanceCache.put(uuid, amount);
+        saveBalance(uuid, amount);
+    }
+
+    public boolean hasBalance(UUID uuid, BigDecimal amount) {
+        return getBalance(uuid).compareTo(amount) >= 0;
+    }
+
+    public boolean withdraw(UUID uuid, BigDecimal amount) {
+        BigDecimal current = getBalance(uuid);
+        if (current.compareTo(amount) < 0) return false;
+        setBalance(uuid, current.subtract(amount));
+        return true;
+    }
+
+    public void deposit(UUID uuid, BigDecimal amount) {
+        setBalance(uuid, getBalance(uuid).add(amount));
+    }
+
+    public boolean hasAccount(UUID uuid) {
+        return balanceCache.containsKey(uuid);
+    }
+
+    public void createAccount(UUID uuid) {
+        if (!hasAccount(uuid)) {
+            setBalance(uuid, startingBalance);
+        }
+    }
+
+    private void saveBalance(UUID uuid, BigDecimal amount) {
+        balancesConfig.set(uuid.toString(), amount.doubleValue());
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            synchronized (balancesFile) {
+                try {
+                    balancesConfig.save(balancesFile);
+                } catch (IOException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Could not save balances.yml!", e);
+                }
+            }
+        });
+    }
+
+    /** Save all cached balances to disk (used on disable). */
+    public void saveAll() {
+        for (Map.Entry<UUID, BigDecimal> entry : balanceCache.entrySet()) {
+            balancesConfig.set(entry.getKey().toString(), entry.getValue().doubleValue());
+        }
+        try {
+            balancesConfig.save(balancesFile);
+        } catch (IOException e) {
+            plugin.getLogger().log(Level.SEVERE, "Could not save balances.yml on shutdown!", e);
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  Baltop
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Returns a sorted list of (UUID, balance) entries for baltop display.
+     * Applies configured exclusions.
+     */
+    public List<Map.Entry<UUID, BigDecimal>> getSortedBalances() {
+        Set<String> excludedPlayers = new HashSet<>(
+                economyConfig.getStringList("baltop.exclude-players"));
+        Set<String> excludedGroups = new HashSet<>(
+                economyConfig.getStringList("baltop.exclude-groups"));
+        boolean excludeOps = economyConfig.getBoolean("baltop.exclude-ops", false);
+        boolean excludeNoMoney = economyConfig.getBoolean("baltop.exclude-no-money", true);
+
+        return balanceCache.entrySet().stream()
+                .filter(e -> {
+                    if (excludeNoMoney && e.getValue().compareTo(BigDecimal.ZERO) <= 0) return false;
+                    OfflinePlayer op = Bukkit.getOfflinePlayer(e.getKey());
+                    if (excludeOps && op.isOp()) return false;
+                    String name = op.getName();
+                    if (name != null && excludedPlayers.contains(name)) return false;
+                    // LuckPerms group exclusion (only for online players)
+                    if (!excludedGroups.isEmpty() && plugin.getLuckPermsIntegration() != null) {
+                        org.bukkit.entity.Player onlinePlayer = Bukkit.getPlayer(e.getKey());
+                        if (onlinePlayer != null) {
+                            String group = plugin.getLuckPermsIntegration().getPrimaryGroup(onlinePlayer);
+                            if (group != null && excludedGroups.contains(group)) return false;
+                        }
+                    }
+                    return true;
+                })
+                .sorted(Map.Entry.<UUID, BigDecimal>comparingByValue().reversed())
+                .collect(Collectors.toList());
+    }
+
+    public int getBaltopPageSize() {
+        return economyConfig.getInt("baltop.page-size", 10);
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  Price lookups
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Result of a price lookup containing the price and optional category name.
+     */
+    public static class PriceResult {
+        public final BigDecimal price;
+        public final String categoryName; // null if per-item price
+        public final boolean sellable;
+
+        public PriceResult(BigDecimal price, String categoryName, boolean sellable) {
+            this.price = price;
+            this.categoryName = categoryName;
+            this.sellable = sellable;
+        }
+    }
+
+    /**
+     * Look up the sell price for a material.
+     * Priority: explicit unsellable > per-item > per-category > unsellable.
+     */
+    public PriceResult getPrice(Material material) {
+        // Check explicit unsellable first
+        if (unsellableItems.containsKey(material)) {
+            return new PriceResult(BigDecimal.ZERO, null, false);
+        }
+
+        // Per-item price
+        BigDecimal itemPrice = itemPrices.get(material);
+        if (itemPrice != null) {
+            return new PriceResult(itemPrice, null, true);
+        }
+
+        // Category price
+        for (Map.Entry<Tag<Material>, BigDecimal> entry : categoryPrices.entrySet()) {
+            if (entry.getKey().isTagged(material)) {
+                String catName = categoryNames.get(entry.getKey());
+                return new PriceResult(entry.getValue(), catName, true);
+            }
+        }
+
+        // Not listed = unsellable
+        return new PriceResult(BigDecimal.ZERO, null, false);
+    }
+
+    /**
+     * Get the unsellable reason for a material, or null if not explicitly listed.
+     */
+    public String getUnsellableReason(Material material) {
+        return unsellableItems.get(material);
+    }
+
+    /**
+     * Calculate the total value of an ItemStack (considers stack size).
+     */
+    public BigDecimal getItemValue(ItemStack item) {
+        if (item == null || item.getType() == Material.AIR) return BigDecimal.ZERO;
+        PriceResult result = getPrice(item.getType());
+        if (!result.sellable) return BigDecimal.ZERO;
+        return result.price.multiply(BigDecimal.valueOf(item.getAmount()));
+    }
+
+    /**
+     * Calculate the total value of a shulker box's contents.
+     */
+    public BigDecimal getShulkerValue(ItemStack shulkerItem) {
+        if (shulkerItem == null || !isShulkerBox(shulkerItem.getType())) return BigDecimal.ZERO;
+        if (!(shulkerItem.getItemMeta() instanceof BlockStateMeta)) return BigDecimal.ZERO;
+
+        BlockStateMeta meta = (BlockStateMeta) shulkerItem.getItemMeta();
+        if (!(meta.getBlockState() instanceof ShulkerBox)) return BigDecimal.ZERO;
+
+        ShulkerBox shulker = (ShulkerBox) meta.getBlockState();
+        BigDecimal total = BigDecimal.ZERO;
+        for (ItemStack content : shulker.getInventory().getContents()) {
+            if (content != null && content.getType() != Material.AIR) {
+                total = total.add(getItemValue(content));
+            }
+        }
+        return total;
+    }
+
+    /**
+     * Count sellable items inside a shulker box.
+     */
+    public int getShulkerSellableCount(ItemStack shulkerItem) {
+        if (!isShulkerBox(shulkerItem.getType())) return 0;
+        if (!(shulkerItem.getItemMeta() instanceof BlockStateMeta)) return 0;
+        BlockStateMeta meta = (BlockStateMeta) shulkerItem.getItemMeta();
+        if (!(meta.getBlockState() instanceof ShulkerBox)) return 0;
+
+        ShulkerBox shulker = (ShulkerBox) meta.getBlockState();
+        int count = 0;
+        for (ItemStack content : shulker.getInventory().getContents()) {
+            if (content != null && content.getType() != Material.AIR) {
+                if (getPrice(content.getType()).sellable) {
+                    count += content.getAmount();
+                }
+            }
+        }
+        return count;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  Tax calculations
+    // ════════════════════════════════════════════════════════════════
+
+    public boolean isTaxEnabled() {
+        return taxEnabled;
+    }
+
+    public boolean isTaxOnServerSell() {
+        return taxOnServerSell;
+    }
+
+    public BigDecimal getTaxRate() {
+        return taxRate;
+    }
+
+    public void setTaxRate(BigDecimal rate) {
+        this.taxRate = rate;
+        economyConfig.set("tax.rate", rate.doubleValue());
+        saveEconomyConfig();
+    }
+
+    public void setTaxEnabled(boolean enabled) {
+        this.taxEnabled = enabled;
+        economyConfig.set("tax.enabled", enabled);
+        saveEconomyConfig();
+    }
+
+    /**
+     * Calculate tax amount for a given gross amount.
+     */
+    public BigDecimal calculateTax(BigDecimal amount) {
+        if (!taxEnabled) return BigDecimal.ZERO;
+        return amount.multiply(taxRate).divide(BigDecimal.valueOf(100), decimals, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Get net amount after tax.
+     */
+    public BigDecimal afterTax(BigDecimal amount) {
+        return amount.subtract(calculateTax(amount));
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  Price management (admin commands)
+    // ════════════════════════════════════════════════════════════════
+
+    public void setPrice(String key, double price) {
+        economyConfig.set("sellable." + key, price);
+        saveEconomyConfig();
+        loadPrices(); // rebuild caches
+    }
+
+    public void setPrice(Material material, BigDecimal price) {
+        setPrice(material.name().toLowerCase(), price.doubleValue());
+    }
+
+    public void setCategoryPrice(String tagName, BigDecimal price) {
+        setPrice("#" + tagName, price.doubleValue());
+    }
+
+    public void removePrice(String key) {
+        economyConfig.set("sellable." + key, null);
+        saveEconomyConfig();
+        loadPrices();
+    }
+
+    /** Remove a per-item price. Returns true if it existed. */
+    public boolean removePrice(Material material) {
+        String key = material.name().toLowerCase();
+        if (economyConfig.contains("sellable." + key)) {
+            removePrice(key);
+            return true;
+        }
+        return false;
+    }
+
+    /** Remove a category price. Returns true if it existed. */
+    public boolean removeCategoryPrice(String tagName) {
+        String key = "#" + tagName;
+        if (economyConfig.contains("sellable." + key)) {
+            removePrice(key);
+            return true;
+        }
+        return false;
+    }
+
+    /** Returns a snapshot of all configured item prices (for ShopEdit GUI). */
+    public Map<String, Double> getAllConfiguredPrices() {
+        Map<String, Double> prices = new LinkedHashMap<>();
+        ConfigurationSection sellable = economyConfig.getConfigurationSection("sellable");
+        if (sellable != null) {
+            for (String key : sellable.getKeys(false)) {
+                prices.put(key, sellable.getDouble(key));
+            }
+        }
+        return prices;
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  Reload
+    // ════════════════════════════════════════════════════════════════
+
+    public void reload() {
+        loadConfig();
+        loadBalances();
+        loadPrices();
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  Utility
+    // ════════════════════════════════════════════════════════════════
+
+    private void saveEconomyConfig() {
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            synchronized (economyFile) {
+                try {
+                    economyConfig.save(economyFile);
+                } catch (IOException e) {
+                    plugin.getLogger().log(Level.SEVERE, "Could not save economy.yml!", e);
+                }
+            }
+        });
+    }
+
+    /** Parse a material name (case-insensitive, optional minecraft: prefix). */
+    public static Material parseMaterial(String name) {
+        if (name == null) return null;
+        name = name.trim().toUpperCase().replace("MINECRAFT:", "").replace(" ", "_");
+        try {
+            return Material.valueOf(name);
+        } catch (IllegalArgumentException e) {
+            return null;
+        }
+    }
+
+    /** Resolve a Bukkit Tag from a string like "minecraft:planks". */
+    @SuppressWarnings("unchecked")
+    public static Tag<Material> resolveTag(String tagName) {
+        // Try blocks registry first, then items
+        try {
+            String[] parts = tagName.split(":");
+            String ns = parts.length > 1 ? parts[0] : "minecraft";
+            String key = parts.length > 1 ? parts[1] : parts[0];
+            NamespacedKey nsKey = new NamespacedKey(ns, key);
+
+            Tag<Material> tag = Bukkit.getTag(Tag.REGISTRY_BLOCKS, nsKey, Material.class);
+            if (tag != null) return tag;
+            tag = Bukkit.getTag(Tag.REGISTRY_ITEMS, nsKey, Material.class);
+            return tag;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    public static boolean isShulkerBox(Material mat) {
+        return mat != null && mat.name().endsWith("SHULKER_BOX");
+    }
+
+    public String formatMoney(BigDecimal amount) {
+        return unit + amount.setScale(decimals, RoundingMode.HALF_UP).toPlainString();
+    }
+
+    public String formatMoney(double amount) {
+        return formatMoney(BigDecimal.valueOf(amount));
+    }
+
+    /** Get a message from economy.yml, applying color codes. */
+    public String getMessage(String key) {
+        return org.bukkit.ChatColor.translateAlternateColorCodes('&',
+                economyConfig.getString("messages." + key, "&cMissing message: " + key));
+    }
+
+    // ── Getters ──────────────────────────────────────────────────
+
+    public boolean isEnabled() { return enabled; }
+    public boolean isUseVault() { return useVault; }
+    public String getUnit() { return unit; }
+    public int getDecimals() { return decimals; }
+    public BigDecimal getStartingBalance() { return startingBalance; }
+    public FileConfiguration getEconomyConfig() { return economyConfig; }
+    public String getCurrencyNameSingular() {
+        return economyConfig.getString("currency-name-singular", "dollar");
+    }
+    public String getCurrencyNamePlural() {
+        return economyConfig.getString("currency-name-plural", "dollars");
+    }
+    public boolean isTaxOnPay() {
+        return economyConfig.getBoolean("tax.apply-when-paying-player", false);
+    }
+    public String getTaxRateDisplay() {
+        return taxRate.setScale(2, RoundingMode.HALF_UP).toPlainString() + "%";
+    }
+}

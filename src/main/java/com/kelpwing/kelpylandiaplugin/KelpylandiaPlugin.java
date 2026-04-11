@@ -88,6 +88,11 @@ import com.kelpwing.kelpylandiaplugin.warps.commands.DelWarpCommand;
 import com.kelpwing.kelpylandiaplugin.kits.KitCommand;
 import com.kelpwing.kelpylandiaplugin.kits.KitGUI;
 import com.kelpwing.kelpylandiaplugin.kits.KitManager;
+import com.kelpwing.kelpylandiaplugin.economy.EconomyManager;
+import com.kelpwing.kelpylandiaplugin.economy.VaultEconomyProvider;
+import com.kelpwing.kelpylandiaplugin.economy.SellGUI;
+import com.kelpwing.kelpylandiaplugin.economy.ShopEditGUI;
+import com.kelpwing.kelpylandiaplugin.economy.commands.*;
 import com.kelpwing.kelpylandiaplugin.placeholders.KpauPlaceholders;
 import org.bukkit.Bukkit;
 import org.bukkit.command.CommandMap;
@@ -143,6 +148,12 @@ public class KelpylandiaPlugin extends JavaPlugin {
     private KitManager kitManager;
     private KitGUI kitGUI;
     private UpdateChecker updateChecker;
+    
+    // Economy components
+    private EconomyManager economyManager;
+    private VaultEconomyProvider vaultEconomyProvider;
+    private SellGUI sellGUI;
+    private ShopEditGUI shopEditGUI;
     
     @Override
     public void onEnable() {
@@ -563,6 +574,60 @@ public class KelpylandiaPlugin extends JavaPlugin {
             getLogger().info("Kits system enabled! (" + kitManager.getAllKits().size() + " kit(s) loaded)");
         }
         
+        // ── Economy system ───────────────────────────────────────
+        {
+            // Always save default economy.yml so loadConfig() can read it
+            File ecoFile = new File(getDataFolder(), "economy.yml");
+            if (!ecoFile.exists()) {
+                saveResource("economy.yml", false);
+            }
+            org.bukkit.configuration.file.YamlConfiguration ecoCfg =
+                    org.bukkit.configuration.file.YamlConfiguration.loadConfiguration(ecoFile);
+            if (ecoCfg.getBoolean("enabled", true)) {
+                economyManager = new EconomyManager(this);
+                sellGUI = new SellGUI(this);
+                shopEditGUI = new ShopEditGUI(this);
+                
+                // Register Vault provider if Vault is present and use-vault is true
+                if (economyManager.isUseVault() && getServer().getPluginManager().getPlugin("Vault") != null) {
+                    vaultEconomyProvider = new VaultEconomyProvider(this, economyManager);
+                    vaultEconomyProvider.register();
+                    getLogger().info("[Economy] Vault economy provider registered!");
+                }
+                
+                // Register economy commands
+                BalanceCommand balCmd = new BalanceCommand(this);
+                PayCommand payCmd = new PayCommand(this);
+                BaltopCommand btCmd = new BaltopCommand(this);
+                SellCommand sellCmd = new SellCommand(this);
+                SellGUICommand sellGuiCmd = new SellGUICommand(this);
+                PriceCommand priceCmd = new PriceCommand(this);
+                ValueCommand valueCmd = new ValueCommand(this);
+                TaxCommand taxCmd = new TaxCommand(this);
+                SetPriceCommand setPriceCmd = new SetPriceCommand(this);
+                DelPriceCommand delPriceCmd = new DelPriceCommand(this);
+                ShopEditCommand shopEditCmd = new ShopEditCommand(this);
+                
+                registerCommand("balance", balCmd, "Check your or another player's balance.", "/balance [player]", "qol.economy.balance", "bal", "money");
+                registerCommand("pay", payCmd, "Pay another player.", "/pay <player> <amount>", "qol.economy.pay", "transfer");
+                registerCommand("baltop", btCmd, "View the richest players.", "/baltop [page]", "qol.economy.baltop", "bt", "balancetop", "rich");
+                registerCommand("sell", sellCmd, "Sell items from your inventory.", "/sell <hand|inventory|all> [amount]", "qol.economy.sell");
+                registerCommand("sellgui", sellGuiCmd, "Open the sell GUI.", "/sellgui", "qol.economy.sell", "sgui");
+                registerCommand("price", priceCmd, "Check the sell price of an item.", "/price [item]", "qol.economy.price", "itemprice");
+                registerCommand("value", valueCmd, "Check the total value of items.", "/value [item] [amount]", "qol.economy.value", "itemvalue");
+                registerCommand("tax", taxCmd, "View or manage tax settings.", "/tax [amount|set <rate>]", "qol.economy.tax");
+                registerCommand("setprice", setPriceCmd, "Set an item's sell price.", "/setprice <item|#category> <price>", "qol.economy.setprice");
+                registerCommand("delprice", delPriceCmd, "Remove an item's sell price.", "/delprice <item|#category>", "qol.economy.delprice");
+                registerCommand("shopedit", shopEditCmd, "Open the shop editor GUI.", "/shopedit", "qol.economy.shopedit", "se");
+                
+                // Register GUI listeners
+                getServer().getPluginManager().registerEvents(sellGUI, this);
+                getServer().getPluginManager().registerEvents(shopEditGUI, this);
+                
+                getLogger().info("Economy system enabled!");
+            }
+        }
+        
         // Register stuck command
         if (getConfig().getBoolean("stuck.enabled", false)) {
             StuckCommand stuckCmd = new StuckCommand(this);
@@ -680,6 +745,14 @@ public class KelpylandiaPlugin extends JavaPlugin {
         
         if (broadcastManager != null) {
             broadcastManager.stop();
+        }
+        
+        // Save economy data and unregister Vault
+        if (economyManager != null) {
+            economyManager.saveAll();
+        }
+        if (vaultEconomyProvider != null) {
+            vaultEconomyProvider.unregister();
         }
         
         getLogger().info("KelpylandiaPlugin has been disabled!");
@@ -864,6 +937,23 @@ public class KelpylandiaPlugin extends JavaPlugin {
 
     public UpdateChecker getUpdateChecker() {
         return updateChecker;
+    }
+
+    // Economy getters
+    public EconomyManager getEconomyManager() {
+        return economyManager;
+    }
+
+    public SellGUI getSellGUI() {
+        return sellGUI;
+    }
+
+    public ShopEditGUI getShopEditGUI() {
+        return shopEditGUI;
+    }
+
+    public VaultEconomyProvider getVaultEconomyProvider() {
+        return vaultEconomyProvider;
     }
 
     // ─── Data folder migration ─────────────────────────────────────

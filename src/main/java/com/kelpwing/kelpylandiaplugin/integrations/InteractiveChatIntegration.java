@@ -105,6 +105,27 @@ public class InteractiveChatIntegration implements Listener {
         processed = IC_ID_TAG_PATTERN.matcher(processed).replaceAll("");
         processed = processed.trim();
 
+        // If the entire message was IC interactive content (e.g. item display, [item] keyword)
+        // and nothing readable is left, substitute a human-friendly placeholder so Discord
+        // doesn't receive an empty payload (which causes a 400 error).
+        if (processed.isEmpty()) {
+            String raw = event.getMessage();
+            // Detect common IC interactive keywords that expand to components
+            if (raw.contains("[item]") || raw.contains("[Item]")) {
+                processed = "\uD83D\uDFEB [showed an item]";
+            } else if (raw.contains("[block]") || raw.contains("[Block]")) {
+                processed = "\uD83E\uDDF1 [showed a block]";
+            } else if (raw.contains("[inv]") || raw.contains("[Inv]")
+                    || raw.contains("[inventory]") || raw.contains("[Inventory]")) {
+                processed = "\uD83C\uDF92 [showed their inventory]";
+            } else if (raw.contains("[enderchest]") || raw.contains("[EnderChest]")) {
+                processed = "\uD83D\uDC9C [showed their ender chest]";
+            } else {
+                // Nothing useful left — skip sending to Discord entirely
+                return;
+            }
+        }
+
         // Look up the player's channel the same way ChatListener does.
         Channel playerChannel = plugin.getChannelManager().getPlayerChannel(player);
         if (playerChannel == null) {
