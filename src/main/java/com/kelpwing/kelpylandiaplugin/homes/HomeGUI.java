@@ -20,7 +20,7 @@ import java.util.*;
 /**
  * Interactive inventory GUI for browsing and teleporting to homes.
  * - Click a home item to teleport
- * - Shift+click to delete
+ * - Shift+click to delete (shows confirmation GUI)
  * - Pagination for players with many homes
  */
 public class HomeGUI implements Listener {
@@ -29,6 +29,7 @@ public class HomeGUI implements Listener {
 
     // Title prefix used to identify our GUI inventories
     private static final String GUI_TITLE_PREFIX = ChatColor.DARK_GREEN + "" + ChatColor.BOLD + "Homes";
+    private static final String CONFIRM_TITLE_PREFIX = ChatColor.DARK_RED + "" + ChatColor.BOLD + "Delete Home: ";
 
     // Slots per page (rows 1-5, row 6 is navigation)
     private static final int HOMES_PER_PAGE = 45;
@@ -38,6 +39,9 @@ public class HomeGUI implements Listener {
 
     // Track which player is viewing homes of which UUID (supports viewing own homes)
     private final Map<UUID, UUID> viewingHomes = new HashMap<>();
+
+    // Track players currently in a delete-confirmation GUI: viewer -> home name pending deletion
+    private final Map<UUID, String> pendingDelete = new HashMap<>();
 
     public HomeGUI(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
@@ -93,6 +97,7 @@ public class HomeGUI implements Listener {
             lore.add("");
             lore.add(ChatColor.YELLOW + "Click" + ChatColor.GRAY + " a home to teleport");
             lore.add(ChatColor.RED + "Shift+Click" + ChatColor.GRAY + " to delete");
+            lore.add(ChatColor.AQUA + "Tip: " + ChatColor.GRAY + "/renhome <old> <new> to rename");
             infoMeta.setLore(lore);
             info.setItemMeta(infoMeta);
         }
@@ -107,6 +112,40 @@ public class HomeGUI implements Listener {
         playerPages.put(player.getUniqueId(), page);
         viewingHomes.put(player.getUniqueId(), homeOwner);
 
+        player.openInventory(gui);
+    }
+
+    /**
+     * Open a 1-row confirmation GUI asking whether to delete a specific home.
+     */
+    private void openConfirmGUI(Player player, UUID homeOwner, String homeName) {
+        String title = CONFIRM_TITLE_PREFIX + ChatColor.WHITE + homeName;
+        Inventory gui = Bukkit.createInventory(null, 9, title);
+
+        // Confirm button (slot 2) — lime stained glass
+        ItemStack confirm = new ItemStack(Material.LIME_STAINED_GLASS_PANE);
+        ItemMeta confirmMeta = confirm.getItemMeta();
+        if (confirmMeta != null) {
+            confirmMeta.setDisplayName(ChatColor.GREEN + "✔ Confirm Delete");
+            List<String> lore = new ArrayList<>();
+            lore.add(ChatColor.GRAY + "Permanently delete home:");
+            lore.add(ChatColor.YELLOW + homeName);
+            confirmMeta.setLore(lore);
+            confirm.setItemMeta(confirmMeta);
+        }
+        gui.setItem(2, confirm);
+
+        // Cancel button (slot 6) — red stained glass
+        ItemStack cancel = new ItemStack(Material.RED_STAINED_GLASS_PANE);
+        ItemMeta cancelMeta = cancel.getItemMeta();
+        if (cancelMeta != null) {
+            cancelMeta.setDisplayName(ChatColor.RED + "✖ Cancel");
+            cancel.setItemMeta(cancelMeta);
+        }
+        gui.setItem(6, cancel);
+
+        pendingDelete.put(player.getUniqueId(), homeName);
+        viewingHomes.put(player.getUniqueId(), homeOwner);
         player.openInventory(gui);
     }
 
@@ -165,11 +204,49 @@ public class HomeGUI implements Listener {
     public void onInventoryClick(InventoryClickEvent event) {
         if (!(event.getWhoClicked() instanceof Player player)) return;
         if (event.getView().getTitle() == null) return;
-        if (!event.getView().getTitle().startsWith(GUI_TITLE_PREFIX)) return;
 
-        event.setCancelled(true); // Prevent item manipulation
-
+        String title = event.getView().getTitle();
         UUID viewerUUID = player.getUniqueId();
+
+        // ── Confirmation GUI ─────────────────────────────────────
+        if (title.startsWith(CONFIRM_TITLE_PREFIX)) {
+            event.setCancelled(true);
+            int slot = event.getRawSlot();
+            if (slot < 0 || slot >= 9) return;
+
+            String homeName = pendingDelete.remove(viewerUUID);
+            UUID homeOwner = viewingHomes.getOrDefault(viewerUUID, viewerUUID);
+
+            if (slot == 2 && homeName != null) {
+                // Confirmed — delete
+                HomeManager homeManager = plugin.getHomeManager();
+                homeManager.deleteHome(homeOwner, homeName);
+                player.sendMessage(ChatColor.RED + "Home " + ChatColor.GOLD + homeName + ChatColor.RED + " has been deleted.");
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    List<Home> updated = homeManager.getHomeList(homeOwner);
+                    int prevPage = playerPages.getOrDefault(viewerUUID, 0);
+                    if (updated.isEmpty()) {
+                        player.closeInventory();
+                        player.sendMessage(ChatColor.YELLOW + "You have no more homes.");
+                    } else {
+                        int maxPage = Math.max(0, (int) Math.ceil((double) updated.size() / HOMES_PER_PAGE) - 1);
+                        openGUI(player, homeOwner, Math.min(prevPage, maxPage));
+                    }
+                }, 1L);
+            } else {
+                // Cancelled — return to main GUI
+                int prevPage = playerPages.getOrDefault(viewerUUID, 0);
+                Bukkit.getScheduler().runTaskLater(plugin, () ->
+                        openGUI(player, homeOwner, prevPage), 1L);
+            }
+            return;
+        }
+
+        // ── Main homes GUI ───────────────────────────────────────
+        if (!title.startsWith(GUI_TITLE_PREFIX)) return;
+
+        event.setCancelled(true);
+
         UUID homeOwner = viewingHomes.get(viewerUUID);
         if (homeOwner == null) return;
 
@@ -178,23 +255,16 @@ public class HomeGUI implements Listener {
 
         // Navigation buttons
         if (slot == 45) {
-            // Previous page
             int currentPage = playerPages.getOrDefault(viewerUUID, 0);
-            if (currentPage > 0) {
-                openGUI(player, homeOwner, currentPage - 1);
-            }
+            if (currentPage > 0) openGUI(player, homeOwner, currentPage - 1);
             return;
         }
-
         if (slot == 53) {
-            // Next page
             int currentPage = playerPages.getOrDefault(viewerUUID, 0);
             HomeManager homeManager = plugin.getHomeManager();
             List<Home> homes = homeManager.getHomeList(homeOwner);
             int totalPages = Math.max(1, (int) Math.ceil((double) homes.size() / HOMES_PER_PAGE));
-            if (currentPage < totalPages - 1) {
-                openGUI(player, homeOwner, currentPage + 1);
-            }
+            if (currentPage < totalPages - 1) openGUI(player, homeOwner, currentPage + 1);
             return;
         }
 
@@ -216,20 +286,10 @@ public class HomeGUI implements Listener {
         Home home = homes.get(homeIndex);
 
         if (event.isShiftClick()) {
-            // Shift+click = delete
-            homeManager.deleteHome(homeOwner, home.getName());
-            player.sendMessage(ChatColor.RED + "Home " + ChatColor.GOLD + home.getName() + ChatColor.RED + " has been deleted.");
-
-            // Refresh GUI
-            Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                List<Home> updated = homeManager.getHomeList(homeOwner);
-                if (updated.isEmpty()) {
-                    player.closeInventory();
-                    player.sendMessage(ChatColor.YELLOW + "You have no more homes.");
-                } else {
-                    openGUI(player, homeOwner, Math.min(page, Math.max(0, (int) Math.ceil((double) updated.size() / HOMES_PER_PAGE) - 1)));
-                }
-            }, 1L);
+            // Shift+click = open confirmation GUI
+            player.closeInventory();
+            Bukkit.getScheduler().runTaskLater(plugin, () ->
+                    openConfirmGUI(player, homeOwner, home.getName()), 1L);
         } else {
             // Regular click = teleport
             Location loc = home.getLocation();
@@ -238,13 +298,11 @@ public class HomeGUI implements Listener {
                 return;
             }
 
-            // Close inventory first, then teleport next tick to avoid event conflicts
             player.closeInventory();
 
             Bukkit.getScheduler().runTaskLater(plugin, () -> {
                 if (!player.isOnline()) return;
 
-                // Apply cooldown/invulnerability if teleport system is available
                 TpaManager tpaManager = plugin.getTpaManager();
                 if (tpaManager != null) {
                     if (tpaManager.isOnCooldown(player) && !player.hasPermission("qol.teleport.bypass.cooldown")) {
@@ -266,7 +324,10 @@ public class HomeGUI implements Listener {
     public void onInventoryClose(InventoryCloseEvent event) {
         if (!(event.getPlayer() instanceof Player player)) return;
         UUID uuid = player.getUniqueId();
-        playerPages.remove(uuid);
-        viewingHomes.remove(uuid);
+        // Only clean up if not transitioning to the confirm GUI (pendingDelete still set means we're opening confirm)
+        if (!pendingDelete.containsKey(uuid)) {
+            playerPages.remove(uuid);
+            viewingHomes.remove(uuid);
+        }
     }
 }

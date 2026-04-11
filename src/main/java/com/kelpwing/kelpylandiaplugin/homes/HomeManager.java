@@ -231,6 +231,31 @@ public class HomeManager {
     }
 
     /**
+     * Rename a home. The home keeps its location/icon/description; only the key and display name change.
+     * Returns false if the old home doesn't exist, or if the new name is already taken.
+     */
+    public boolean renameHome(UUID uuid, String oldName, String newName) {
+        Map<String, Home> playerHomes = homeCache.get(uuid);
+        if (playerHomes == null) return false;
+
+        String oldKey = oldName.toLowerCase();
+        String newKey = newName.toLowerCase();
+
+        if (!playerHomes.containsKey(oldKey)) return false;
+        if (playerHomes.containsKey(newKey) && !oldKey.equals(newKey)) return false;
+
+        Home old = playerHomes.remove(oldKey);
+        // Reconstruct with new name, preserving everything else
+        Home renamed = new Home(newName, old.getOwnerUUID(), old.getWorldName(),
+                old.getX(), old.getY(), old.getZ(),
+                old.getYaw(), old.getPitch(),
+                old.getIcon(), old.getDescription(), old.getCreatedAt());
+        playerHomes.put(newKey, renamed);
+        saveHomes(uuid);
+        return true;
+    }
+
+    /**
      * Get the number of homes a player has.
      */
     public int getHomeCount(UUID uuid) {

@@ -47,6 +47,7 @@ import com.kelpwing.kelpylandiaplugin.homes.HomeManager;
 import com.kelpwing.kelpylandiaplugin.homes.commands.DelHomeCommand;
 import com.kelpwing.kelpylandiaplugin.homes.commands.HomeCommand;
 import com.kelpwing.kelpylandiaplugin.homes.commands.HomesCommand;
+import com.kelpwing.kelpylandiaplugin.homes.commands.RenameHomeCommand;
 import com.kelpwing.kelpylandiaplugin.homes.commands.SetHomeCommand;
 import com.kelpwing.kelpylandiaplugin.moderation.commands.*;
 import com.kelpwing.kelpylandiaplugin.moderation.JailManager;
@@ -276,11 +277,13 @@ public class KelpylandiaPlugin extends JavaPlugin {
             DelHomeCommand delHomeCmd = new DelHomeCommand(this);
             HomeCommand homeCmd = new HomeCommand(this);
             HomesCommand homesCmd = new HomesCommand(this);
-            
+            RenameHomeCommand renameHomeCmd = new RenameHomeCommand(this);
+
             registerCommand("sethome", setHomeCmd, "Set a home at your current location.", "/sethome [name]", "qol.homes");
             registerCommand("delhome", delHomeCmd, "Delete a home.", "/delhome <name>", "qol.homes", "removehome", "remhome");
             registerCommand("home", homeCmd, "Teleport to a home. List your homes with /homes. Create a new home with /sethome.", "/home [name]", "qol.homes");
             registerCommand("homes", homesCmd, "List or browse your homes. Set a new home with /sethome.", "/homes", "qol.homes");
+            registerCommand("renhome", renameHomeCmd, "Rename a home.", "/renhome <currentName> <newName>", "qol.homes.rename", "renamehome");
             
             // Register HomeGUI as listener for inventory clicks
             getServer().getPluginManager().registerEvents(homeGUI, this);

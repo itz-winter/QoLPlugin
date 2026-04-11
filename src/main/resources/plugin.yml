@@ -300,6 +300,7 @@ permissions:
       qol.homes.set: true
       qol.homes.delete: true
       qol.homes.list: true
+      qol.homes.rename: true
 
   qol.homes.teleport:
     description: Allows using /home to teleport to homes
@@ -315,6 +316,10 @@ permissions:
 
   qol.homes.list:
     description: Allows using /homes to list homes
+    default: true
+
+  qol.homes.rename:
+    description: Allows using /renhome to rename homes
     default: true
 
   qol.homes.max.*:
