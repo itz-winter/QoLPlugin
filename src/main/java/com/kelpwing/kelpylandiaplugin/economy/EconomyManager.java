@@ -34,6 +34,9 @@ public class EconomyManager {
 
     private final KelpylandiaPlugin plugin;
 
+    // ── Dynamic pricing engine ──────────────────────────────────
+    private DynamicPricingEngine dynamicPricing;
+
     // ── Config (loaded from economy.yml) ─────────────────────────
     private File economyFile;
     private FileConfiguration economyConfig;
@@ -50,6 +53,10 @@ public class EconomyManager {
     private final Map<Tag<Material>, BigDecimal> categoryPrices = new LinkedHashMap<>();
     /** Category display names for messages */
     private final Map<Tag<Material>, String> categoryNames = new LinkedHashMap<>();
+    /** Custom categories: name -> set of materials (e.g. "minecraft_spawners" -> {ZOMBIE_SPAWNER, ...}) */
+    private final Map<String, Set<Material>> customCategories = new LinkedHashMap<>();
+    /** Custom category prices */
+    private final Map<String, BigDecimal> customCategoryPrices = new LinkedHashMap<>();
     /** Explicit unsellable items with reason suffixes */
     private final Map<Material, String> unsellableItems = new LinkedHashMap<>();
 
@@ -65,9 +72,11 @@ public class EconomyManager {
 
     public EconomyManager(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
+        this.dynamicPricing = new DynamicPricingEngine(plugin);
         loadConfig();
         loadBalances();
         loadPrices();
+        dynamicPricing.loadConfig(economyConfig);
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -121,7 +130,34 @@ public class EconomyManager {
         itemPrices.clear();
         categoryPrices.clear();
         categoryNames.clear();
+        customCategories.clear();
+        customCategoryPrices.clear();
         unsellableItems.clear();
+
+        // ── Custom categories section ────────────────────────────
+        // Defines groups of materials under arbitrary names.
+        // Format:  categories:
+        //            minecraft_spawners:
+        //              items: [ZOMBIE_SPAWNER, SKELETON_SPAWNER, ...]
+        ConfigurationSection catSection = economyConfig.getConfigurationSection("categories");
+        if (catSection != null) {
+            for (String catName : catSection.getKeys(false)) {
+                List<String> items = catSection.getStringList(catName + ".items");
+                Set<Material> mats = new LinkedHashSet<>();
+                for (String entry : items) {
+                    Material mat = parseMaterial(entry);
+                    if (mat != null) {
+                        mats.add(mat);
+                    } else {
+                        plugin.getLogger().warning("[Economy] Unknown material in category '" + catName + "': " + entry);
+                    }
+                }
+                if (!mats.isEmpty()) {
+                    customCategories.put(catName.toLowerCase(), mats);
+                }
+            }
+            plugin.getLogger().info("[Economy] Loaded " + customCategories.size() + " custom category/ies.");
+        }
 
         // ── Sellable section ─────────────────────────────────────
         ConfigurationSection sellable = economyConfig.getConfigurationSection("sellable");
@@ -131,15 +167,23 @@ public class EconomyManager {
                 if (price < 0) continue;
 
                 if (key.startsWith("#")) {
-                    // Category (Bukkit Tag)
-                    String tagName = key.substring(1); // e.g. "minecraft:planks"
-                    Tag<Material> tag = resolveTag(tagName);
+                    String catRef = key.substring(1); // e.g. "minecraft:planks" or "minecraft_spawners"
+
+                    // Try Bukkit Tag first
+                    Tag<Material> tag = resolveTag(catRef);
                     if (tag != null) {
                         categoryPrices.put(tag, BigDecimal.valueOf(price));
-                        categoryNames.put(tag, tagName);
-                    } else {
-                        plugin.getLogger().warning("[Economy] Unknown item tag: " + tagName);
+                        categoryNames.put(tag, catRef);
+                        continue;
                     }
+
+                    // Try custom category
+                    if (customCategories.containsKey(catRef.toLowerCase())) {
+                        customCategoryPrices.put(catRef.toLowerCase(), BigDecimal.valueOf(price));
+                        continue;
+                    }
+
+                    plugin.getLogger().warning("[Economy] Unknown tag or category: " + catRef);
                 } else {
                     // Individual item
                     Material mat = parseMaterial(key);
@@ -164,8 +208,9 @@ public class EconomyManager {
             }
         }
 
+        int totalCats = categoryPrices.size() + customCategoryPrices.size();
         plugin.getLogger().info("[Economy] Loaded " + itemPrices.size() + " item price(s) and "
-                + categoryPrices.size() + " category price(s).");
+                + totalCats + " category price(s).");
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -277,6 +322,25 @@ public class EconomyManager {
         return economyConfig.getInt("baltop.page-size", 10);
     }
 
+    /**
+     * Returns true if the given online player should be excluded from viewing
+     * or appearing in baltop, based purely on the config (not on permissions).
+     */
+    public boolean isPlayerExcludedFromBaltop(org.bukkit.entity.Player player) {
+        boolean excludeOps = economyConfig.getBoolean("baltop.exclude-ops", false);
+        if (excludeOps && player.isOp()) return true;
+
+        Set<String> excludedPlayers = new HashSet<>(economyConfig.getStringList("baltop.exclude-players"));
+        if (player.getName() != null && excludedPlayers.contains(player.getName())) return true;
+
+        Set<String> excludedGroups = new HashSet<>(economyConfig.getStringList("baltop.exclude-groups"));
+        if (!excludedGroups.isEmpty() && plugin.getLuckPermsIntegration() != null) {
+            String group = plugin.getLuckPermsIntegration().getPrimaryGroup(player);
+            if (group != null && excludedGroups.contains(group)) return true;
+        }
+        return false;
+    }
+
     // ════════════════════════════════════════════════════════════════
     //  Price lookups
     // ════════════════════════════════════════════════════════════════
@@ -297,10 +361,10 @@ public class EconomyManager {
     }
 
     /**
-     * Look up the sell price for a material.
-     * Priority: explicit unsellable > per-item > per-category > unsellable.
+     * Look up the <b>base</b> sell price for a material (before dynamic pricing).
+     * Priority: explicit unsellable &gt; per-item &gt; per-Bukkit-Tag &gt; per-custom-category &gt; unsellable.
      */
-    public PriceResult getPrice(Material material) {
+    public PriceResult getBasePrice(Material material) {
         // Check explicit unsellable first
         if (unsellableItems.containsKey(material)) {
             return new PriceResult(BigDecimal.ZERO, null, false);
@@ -312,7 +376,7 @@ public class EconomyManager {
             return new PriceResult(itemPrice, null, true);
         }
 
-        // Category price
+        // Bukkit Tag category price
         for (Map.Entry<Tag<Material>, BigDecimal> entry : categoryPrices.entrySet()) {
             if (entry.getKey().isTagged(material)) {
                 String catName = categoryNames.get(entry.getKey());
@@ -320,8 +384,38 @@ public class EconomyManager {
             }
         }
 
+        // Custom category price
+        for (Map.Entry<String, Set<Material>> entry : customCategories.entrySet()) {
+            if (entry.getValue().contains(material)) {
+                BigDecimal catPrice = customCategoryPrices.get(entry.getKey());
+                if (catPrice != null) {
+                    return new PriceResult(catPrice, entry.getKey(), true);
+                }
+            }
+        }
+
         // Not listed = unsellable
         return new PriceResult(BigDecimal.ZERO, null, false);
+    }
+
+    /**
+     * Look up the sell price for a material, applying dynamic pricing if enabled.
+     * Priority: explicit unsellable &gt; per-item &gt; per-category &gt; unsellable.
+     */
+    public PriceResult getPrice(Material material) {
+        return getPrice(material, null);
+    }
+
+    /**
+     * Look up the sell price for a material, applying dynamic pricing for a specific player.
+     */
+    public PriceResult getPrice(Material material, UUID playerUuid) {
+        PriceResult base = getBasePrice(material);
+        if (!base.sellable || dynamicPricing == null || !dynamicPricing.isEnabled()) {
+            return base;
+        }
+        BigDecimal dynamic = dynamicPricing.applyMultiplier(base.price, material, playerUuid);
+        return new PriceResult(dynamic, base.categoryName, true);
     }
 
     /**
@@ -489,6 +583,31 @@ public class EconomyManager {
         loadConfig();
         loadBalances();
         loadPrices();
+        if (dynamicPricing != null) {
+            dynamicPricing.reload(economyConfig);
+        }
+    }
+
+    /** Shut down the dynamic pricing engine (call on plugin disable). */
+    public void shutdownDynamicPricing() {
+        if (dynamicPricing != null) {
+            dynamicPricing.shutdown();
+        }
+    }
+
+    /**
+     * Record a sale for dynamic pricing.
+     * Call this after a player successfully sells items.
+     */
+    public void recordSale(Material material, int amount, UUID playerUuid) {
+        if (dynamicPricing != null) {
+            dynamicPricing.recordSale(material, amount, playerUuid);
+        }
+    }
+
+    /** Get the dynamic pricing engine (may be null if economy is disabled). */
+    public DynamicPricingEngine getDynamicPricing() {
+        return dynamicPricing;
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -585,5 +704,10 @@ public class EconomyManager {
     }
     public String getTaxRateDisplay() {
         return taxRate.setScale(2, RoundingMode.HALF_UP).toPlainString() + "%";
+    }
+
+    /** Returns an unmodifiable view of all custom categories (name → materials). */
+    public Map<String, Set<Material>> getCustomCategories() {
+        return Collections.unmodifiableMap(customCategories);
     }
 }

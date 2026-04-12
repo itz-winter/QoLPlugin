@@ -4,6 +4,7 @@ import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
 import com.kelpwing.kelpylandiaplugin.chat.ChannelManager;
 import com.kelpwing.kelpylandiaplugin.chat.Channel;
+import com.kelpwing.kelpylandiaplugin.economy.EconomyManager;
 import com.kelpwing.kelpylandiaplugin.kits.KitManager;
 import com.kelpwing.kelpylandiaplugin.moderation.commands.VanishCommand;
 import me.clip.placeholderapi.PlaceholderAPI;
@@ -116,6 +117,12 @@ public class PlayerEventListener implements Listener {
 
         // Give first-join kits to new players (delay 1 tick so inventory is ready)
         if (!player.hasPlayedBefore()) {
+            // Create economy account with starting balance
+            EconomyManager eco = plugin.getEconomyManager();
+            if (eco != null && eco.isEnabled()) {
+                eco.createAccount(player.getUniqueId());
+            }
+
             KitManager km = plugin.getKitManager();
             if (km != null) {
                 org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {

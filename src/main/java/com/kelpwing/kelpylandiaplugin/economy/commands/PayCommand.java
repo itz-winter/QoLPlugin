@@ -75,8 +75,8 @@ public class PayCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        // Calculate tax (only on player-to-player, not server sell)
-        BigDecimal tax = eco.isTaxEnabled() ? eco.calculateTax(amount) : BigDecimal.ZERO;
+        // Calculate tax (only when enabled AND configured for player-to-player)
+        BigDecimal tax = (eco.isTaxEnabled() && eco.isTaxOnPay()) ? eco.calculateTax(amount) : BigDecimal.ZERO;
         BigDecimal received = amount.subtract(tax);
 
         eco.withdraw(player.getUniqueId(), amount);

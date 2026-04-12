@@ -5,7 +5,7 @@ api-version: '1.16'
 author: Kelpwing
 description: A collection of quality-of-life features and commands for Minecraft servers, including chat channels, moderation tools, teleportation commands, and more!!
 depend: [LuckPerms]
-softdepend: [PlaceholderAPI, InteractiveChat, InteractiveChatDiscordSrvAddon, Vault]
+softdepend: [PlaceholderAPI, Vault]
 
 commands:
   # Chat Commands
@@ -123,6 +123,10 @@ commands:
     permission: qol.mod.freeze
     aliases: [thaw]
     permission-message: "You don't have permission to use this command."
+
+  # Economy commands are registered dynamically when the economy system
+  # is enabled in economy.yml.  They are NOT listed here to avoid
+  # registering placeholder command entries that IC would process.
 
   # Home, TPA, Back, and Workbench commands are registered dynamically
   # based on config settings. They will not appear here to avoid
@@ -722,18 +726,33 @@ permissions:
     description: Grants all economy permissions
     default: op
     children:
+      qol.economy.use: true
+      qol.economy.admin: true
+      qol.economy.baltop.exclude: true
+
+  qol.economy.use:
+    description: Grants basic economy permissions (balance, pay, sell, baltop, price, value, tax view, price history)
+    default: true
+    children:
       qol.economy.balance: true
-      qol.economy.balance.others: true
+      qol.economy.balance.others: false
       qol.economy.pay: true
       qol.economy.baltop: true
       qol.economy.sell: true
       qol.economy.price: true
       qol.economy.value: true
       qol.economy.tax: true
+      qol.economy.pricehistory: true
+
+  qol.economy.admin:
+    description: Grants admin-level economy permissions (price management, tax editing, shop editor)
+    default: op
+    children:
       qol.economy.tax.edit: true
       qol.economy.setprice: true
       qol.economy.delprice: true
       qol.economy.shopedit: true
+      qol.economy.balance.others: true
 
   qol.economy.balance:
     description: Allows checking your own balance
@@ -782,6 +801,14 @@ permissions:
   qol.economy.shopedit:
     description: Allows using the shop editor GUI
     default: op
+
+  qol.economy.baltop.exclude:
+    description: Excludes a player from the baltop leaderboard
+    default: op
+
+  qol.economy.pricehistory:
+    description: Allows viewing item price history
+    default: true
 
   # ─────────────────────────────────────────────────────────────
   # Legacy permission aliases — backward-compat for servers that

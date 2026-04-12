@@ -1,6 +1,7 @@
 package com.kelpwing.kelpylandiaplugin.moderation.commands;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
+import com.kelpwing.kelpylandiaplugin.economy.EconomyManager;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -56,6 +57,13 @@ public class ReloadCommand implements CommandExecutor {
             if (plugin.getBroadcastManager() != null) {
                 plugin.getBroadcastManager().reload();
                 plugin.getLogger().info("Auto-broadcasts reloaded from broadcasts.yml.");
+            }
+            
+            // Reload economy config
+            EconomyManager eco = plugin.getEconomyManager();
+            if (eco != null) {
+                eco.reload();
+                plugin.getLogger().info("Economy config reloaded from economy.yml.");
             }
             
             // Send success message

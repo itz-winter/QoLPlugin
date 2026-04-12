@@ -50,12 +50,6 @@
             <url>https://nexus.scarsz.me/content/groups/public/</url>
         </repository>
 
-        <!-- InteractiveChat -->
-        <repository>
-            <id>loohp-repo</id>
-            <url>https://repo.loohpjames.com/repository</url>
-        </repository>
-
         <!-- JitPack (VaultAPI) -->
         <repository>
             <id>jitpack.io</id>
@@ -121,22 +115,6 @@
             <groupId>com.discordsrv</groupId>
             <artifactId>discordsrv</artifactId>
             <version>1.25.0</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- InteractiveChat (optional soft-depend, Discord-side processing) -->
-        <dependency>
-            <groupId>com.loohp</groupId>
-            <artifactId>InteractiveChat</artifactId>
-            <version>4.3.5.1</version>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- InteractiveChat-DiscordSRV-Addon (optional soft-depend) -->
-        <dependency>
-            <groupId>com.loohp</groupId>
-            <artifactId>InteractiveChatDiscordSrvAddon</artifactId>
-            <version>4.3.5.1</version>
             <scope>provided</scope>
         </dependency>
 

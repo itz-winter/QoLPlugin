@@ -35,7 +35,7 @@ QoLPlugin is a highly customizable, all-in-one Minecraft server plugin designed 
 - **Workbench Commands**: Open crafting tables, ender chests, anvils, and more via commands like `/wb`, `/ec`, `/anvil`, etc.  
   *(Configurable permissions and can be disabled to avoid conflicts.)*
 
-### Sitting System (pre-2.1.0 ONLY)
+### Sitting System (pre-2.1.0 ONLY) DEPRECATED
 
 - **Player Sitting**: Sit on other players by right-clicking with an empty hand.
 - **Block Sitting**: Sit on stairs, slabs, and other blocks.

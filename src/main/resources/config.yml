@@ -65,16 +65,18 @@ discord:
   # Role to ping when server starts
   server-start-ping-role-id: "your-server-start-role-id"
   
-  # ===== INTERACTIVECHAT INTEGRATION =====
-  # When InteractiveChat is installed, this plugin can use its processed message
-  # for Discord relay instead of the raw player input.
-  # Processed messages have mentions resolved, colour codes translated, and
-  # custom-placeholder text expanded (e.g. [item], [inv], [ender] are replaced
-  # with plain descriptions before being sent to Discord).
-  # This has no effect on Minecraft-side chat — only the Discord message changes.
-  # InteractiveChat does NOT need to be installed for the plugin to function.
-  interactivechat:
-    use-processed-message: true
+  # ===== CHAT ITEM DISPLAY =====
+  # Built-in [item], [inv], and [enderchest] keywords in chat.
+  # When a player types these keywords, they are replaced with interactive
+  # components: hover to see details, click to view a snapshot.
+  # No external plugin (InteractiveChat) is required.
+
+# Chat Item Display Settings
+chat-items:
+  # Master toggle for [item], [inv], [enderchest] chat keywords
+  enabled: true
+  # How long (seconds) a snapshot stays clickable before expiring
+  snapshot-ttl-seconds: 300
 
   # Webhook Configuration
   webhooks:

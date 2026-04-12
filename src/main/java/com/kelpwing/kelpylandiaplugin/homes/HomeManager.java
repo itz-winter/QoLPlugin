@@ -123,13 +123,27 @@ public class HomeManager {
      * Get the maximum number of homes a player can have.
      * Checks permission nodes qol.homes.max.<n> (highest value wins),
      * then falls back to the config default.
+     *
+     * Uses player.hasPermission() so LuckPerms group-inherited permissions
+     * are resolved correctly (getEffectivePermissions() can miss inherited nodes).
      */
     public int getMaxHomes(Player player) {
+        // Collect all registered qol.homes.max.<n> nodes from plugin.yml and check each.
+        // We test a broad range so custom values assigned directly in LuckPerms also work.
         int max = -1;
 
-        // Scan the player's effective permissions for qol.homes.max.<n>
+        // First try the well-known node values defined in plugin.yml.
+        int[] knownValues = {1, 2, 3, 5, 10, 15, 20, 25, 50, 100};
+        for (int n : knownValues) {
+            if (player.hasPermission("qol.homes.max." + n)) {
+                if (n > max) max = n;
+            }
+        }
+
+        // Also scan effective permissions for any custom qol.homes.max.<n> nodes
+        // (e.g. an admin manually granted qol.homes.max.7 in LuckPerms).
         for (org.bukkit.permissions.PermissionAttachmentInfo pai : player.getEffectivePermissions()) {
-            if (!pai.getValue()) continue; // skip negated nodes
+            if (!pai.getValue()) continue;
             String perm = pai.getPermission();
             if (!perm.startsWith("qol.homes.max.")) continue;
             String suffix = perm.substring("qol.homes.max.".length());

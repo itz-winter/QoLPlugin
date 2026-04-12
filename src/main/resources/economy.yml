@@ -99,8 +99,46 @@ messages:
   baltop-self: "&aYour rank: &b#{rank}&a, Balance: &b{unit}{balance}"
   baltop-excluded: "&cYou are excluded from the baltop rankings."
 
+  # /pricehistory
+  pricehistory-disabled: "&cDynamic pricing is currently DISABLED. Enable it in the config to track price history."
+
   # General
   no-permission: "&cYou don't have permission to do that."
+
+# ===== CUSTOM CATEGORIES =====
+# Define arbitrary groups of materials that can be priced together.
+# Use the group name in the "sellable" section with a # prefix, e.g. "#minecraft_spawners: 250.00"
+# Unlike Bukkit Tags (e.g. #minecraft:planks), these are fully custom.
+categories:
+  minecraft_spawners:
+    items:
+      - ZOMBIE_SPAWNER
+      - SKELETON_SPAWNER
+      - SPIDER_SPAWNER
+      - CAVE_SPIDER_SPAWNER
+      - MAGMA_CUBE_SPAWNER
+      - SILVERFISH_SPAWNER
+  minecraft_hostilemobdrops:
+    items:
+      - ROTTEN_FLESH
+      - BONE
+      - ARROW
+      - STRING
+      - SPIDER_EYE
+      - GUNPOWDER
+      - ENDER_PEARL
+      - BLAZE_ROD
+      - GHAST_TEAR
+      - MAGMA_CREAM
+      - SLIME_BALL
+      - PHANTOM_MEMBRANE
+      - PRISMARINE_SHARD
+      - PRISMARINE_CRYSTALS
+      - SHULKER_SHELL
+      - WITHER_SKELETON_SKULL
+      - CREEPER_HEAD
+      - ZOMBIE_HEAD
+      - SKELETON_SKULL
 
 # ===== SELLABLE ITEMS =====
 # Define which items players can sell and for how much.
@@ -110,10 +148,18 @@ messages:
 #   - Per-item prices always take priority over category prices.
 #   - Items not listed here (and not in the unsellable section) cannot be sold.
 sellable:
-  # Spawners
-  zombie_spawner: 250.00
-  skeleton_spawner: 250.00
-  magma_cube_spawner: 250.00
+  # Spawners (via custom category)
+  "#minecraft_spawners": 250.00
+
+  # Hostile mob drops (via custom category)
+  "#minecraft_hostilemobdrops": 0.10
+
+  # Per-item overrides (these take priority over category prices)
+  ender_pearl: 0.50
+  blaze_rod: 0.75
+  ghast_tear: 1.50
+  shulker_shell: 5.00
+  wither_skeleton_skull: 10.00
 
   # Earthy blocks
   cobblestone: 0.01
@@ -165,3 +211,50 @@ unsellable:
   STRUCTURE_VOID: ", it is an illegal item."
   JIGSAW: ", it is an illegal item."
   DEBUG_STICK: ", it is an illegal item."
+
+# ===== DYNAMIC PRICING (EXPERIMENTAL) =====
+# When enabled, sell prices fluctuate based on supply and demand.
+# Prices above are treated as base prices; a multiplier is applied based on recent sales.
+dynamic-pricing:
+  # Master toggle. Disabled by default.
+  enabled: false
+
+  # Track sales per-player instead of globally? Prevents manipulation but uses more memory.
+  per-user: false
+
+  # Rolling time window (minutes) for tracking recent sales.
+  # Shorter = more volatile; longer = more stable.
+  time-window: 10
+
+  # Maximum price multiplier (e.g. 2.0 = double the base price).
+  max-multiplier: 2.0
+  # Minimum price multiplier (e.g. 0.5 = half the base price).
+  min-multiplier: 0.5
+
+  # How much the multiplier decreases per sale (more sales → lower price).
+  multiplier-increment: 0.015
+  # How much the multiplier recovers per decay cycle (toward 1.0).
+  multiplier-decrement: 0.012
+
+  # How often (minutes) the plugin decays multipliers back toward 1.0.
+  multiplier-decay-interval: 10
+
+  # Controls how fast prices change:
+  # decay-exponent: how quickly prices recover (higher = faster recovery)
+  # increase-exponent: how quickly prices drop per sale (higher = slower drop per sale)
+  decay-exponent: 1.0
+  increase-exponent: 1.5
+
+  # Status labels used in /pricehistory, from highest to lowest price state.
+  # The middle entry is "stable"; first/last are extreme.
+  messages:
+    status:
+      - "ALL-TIME HIGHEST"
+      - "PEAK HIGH"
+      - "RISING"
+      - "MINIMAL INCREASE"
+      - "STABLE"
+      - "MINIMAL DECREASE"
+      - "FALLING"
+      - "PEAK LOW"
+      - "ALL-TIME LOWEST"

@@ -99,13 +99,20 @@ public class SetPriceCommand implements CommandExecutor, TabCompleter {
             // common category tags
             if ("#".startsWith(prefix) || prefix.startsWith("#")) {
                 String tagPrefix = prefix.startsWith("#") ? prefix.substring(1) : "";
-                List<String> tags = Arrays.asList(
+                List<String> tags = new ArrayList<>(Arrays.asList(
                         "#minecraft:planks", "#minecraft:logs", "#minecraft:wool",
                         "#minecraft:flowers", "#minecraft:saplings", "#minecraft:sand",
                         "#minecraft:coral_blocks", "#minecraft:terracotta",
                         "#minecraft:stairs", "#minecraft:slabs", "#minecraft:walls",
                         "#minecraft:fences", "#minecraft:buttons", "#minecraft:doors"
-                );
+                ));
+                // Add custom categories from economy.yml
+                EconomyManager eco2 = plugin.getEconomyManager();
+                if (eco2 != null) {
+                    for (String catName : eco2.getCustomCategories().keySet()) {
+                        tags.add("#" + catName);
+                    }
+                }
                 tags.stream()
                         .filter(t -> t.substring(1).startsWith(tagPrefix))
                         .forEach(suggestions::add);

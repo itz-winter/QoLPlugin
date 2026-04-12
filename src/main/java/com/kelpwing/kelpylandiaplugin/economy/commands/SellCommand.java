@@ -14,9 +14,7 @@ import org.bukkit.inventory.PlayerInventory;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class SellCommand implements CommandExecutor, TabCompleter {
 
@@ -64,6 +62,7 @@ public class SellCommand implements CommandExecutor, TabCompleter {
 
         BigDecimal totalEarned = BigDecimal.ZERO;
         int totalSold = 0;
+        Map<Material, Integer> soldCounts = new HashMap<>();
 
         boolean applyTax = eco.isTaxEnabled() && eco.isTaxOnServerSell();
 
@@ -86,6 +85,7 @@ public class SellCommand implements CommandExecutor, TabCompleter {
                 BigDecimal value = pr.price.multiply(BigDecimal.valueOf(toSell));
                 totalEarned = totalEarned.add(value);
                 totalSold += toSell;
+                soldCounts.merge(hand.getType(), toSell, Integer::sum);
 
                 if (toSell >= hand.getAmount()) {
                     player.getInventory().setItemInMainHand(null);
@@ -119,6 +119,7 @@ public class SellCommand implements CommandExecutor, TabCompleter {
                     BigDecimal value = pr.price.multiply(BigDecimal.valueOf(toSell));
                     totalEarned = totalEarned.add(value);
                     totalSold += toSell;
+                    soldCounts.merge(item.getType(), toSell, Integer::sum);
 
                     if (toSell >= item.getAmount()) {
                         inv.setItem(slot, null);
@@ -147,6 +148,11 @@ public class SellCommand implements CommandExecutor, TabCompleter {
         }
 
         eco.deposit(player.getUniqueId(), totalEarned);
+
+        // Record sales for dynamic pricing
+        for (Map.Entry<Material, Integer> entry : soldCounts.entrySet()) {
+            eco.recordSale(entry.getKey(), entry.getValue(), player.getUniqueId());
+        }
 
         eco.sendTransactionHUD(player, totalEarned, true);
 

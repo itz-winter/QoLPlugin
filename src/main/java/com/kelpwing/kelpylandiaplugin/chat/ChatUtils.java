@@ -1,29 +1,59 @@
 package com.kelpwing.kelpylandiaplugin.chat;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
-import com.kelpwing.kelpylandiaplugin.chat.Channel;
 import org.bukkit.entity.Player;
 
 public class ChatUtils {
     
-    public static String formatMessage(KelpylandiaPlugin plugin, Player player, Channel channel, String message) {
+    /**
+     * Builds the fully-formatted chat prefix (everything before the message body).
+     * Returns a legacy colour-coded string like "&2[G]&r [Owner] Rivulet&r: ".
+     * <p>
+     * The caller is responsible for appending the actual message content —
+     * either as plain text or as JSON components (when [item] etc. are present).
+     */
+    public static String formatPrefix(KelpylandiaPlugin plugin, Player player, Channel channel) {
         String format = channel.getFormat();
-        
-        // Get player prefix and suffix from LuckPerms (if available)
+
         String prefix = getPlayerPrefix(player);
         String suffix = getPlayerSuffix(player);
-        
-        // Replace placeholders
+
         format = format.replace("{prefix}", prefix);
         format = format.replace("{suffix}", suffix);
         format = format.replace("{player}", player.getName());
         format = format.replace("{displayname}", player.getDisplayName());
-        format = format.replace("{message}", message);
         format = format.replace("{channel}", channel.getDisplayName());
-        
-        // Apply color codes
+
+        // Apply colour codes
         format = org.bukkit.ChatColor.translateAlternateColorCodes('&', format);
-        
+
+        // Split on {message} — we only want the prefix portion
+        int msgIdx = format.indexOf("{message}");
+        if (msgIdx >= 0) {
+            return format.substring(0, msgIdx);
+        }
+        // If no {message} token at all, append ": " and return
+        return format + ": ";
+    }
+
+    /**
+     * Builds the complete chat line as a legacy-colour string (no JSON components).
+     * Used for logging and as a simple fallback when no keywords are present.
+     */
+    public static String formatMessage(KelpylandiaPlugin plugin, Player player, Channel channel, String message) {
+        String format = channel.getFormat();
+
+        String prefix = getPlayerPrefix(player);
+        String suffix = getPlayerSuffix(player);
+
+        format = format.replace("{prefix}", prefix);
+        format = format.replace("{suffix}", suffix);
+        format = format.replace("{player}", player.getName());
+        format = format.replace("{displayname}", player.getDisplayName());
+        format = format.replace("{channel}", channel.getDisplayName());
+        format = format.replace("{message}", message);
+
+        format = org.bukkit.ChatColor.translateAlternateColorCodes('&', format);
         return format;
     }
     

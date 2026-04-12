@@ -35,15 +35,6 @@ public class BaltopCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        // Check if sender is excluded
-        if (sender instanceof Player) {
-            Player player = (Player) sender;
-            if (player.hasPermission("qol.economy.baltop.exclude")) {
-                sender.sendMessage(eco.getMessage("baltop-excluded"));
-                // Still show the list though, just with the notice
-            }
-        }
-
         int page = 1;
         if (args.length > 0) {
             try {

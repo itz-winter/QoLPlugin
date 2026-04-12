@@ -1,10 +1,13 @@
 package com.kelpwing.kelpylandiaplugin;
 
 import com.kelpwing.kelpylandiaplugin.chat.ChannelManager;
+import com.kelpwing.kelpylandiaplugin.chat.ItemDisplayManager;
 import com.kelpwing.kelpylandiaplugin.chat.commands.ChatCommand;
 import com.kelpwing.kelpylandiaplugin.chat.commands.ChannelCommand;
 import com.kelpwing.kelpylandiaplugin.chat.commands.ChannelAliasCommand;
 import com.kelpwing.kelpylandiaplugin.chat.listeners.ChatListener;
+import com.kelpwing.kelpylandiaplugin.chat.listeners.SnapshotListener;
+import com.kelpwing.kelpylandiaplugin.chat.commands.ViewSnapshotCommand;
 import com.kelpwing.kelpylandiaplugin.commands.GamemodeCommand;
 import com.kelpwing.kelpylandiaplugin.commands.NickCommand;
 import com.kelpwing.kelpylandiaplugin.commands.NoclipCommand;
@@ -60,7 +63,6 @@ import com.kelpwing.kelpylandiaplugin.listeners.NickListener;
 import com.kelpwing.kelpylandiaplugin.listeners.AfkListener;
 import com.kelpwing.kelpylandiaplugin.listeners.MsgListener;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
-import com.kelpwing.kelpylandiaplugin.integrations.InteractiveChatIntegration;
 import com.kelpwing.kelpylandiaplugin.integrations.LuckPermsIntegration;
 import com.kelpwing.kelpylandiaplugin.integrations.PlaceholderAPIIntegration;
 import com.kelpwing.kelpylandiaplugin.config.ConfigManager;
@@ -120,7 +122,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
     private LuckPermsIntegration luckPermsIntegration;
     private PlaceholderAPIIntegration placeholderAPIIntegration;
     private DiscordIntegration discordIntegration;
-    private InteractiveChatIntegration interactiveChatIntegration;
+    private ItemDisplayManager itemDisplayManager;
     
     // Moderation-related components
     private ConfigManager configManager;
@@ -610,18 +612,20 @@ public class KelpylandiaPlugin extends JavaPlugin {
                 SetPriceCommand setPriceCmd = new SetPriceCommand(this);
                 DelPriceCommand delPriceCmd = new DelPriceCommand(this);
                 ShopEditCommand shopEditCmd = new ShopEditCommand(this);
+                PriceHistoryCommand priceHistCmd = new PriceHistoryCommand(this);
                 
                 registerCommand("balance", balCmd, "Check your or another player's balance.", "/balance [player]", "qol.economy.balance", "bal", "money");
                 registerCommand("pay", payCmd, "Pay another player.", "/pay <player> <amount>", "qol.economy.pay", "transfer");
                 registerCommand("baltop", btCmd, "View the richest players.", "/baltop [page]", "qol.economy.baltop", "bt", "balancetop", "rich");
                 registerCommand("sell", sellCmd, "Sell items from your inventory.", "/sell <hand|inventory|all> [amount]", "qol.economy.sell");
                 registerCommand("sellgui", sellGuiCmd, "Open the sell GUI.", "/sellgui", "qol.economy.sell", "sgui");
-                registerCommand("price", priceCmd, "Check the sell price of an item.", "/price [item]", "qol.economy.price", "itemprice");
-                registerCommand("value", valueCmd, "Check the total value of items.", "/value [item] [amount]", "qol.economy.value", "itemvalue");
+                registerCommand("price", priceCmd, "Check the sell price of an item.", "/price <item>", "qol.economy.price", "itemprice");
+                registerCommand("value", valueCmd, "Check the total value of items.", "/value <item> [amount]", "qol.economy.value", "itemvalue");
                 registerCommand("tax", taxCmd, "View or manage tax settings.", "/tax [amount|set <rate>]", "qol.economy.tax");
                 registerCommand("setprice", setPriceCmd, "Set an item's sell price.", "/setprice <item|#category> <price>", "qol.economy.setprice");
                 registerCommand("delprice", delPriceCmd, "Remove an item's sell price.", "/delprice <item|#category>", "qol.economy.delprice");
                 registerCommand("shopedit", shopEditCmd, "Open the shop editor GUI.", "/shopedit", "qol.economy.shopedit", "se");
+                registerCommand("pricehistory", priceHistCmd, "View an item's price history.", "/pricehistory <item> [length]", "qol.economy.pricehistory", "ph");
                 
                 // Register GUI listeners
                 getServer().getPluginManager().registerEvents(sellGUI, this);
@@ -752,6 +756,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
         
         // Save economy data and unregister Vault
         if (economyManager != null) {
+            economyManager.shutdownDynamicPricing();
             economyManager.saveAll();
         }
         if (vaultEconomyProvider != null) {
@@ -778,12 +783,16 @@ public class KelpylandiaPlugin extends JavaPlugin {
             getLogger().info("PlaceholderAPI integration enabled!");
         }
         
-        // InteractiveChat integration (optional, Discord-side only)
-        // Always instantiate so ChatListener can query isEnabled() safely.
-        interactiveChatIntegration = new InteractiveChatIntegration(this);
-        if (interactiveChatIntegration.isEnabled()) {
-            getServer().getPluginManager().registerEvents(interactiveChatIntegration, this);
-            getLogger().info("InteractiveChat integration active — processed messages will be used for Discord relay.");
+        // Item display system — replaces InteractiveChat dependency.
+        // Handles [item], [inv], [enderchest] keywords in chat with hover tooltips
+        // and clickable inventory snapshots.
+        if (getConfig().getBoolean("chat-items.enabled", true)) {
+            itemDisplayManager = new ItemDisplayManager(this);
+            getServer().getPluginManager().registerEvents(new SnapshotListener(), this);
+            registerCommand("qol:viewsnapshot", new ViewSnapshotCommand(this),
+                    "View an item/inventory snapshot from chat", "/qol:viewsnapshot <id>",
+                    null); // no permission — anyone can click the chat component
+            getLogger().info("Chat item display enabled ([item], [inv], [enderchest]).");
         }
     }
     
@@ -840,8 +849,8 @@ public class KelpylandiaPlugin extends JavaPlugin {
         return discordIntegration;
     }
     
-    public InteractiveChatIntegration getInteractiveChatIntegration() {
-        return interactiveChatIntegration;
+    public ItemDisplayManager getItemDisplayManager() {
+        return itemDisplayManager;
     }
     
     // Moderation-related getters
