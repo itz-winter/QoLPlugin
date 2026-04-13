@@ -3,6 +3,7 @@ package com.kelpwing.kelpylandiaplugin.chat.listeners;
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.chat.Channel;
 import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
+import com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData;
 import com.kelpwing.kelpylandiaplugin.chat.ItemDisplayManager;
 import com.kelpwing.kelpylandiaplugin.commands.MsgCommand;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
@@ -149,23 +150,40 @@ public class ChatListener implements Listener {
                 relayToDiscord(player, message, finalChannel, true);
             });
         } else {
-            // No keywords — use vanilla chat with a simple formatted string.
-            // Set the format and let Bukkit dispatch to recipients normally.
+            // No item keywords — check for clickable [/command] patterns
             String fullLine = ChatUtils.formatMessage(plugin, player, playerChannel, message);
-            // Escape % for String.format safety (Bukkit calls String.format on the format)
-            event.setFormat(fullLine.replace("%", "%%"));
 
-            // Trim recipients for non-global channels
-            if (!playerChannel.isGlobal()) {
-                event.getRecipients().clear();
-                event.getRecipients().addAll(recipients);
+            if (ChatUtils.containsCommand(plugin, fullLine)) {
+                // Cancel vanilla and send components with clickable commands
+                event.setCancelled(true);
+                final Set<Player> cmdRecipients = recipients;
+                final Channel cmdChannel = playerChannel;
+                net.md_5.bungee.api.chat.BaseComponent[] cmdComponents =
+                        ChatUtils.parseClickableCommands(plugin, fullLine);
+
+                for (Player recipient : cmdRecipients) {
+                    recipient.spigot().sendMessage(cmdComponents);
+                }
+
+                plugin.getLogger().info("[" + cmdChannel.getName() + "] " + player.getName() + ": " + message);
+                relayToDiscord(player, message, cmdChannel, false);
+            } else {
+                // Plain text — let Bukkit dispatch normally
+                // Escape % for String.format safety (Bukkit calls String.format on the format)
+                event.setFormat(fullLine.replace("%", "%%"));
+
+                // Trim recipients for non-global channels
+                if (!playerChannel.isGlobal()) {
+                    event.getRecipients().clear();
+                    event.getRecipients().addAll(recipients);
+                }
+
+                // Log
+                plugin.getLogger().info("[" + playerChannel.getName() + "] " + player.getName() + ": " + message);
+
+                // Discord relay (plain text, no keywords)
+                relayToDiscord(player, message, playerChannel, false);
             }
-
-            // Log
-            plugin.getLogger().info("[" + playerChannel.getName() + "] " + player.getName() + ": " + message);
-
-            // Discord relay (plain text, no keywords)
-            relayToDiscord(player, message, playerChannel, false);
         }
     }
 
@@ -177,17 +195,20 @@ public class ChatListener implements Listener {
         DiscordIntegration discord = plugin.getDiscordIntegration();
         if (discord == null || !discord.isEnabled()) return;
 
-        String discordMsg;
         if (hasKeywords) {
             ItemDisplayManager idm = plugin.getItemDisplayManager();
-            discordMsg = idm != null
-                    ? idm.buildDiscordLine(player, rawMessage)
-                    : rawMessage;
-        } else {
-            discordMsg = rawMessage;
+            if (idm != null) {
+                java.util.List<ItemDisplayData> embedData = idm.buildDiscordData(player, rawMessage);
+                if (!embedData.isEmpty()) {
+                    String surrounding = embedData.get(0).getSurroundingText();
+                    discord.sendChatItemEmbed(player, surrounding, embedData, channel.getDiscordChannel());
+                    return;
+                }
+            }
         }
 
-        discord.sendChatMessage(player, discordMsg, channel.getDiscordChannel());
+        // Plain text fallback
+        discord.sendChatMessage(player, rawMessage, channel.getDiscordChannel());
     }
 
     // ── Recipient filter ────────────────────────────────────────────────────

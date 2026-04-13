@@ -78,6 +78,28 @@ chat-items:
   # How long (seconds) a snapshot stays clickable before expiring
   snapshot-ttl-seconds: 300
 
+# ===== CLICKABLE COMMAND BOXES =====
+# Cherry-picked from InteractiveChat's CommandsDisplay module.
+# When a player wraps a command in the configured format (e.g. [/spawn]),
+# it is replaced with a styled, clickable component in chat.
+clickable-commands:
+  # Master toggle
+  enabled: true
+  # Pattern that triggers the command box.  Use {Command} as the placeholder
+  # for the command text (must start with /).
+  # Examples:  "[{Command}]"   "({Command})"   "<{Command}>"
+  format: "[{Command}]"
+  # How the box is displayed.  Use {Command} for the command text.
+  # Supports legacy & colour codes.
+  text: "&b[&e{Command}&b]"
+  # What happens when the player clicks the box.
+  # Options: SUGGEST_COMMAND  (fills command bar without running)
+  #          RUN_COMMAND       (runs the command immediately)
+  action: SUGGEST_COMMAND
+  # Tooltip shown when hovering over the command box.
+  # Leave empty to show no tooltip.
+  hover-message: "&eClick to use command!"
+
   # Webhook Configuration
   webhooks:
     # Whether to reuse existing webhooks instead of creating new ones

@@ -1,6 +1,8 @@
 package com.kelpwing.kelpylandiaplugin.utils;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
+import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
+import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.configuration.file.FileConfiguration;
@@ -119,8 +121,16 @@ public class BroadcastManager {
 
         String formatted = formatMessage(prefix + template);
 
-        for (Player player : Bukkit.getOnlinePlayers()) {
-            player.sendMessage(formatted);
+        // If the message contains [/command] patterns, send as clickable components
+        if (ChatUtils.containsCommand(formatted)) {
+            BaseComponent[] components = ChatUtils.parseClickableCommands(formatted);
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                player.spigot().sendMessage(components);
+            }
+        } else {
+            for (Player player : Bukkit.getOnlinePlayers()) {
+                player.sendMessage(formatted);
+            }
         }
     }
 

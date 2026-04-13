@@ -74,9 +74,19 @@ messages:
   sell-gui-dropped: "&cYour inventory was full! &b{count} &citem(s) dropped at your feet."
 
   # /price
-  price-info: "&aPrice of &b{item}&a: &b{unit}{price} each"
+  price-info: "&aSell price of &b{item}&a: &b{unit}{sell_price} each"
+  price-buy-info: "&aBuy price of &b{item}&a: &b{unit}{buy_price} each"
+  price-not-buyable: "&7(This item is not available for purchase)"
+  price-buy-disabled: "&7(The buy system is currently disabled)"
   price-category: "&7(Category price from &b{category}&7)"
   price-unsellable: "&cThat item is not sellable{reason}"
+
+  # /shop (Buy GUI)
+  shop-title: "&2&lServer Shop"
+  shop-buy-success: "&aYou bought &b{amount}x {item} &afor &b{unit}{total}"
+  shop-buy-disabled: "&cThe server shop is currently disabled."
+  shop-insufficient-funds: "&cYou can't afford that! Cost: {unit}{cost}, Balance: {unit}{balance}"
+  shop-inventory-full: "&cYour inventory is full! Make room and try again."
 
   # /value
   value-info: "&aValue of &b{amount}x {item}&a: &b{unit}{total}"
@@ -118,27 +128,30 @@ categories:
       - CAVE_SPIDER_SPAWNER
       - MAGMA_CUBE_SPAWNER
       - SILVERFISH_SPAWNER
-  minecraft_hostilemobdrops:
+  minecraft_hostile_mob_drops:
     items:
+      # Overworld
       - ROTTEN_FLESH
       - BONE
-      - ARROW
       - STRING
-      - SPIDER_EYE
+      - ARROW
       - GUNPOWDER
-      - ENDER_PEARL
-      - BLAZE_ROD
-      - GHAST_TEAR
+      # Nether
       - MAGMA_CREAM
-      - SLIME_BALL
-      - PHANTOM_MEMBRANE
-      - PRISMARINE_SHARD
-      - PRISMARINE_CRYSTALS
-      - SHULKER_SHELL
-      - WITHER_SKELETON_SKULL
-      - CREEPER_HEAD
-      - ZOMBIE_HEAD
-      - SKELETON_SKULL
+      - BLAZE_ROD
+  minecraft_stone: # naturally occurring variants
+    items:
+      - STONE
+      - ANDESITE
+      - DIORITE
+      - GRANITE
+      - COBBLESTONE
+      - MOSSY_COBBLESTONE
+      # Following are disabled since this plugin can be used in older versions that don't have them
+      #- COBBLED_DEEPSLATE
+      #- DEEPSLATE
+      #- TUFF
+      #- CALCITE
 
 # ===== SELLABLE ITEMS =====
 # Define which items players can sell and for how much.
@@ -149,10 +162,10 @@ categories:
 #   - Items not listed here (and not in the unsellable section) cannot be sold.
 sellable:
   # Spawners (via custom category)
-  "#minecraft_spawners": 250.00
+  "#minecraft_spawners": 1000.00
 
   # Hostile mob drops (via custom category)
-  "#minecraft_hostilemobdrops": 0.10
+  "#minecraft_hostile_mob_drops": 1.25
 
   # Per-item overrides (these take priority over category prices)
   ender_pearl: 0.50
@@ -212,6 +225,63 @@ unsellable:
   JIGSAW: ", it is an illegal item."
   DEBUG_STICK: ", it is an illegal item."
 
+# ===== BUYABLE ITEMS =====
+# Define which items players can buy and for how much.
+# Format: material_name: price
+#   - Material names are case-insensitive and the "minecraft:" prefix is optional.
+#   - Categories use Bukkit Tag names prefixed with # (e.g. "#minecraft:planks": 0.25).
+#   - Per-item prices always take priority over category prices.
+#   - Items not listed here cannot be bought and will not appear in /shop.
+# Note: buy prices are intentionally much higher than sell prices to prevent too many items from entering the economy and encourage player trading.
+buying:
+  # Master toggle for the buy system. Disabled by default since it's more complex and can cause balance issues if not configured carefully.
+  enabled: false
+
+  items:
+    # Per-item overrides (these take priority over category prices)
+    ender_pearl: 10
+    blaze_rod: 7.50
+    shulker_shell: 50.00
+
+    # Earthy blocks
+    cobblestone: 5
+    dirt: 5
+
+    # Silk-touch blocks
+    stone: 8
+    grass_block: 8
+    mycelium: 8
+    podzol: 8
+
+    # Ores and ingots
+    coal: 25
+    iron_ingot: 75
+    gold_ingot: 75
+    diamond: 125
+    emerald: 95
+    redstone: 35
+    quartz: 50
+    ancient_debris: 1000
+    netherite_scrap: 1025
+    netherite_ingot: 3500
+
+    # Ore blocks (silk touch)
+    coal_ore: 50
+    iron_ore: 100
+    gold_ore: 100
+    diamond_ore: 350
+    emerald_ore: 135
+    redstone_ore: 55
+    nether_gold_ore: 100
+    nether_quartz_ore: 75
+
+    # Category prices (Bukkit Tags)
+    "#minecraft:planks": 25
+    "#minecraft:logs": 100
+    "#minecraft:walls": 50
+    "#minecraft:fences": 50
+    "#minecraft:stone": 10
+
 # ===== DYNAMIC PRICING (EXPERIMENTAL) =====
 # When enabled, sell prices fluctuate based on supply and demand.
 # Prices above are treated as base prices; a multiplier is applied based on recent sales.
@@ -231,7 +301,7 @@ dynamic-pricing:
   # Minimum price multiplier (e.g. 0.5 = half the base price).
   min-multiplier: 0.5
 
-  # How much the multiplier decreases per sale (more sales → lower price).
+  # How much the multiplier changes per trade (base value before dampening).
   multiplier-increment: 0.015
   # How much the multiplier recovers per decay cycle (toward 1.0).
   multiplier-decrement: 0.012
@@ -240,10 +310,86 @@ dynamic-pricing:
   multiplier-decay-interval: 10
 
   # Controls how fast prices change:
-  # decay-exponent: how quickly prices recover (higher = faster recovery)
-  # increase-exponent: how quickly prices drop per sale (higher = slower drop per sale)
-  decay-exponent: 1.0
+  # decay-exponent: how aggressively prices far from 1.0 snap back (higher = faster).
+  #   Uses |current - 1.0|^exponent, so 1.5 means prices far from equilibrium decay much faster.
+  # increase-exponent: how quickly prices move per sale (higher = slower per-sale impact).
+  #   Only used in legacy mode (when volume-dampening is disabled).
+  decay-exponent: 1.5
   increase-exponent: 1.5
+
+  # ─── ADVANCED FEATURES ─────────────────────────────────────────────────────
+  # Each feature below has its own toggle. Servers can choose their realism level
+  # by enabling/disabling individual features. All default to sensible values.
+
+  advanced:
+
+    # Volume Dampening — large trades have diminishing per-unit price impact.
+    # Prevents selling 64 items from having 64x the effect of selling 1.
+    # Uses logarithmic scaling: factor = 1 / (1 + scale * ln(1 + amount))
+    volume-dampening:
+      enabled: true
+      # Higher scale = more dampening for bulk trades (0.3–1.0 recommended).
+      scale: 0.6
+      # Minimum dampening factor floor (prevents near-zero impact).
+      min-factor: 0.1
+
+    # EMA (Exponential Moving Average) Smoothing — makes price history graphs
+    # smooth and curvy instead of jagged. Applied to recorded price snapshots.
+    ema-smoothing:
+      enabled: true
+      # Alpha (0.0–1.0): closer to 0 = smoother but slower to react.
+      # 0.15 = moderate smoothing. 0.05 = very smooth. 0.5 = barely smoothed.
+      alpha: 0.15
+
+    # Supply Curve — prices respond to total item circulation in the economy.
+    # More items in circulation (oversupply) depresses sell prices.
+    # Fewer items (scarcity) inflates buy prices.
+    supply-curve:
+      enabled: true
+      # How strongly circulation affects prices (0.1–0.5 recommended).
+      strength: 0.3
+      # "Normal" circulation level. Items above this = oversupply, below = scarcity.
+      baseline: 1000
+
+    # Transaction Cooldown — prevents rapid buy/sell manipulation.
+    # Players who trade the same item within the cooldown window won't move prices
+    # (but the trade itself still goes through).
+    cooldown:
+      enabled: true
+      # Seconds between price-affecting trades per player per material.
+      seconds: 5
+
+    # Inflation Tracking — a global coefficient that slowly drifts prices upward.
+    # Simulates real-world monetary inflation based on total item circulation.
+    # Disabled by default — enable for a more realistic long-term economy.
+    inflation:
+      enabled: false
+      # How much inflation grows per decay cycle (very small values recommended).
+      rate-per-cycle: 0.001
+      # Maximum inflation coefficient (e.g. 1.5 = prices can be 50% inflated).
+      max-coefficient: 1.5
+      # Minimum coefficient (deflation floor).
+      min-coefficient: 0.8
+
+    # Velocity of Money — tracks how frequently items are traded.
+    # High velocity (lots of trading) = healthy economy = more stable prices.
+    # Low velocity (few trades) = thin market = more volatile price swings.
+    # Disabled by default — enable for the most realistic simulation.
+    velocity:
+      enabled: false
+      # How strongly velocity affects price volatility (0.3–0.7 recommended).
+      stability-factor: 0.5
+      # Time window (minutes) for measuring trade frequency.
+      window-minutes: 30
+
+    # Market Maker Spread — the gap between buy and sell prices.
+    # Instead of mirroring (buy = 2 - sell), buy prices are always a percentage
+    # above sell prices. Acts as a natural money sink.
+    spread:
+      enabled: true
+      # The spread percentage. 15 = buy price is 15% above sell price.
+      # Higher = larger gap = more money removed from the economy per trade cycle.
+      percent: 15.0
 
   # Status labels used in /pricehistory, from highest to lowest price state.
   # The middle entry is "stable"; first/last are extreme.

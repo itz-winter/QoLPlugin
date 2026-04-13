@@ -59,10 +59,14 @@ public class PriceCommand implements CommandExecutor, TabCompleter {
             }
         }
 
-        EconomyManager.PriceResult result = eco.getPrice(material);
         String itemName = SellCommand.formatMaterial(material);
+        EconomyManager.PriceResult sellResult = eco.getPrice(material);
+        EconomyManager.BuyPriceResult buyResult = eco.getBuyPrice(material);
 
-        if (!result.sellable) {
+        boolean canSell = sellResult.sellable;
+        boolean canBuy = buyResult.buyable && eco.isBuyingEnabled();
+
+        if (!canSell && !canBuy) {
             String reason = eco.getUnsellableReason(material);
             sender.sendMessage(eco.getMessage("price-unsellable")
                     .replace("{item}", itemName)
@@ -70,16 +74,39 @@ public class PriceCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        String priceStr = result.price.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
-        sender.sendMessage(eco.getMessage("price-info")
-                .replace("{item}", itemName)
-                .replace("{unit}", eco.getUnit())
-                .replace("{price}", priceStr));
+        // Show sell price
+        if (canSell) {
+            String sellStr = sellResult.price.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
+            sender.sendMessage(eco.getMessage("price-info")
+                    .replace("{item}", itemName)
+                    .replace("{unit}", eco.getUnit())
+                    .replace("{sell_price}", sellStr));
 
-        if (result.categoryName != null) {
-            sender.sendMessage(eco.getMessage("price-category")
-                    .replace("{category}", result.categoryName));
+            if (sellResult.categoryName != null) {
+                sender.sendMessage(eco.getMessage("price-category")
+                        .replace("{category}", sellResult.categoryName));
+            }
         }
+
+        // Show buy price
+        if (canBuy) {
+            String buyStr = buyResult.price.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
+            sender.sendMessage(eco.getMessage("price-buy-info")
+                    .replace("{item}", itemName)
+                    .replace("{unit}", eco.getUnit())
+                    .replace("{buy_price}", buyStr));
+
+            if (buyResult.categoryName != null) {
+                sender.sendMessage(eco.getMessage("price-category")
+                        .replace("{category}", buyResult.categoryName));
+            }
+        } else if (!eco.isBuyingEnabled()) {
+            sender.sendMessage(eco.getMessage("price-buy-disabled"));
+        } else {
+            sender.sendMessage(eco.getMessage("price-not-buyable")
+                    .replace("{item}", itemName));
+        }
+
         return true;
     }
 

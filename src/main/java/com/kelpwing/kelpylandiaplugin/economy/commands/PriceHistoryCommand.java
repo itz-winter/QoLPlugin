@@ -111,15 +111,30 @@ public class PriceHistoryCommand implements CommandExecutor, TabCompleter {
 
         java.util.UUID playerUuid = (sender instanceof Player) ? ((Player) sender).getUniqueId() : null;
 
-        // Current effective price
+        // Current effective sell price
         EconomyManager.PriceResult currentResult = eco.getPrice(material, playerUuid);
         String currentPriceStr = eco.getUnit() + currentResult.price.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
+
+        // Current effective buy price
+        EconomyManager.BuyPriceResult buyResult = eco.getBuyPrice(material, playerUuid);
+        boolean hasBuy = buyResult.buyable && eco.isBuyingEnabled();
 
         // Header
         sender.sendMessage(ChatColor.GREEN + "Price history for " + ChatColor.AQUA + itemName
                 + ChatColor.GREEN + " (last " + length + " entries):");
-        sender.sendMessage(ChatColor.GREEN + "Base price: " + ChatColor.AQUA + basePriceStr);
-        sender.sendMessage(ChatColor.GREEN + "Current price: " + ChatColor.AQUA + currentPriceStr);
+        sender.sendMessage(ChatColor.GREEN + "Base sell price: " + ChatColor.AQUA + basePriceStr);
+        sender.sendMessage(ChatColor.GREEN + "Current sell price: " + ChatColor.AQUA + currentPriceStr);
+        if (hasBuy) {
+            EconomyManager.BuyPriceResult baseBuyResult = eco.getBaseBuyPrice(material);
+            String baseBuyStr = eco.getUnit() + baseBuyResult.price.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
+            String currentBuyStr = eco.getUnit() + buyResult.price.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
+            sender.sendMessage(ChatColor.GREEN + "Base buy price: " + ChatColor.AQUA + baseBuyStr);
+            sender.sendMessage(ChatColor.GREEN + "Current buy price: " + ChatColor.AQUA + currentBuyStr);
+        }
+        if (engine != null) {
+            long circ = engine.getCirculation(material);
+            sender.sendMessage(ChatColor.GREEN + "Circulation: " + ChatColor.AQUA + circ + " items");
+        }
 
         if (engine == null || !engine.isEnabled()) {
             // Dynamic pricing disabled — show stable message

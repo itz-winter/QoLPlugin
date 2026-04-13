@@ -23,44 +23,37 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 /**
- * Admin GUI for managing item/category sell prices.
- * - Browse all configured prices with pagination
- * - Click to edit price (via chat prompt)
- * - Shift+click to remove price
- * - Bottom row: navigation, add new price, search
+ * Player-facing shop GUI for buying items from the server.
+ * - Browse all buyable items with pagination
+ * - Click to buy 1, shift+click to buy a stack (64)
+ * - Bottom row: navigation, search, amount prompt
  */
-public class ShopEditGUI implements Listener {
+public class ShopGUI implements Listener {
 
     private final KelpylandiaPlugin plugin;
 
-    private static final String GUI_TITLE_PREFIX = ChatColor.DARK_RED + "" + ChatColor.BOLD + "Shop Editor";
+    private static final String GUI_TITLE_PREFIX = ChatColor.DARK_GREEN + "" + ChatColor.BOLD + "Server Shop";
     private static final int GUI_SIZE = 54; // 6 rows
     private static final int ITEMS_PER_PAGE = 45; // rows 1-5
 
     // Navigation slot indices (row 6)
     private static final int SLOT_PREV = 45;
-    private static final int SLOT_MODE = 47;    // toggle sell/buy
     private static final int SLOT_SEARCH = 49;
-    private static final int SLOT_ADD = 50;
     private static final int SLOT_NEXT = 53;
-
-    /** Which price list is being edited. */
-    private enum EditMode { SELL, BUY }
 
     // Per-player state
     private final Map<UUID, Integer> playerPages = new HashMap<>();
     private final Map<UUID, String> playerSearch = new HashMap<>();
-    private final Map<UUID, EditMode> playerMode = new HashMap<>();
 
-    // Players waiting for chat input (price edit or add new)
+    // Players waiting for chat input (search or buy amount)
     private final Map<UUID, ChatInputState> awaitingChatInput = new HashMap<>();
 
-    public ShopEditGUI(KelpylandiaPlugin plugin) {
+    public ShopGUI(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
     }
 
     /**
-     * Open the shop editor GUI for a player.
+     * Open the shop GUI for a player.
      */
     public void openGUI(Player player) {
         openGUI(player, 0);
@@ -72,15 +65,17 @@ public class ShopEditGUI implements Listener {
             player.sendMessage(ChatColor.RED + "The economy system is disabled.");
             return;
         }
+        if (!eco.isBuyingEnabled()) {
+            player.sendMessage(eco.getMessage("shop-buy-disabled"));
+            return;
+        }
 
-        EditMode mode = playerMode.getOrDefault(player.getUniqueId(), EditMode.SELL);
-        List<Map.Entry<String, Double>> prices = getFilteredPrices(player, mode);
+        List<Map.Entry<String, Double>> prices = getFilteredPrices(player);
         int totalPages = Math.max(1, (int) Math.ceil((double) prices.size() / ITEMS_PER_PAGE));
         page = Math.max(0, Math.min(page, totalPages - 1));
         playerPages.put(player.getUniqueId(), page);
 
-        String modeLabel = (mode == EditMode.BUY) ? ChatColor.GREEN + "BUY" : ChatColor.GOLD + "SELL";
-        String title = GUI_TITLE_PREFIX + " " + modeLabel + " " + ChatColor.GRAY + "(" + (page + 1) + "/" + totalPages + ")";
+        String title = GUI_TITLE_PREFIX + " " + ChatColor.GRAY + "(" + (page + 1) + "/" + totalPages + ")";
         Inventory gui = Bukkit.createInventory(null, GUI_SIZE, title);
 
         // Fill items for this page
@@ -90,11 +85,10 @@ public class ShopEditGUI implements Listener {
         for (int i = startIndex; i < endIndex; i++) {
             Map.Entry<String, Double> entry = prices.get(i);
             int slot = i - startIndex;
-            gui.setItem(slot, createPriceItem(eco, entry.getKey(), entry.getValue(), mode));
+            gui.setItem(slot, createShopItem(eco, entry.getKey(), entry.getValue(), player));
         }
 
         // ── Navigation row ───────────────────────────────────────
-        // Previous page
         if (page > 0) {
             gui.setItem(SLOT_PREV, createNavItem(Material.ARROW, ChatColor.YELLOW + "← Previous Page"));
         } else {
@@ -104,20 +98,10 @@ public class ShopEditGUI implements Listener {
         // Search
         String searchLabel = playerSearch.containsKey(player.getUniqueId())
                 ? ChatColor.AQUA + "Search: " + ChatColor.WHITE + playerSearch.get(player.getUniqueId())
+                        + ChatColor.GRAY + " (shift-click to clear)"
                 : ChatColor.AQUA + "Search (click to filter)";
         gui.setItem(SLOT_SEARCH, createNavItem(Material.COMPASS, searchLabel));
 
-        // Mode toggle (sell/buy)
-        String modeToggleLabel = (mode == EditMode.SELL)
-                ? ChatColor.GOLD + "Editing: SELL prices" + ChatColor.GRAY + " (click for BUY)"
-                : ChatColor.GREEN + "Editing: BUY prices" + ChatColor.GRAY + " (click for SELL)";
-        Material modeIcon = (mode == EditMode.SELL) ? Material.GOLD_INGOT : Material.EMERALD;
-        gui.setItem(SLOT_MODE, createNavItem(modeIcon, modeToggleLabel));
-
-        // Add new price
-        gui.setItem(SLOT_ADD, createNavItem(Material.EMERALD, ChatColor.GREEN + "Add New Price"));
-
-        // Next page
         if (page < totalPages - 1) {
             gui.setItem(SLOT_NEXT, createNavItem(Material.ARROW, ChatColor.YELLOW + "Next Page →"));
         } else {
@@ -140,11 +124,11 @@ public class ShopEditGUI implements Listener {
         if (event.getView().getTitle() == null) return;
         if (!event.getView().getTitle().startsWith(GUI_TITLE_PREFIX)) return;
 
-        event.setCancelled(true); // prevent taking items
+        event.setCancelled(true);
 
         Player player = (Player) event.getWhoClicked();
         EconomyManager eco = plugin.getEconomyManager();
-        if (eco == null) return;
+        if (eco == null || !eco.isBuyingEnabled()) return;
 
         int slot = event.getRawSlot();
         if (slot < 0 || slot >= GUI_SIZE) return;
@@ -162,7 +146,6 @@ public class ShopEditGUI implements Listener {
         }
         if (slot == SLOT_SEARCH) {
             if (event.isShiftClick()) {
-                // Clear search
                 playerSearch.remove(player.getUniqueId());
                 openGUI(player, 0);
             } else {
@@ -172,23 +155,8 @@ public class ShopEditGUI implements Listener {
             }
             return;
         }
-        if (slot == SLOT_MODE) {
-            EditMode current = playerMode.getOrDefault(player.getUniqueId(), EditMode.SELL);
-            playerMode.put(player.getUniqueId(), current == EditMode.SELL ? EditMode.BUY : EditMode.SELL);
-            openGUI(player, 0);
-            return;
-        }
-        if (slot == SLOT_ADD) {
-            player.closeInventory();
-            EditMode mode = playerMode.getOrDefault(player.getUniqueId(), EditMode.SELL);
-            String priceType = (mode == EditMode.BUY) ? "buy" : "sell";
-            player.sendMessage(ChatColor.GREEN + "Type the item or category name to add a " + priceType + " price for (e.g. 'diamond' or '#minecraft:planks'):");
-            player.sendMessage(ChatColor.GRAY + "Type 'cancel' to cancel.");
-            awaitingChatInput.put(player.getUniqueId(), new ChatInputState(ChatInputType.ADD_ITEM, null));
-            return;
-        }
 
-        // ── Price item clicks ────────────────────────────────────
+        // ── Item clicks (buy) ────────────────────────────────────
         if (slot < ITEMS_PER_PAGE) {
             ItemStack clicked = event.getCurrentItem();
             if (clicked == null || clicked.getType() == Material.AIR) return;
@@ -196,27 +164,87 @@ public class ShopEditGUI implements Listener {
             String configKey = getConfigKeyFromItem(clicked);
             if (configKey == null) return;
 
-            EditMode mode = playerMode.getOrDefault(player.getUniqueId(), EditMode.SELL);
-            String priceType = (mode == EditMode.BUY) ? "buy" : "sell";
+            Material material = resolveMaterial(configKey);
+            if (material == null) return;
 
             if (event.isShiftClick()) {
-                // Remove price
-                if (mode == EditMode.BUY) {
-                    eco.removeBuyPrice(configKey);
-                } else {
-                    eco.removePrice(configKey);
-                }
-                player.sendMessage(ChatColor.GREEN + "Removed " + priceType + " price for " + ChatColor.YELLOW + configKey + ChatColor.GREEN + ".");
-                int page = playerPages.getOrDefault(player.getUniqueId(), 0);
-                openGUI(player, page);
-            } else {
-                // Edit price via chat
+                // Buy a full stack (64)
+                executeBuy(player, eco, material, 64);
+            } else if (event.isRightClick()) {
+                // Prompt for custom amount
                 player.closeInventory();
-                player.sendMessage(ChatColor.YELLOW + "Enter new " + priceType + " price for " + ChatColor.WHITE + configKey + ChatColor.YELLOW + ":");
+                player.sendMessage(ChatColor.YELLOW + "Enter amount to buy for " + ChatColor.WHITE
+                        + SellCommand.formatMaterial(material) + ChatColor.YELLOW + ":");
                 player.sendMessage(ChatColor.GRAY + "Type 'cancel' to cancel.");
-                awaitingChatInput.put(player.getUniqueId(), new ChatInputState(ChatInputType.EDIT_PRICE, configKey));
+                awaitingChatInput.put(player.getUniqueId(), new ChatInputState(ChatInputType.BUY_AMOUNT, configKey));
+            } else {
+                // Buy 1
+                executeBuy(player, eco, material, 1);
             }
         }
+    }
+
+    private void executeBuy(Player player, EconomyManager eco, Material material, int amount) {
+        EconomyManager.BuyPriceResult priceResult = eco.getBuyPrice(material, player.getUniqueId());
+        if (!priceResult.buyable) {
+            player.sendMessage(ChatColor.RED + "That item is no longer available for purchase.");
+            return;
+        }
+
+        BigDecimal totalCost = priceResult.price.multiply(BigDecimal.valueOf(amount));
+
+        // Check funds
+        if (!eco.hasBalance(player.getUniqueId(), totalCost)) {
+            player.sendMessage(eco.getMessage("shop-insufficient-funds")
+                    .replace("{unit}", eco.getUnit())
+                    .replace("{cost}", totalCost.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString())
+                    .replace("{balance}", eco.getBalance(player).setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString()));
+            return;
+        }
+
+        // Check inventory space
+        ItemStack toGive = new ItemStack(material, amount);
+        HashMap<Integer, ItemStack> leftover = player.getInventory().addItem(toGive);
+        if (!leftover.isEmpty()) {
+            // Revert: remove items we just added
+            for (ItemStack item : leftover.values()) {
+                player.getInventory().removeItem(item);
+            }
+            // Try to figure out how many actually fit
+            int actualAmount = amount;
+            for (ItemStack item : leftover.values()) {
+                actualAmount -= item.getAmount();
+            }
+            if (actualAmount <= 0) {
+                player.sendMessage(eco.getMessage("shop-inventory-full"));
+                return;
+            }
+            // Give only what fits
+            player.getInventory().addItem(new ItemStack(material, actualAmount));
+            amount = actualAmount;
+            totalCost = priceResult.price.multiply(BigDecimal.valueOf(amount));
+        }
+
+        // Withdraw funds
+        eco.withdraw(player.getUniqueId(), totalCost);
+
+        // Record purchase for dynamic pricing
+        eco.recordPurchase(material, amount, player.getUniqueId());
+
+        // Transaction HUD
+        eco.sendTransactionHUD(player, totalCost, false);
+
+        String itemName = SellCommand.formatMaterial(material);
+        String totalStr = totalCost.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
+        player.sendMessage(eco.getMessage("shop-buy-success")
+                .replace("{amount}", String.valueOf(amount))
+                .replace("{item}", itemName)
+                .replace("{unit}", eco.getUnit())
+                .replace("{total}", totalStr));
+
+        // Refresh the GUI
+        int page = playerPages.getOrDefault(player.getUniqueId(), 0);
+        Bukkit.getScheduler().runTask(plugin, () -> openGUI(player, page));
     }
 
     @EventHandler
@@ -225,7 +253,6 @@ public class ShopEditGUI implements Listener {
         Player player = (Player) event.getPlayer();
         if (event.getView().getTitle() == null) return;
         if (!event.getView().getTitle().startsWith(GUI_TITLE_PREFIX)) return;
-        // If the player was mid-search, clear it so re-opening starts fresh
         if (!awaitingChatInput.containsKey(player.getUniqueId())) {
             playerSearch.remove(player.getUniqueId());
         }
@@ -255,55 +282,28 @@ public class ShopEditGUI implements Listener {
                 Bukkit.getScheduler().runTask(plugin, () -> openGUI(player, 0));
                 break;
 
-            case ADD_ITEM:
-                // They typed an item/category name — now ask for price
-                String configKey;
-                if (input.startsWith("#")) {
-                    String tagName = input.substring(1);
-                    Tag<Material> tag = EconomyManager.resolveTag(tagName);
-                    if (tag == null) {
-                        player.sendMessage(ChatColor.RED + "Unknown category: " + tagName);
-                        Bukkit.getScheduler().runTask(plugin, () -> openGUI(player, playerPages.getOrDefault(player.getUniqueId(), 0)));
-                        return;
-                    }
-                    configKey = input; // keep as-is: "#minecraft:planks"
-                } else {
-                    Material mat = EconomyManager.parseMaterial(input);
-                    if (mat == null) {
-                        player.sendMessage(ChatColor.RED + "Unknown item: " + input);
-                        Bukkit.getScheduler().runTask(plugin, () -> openGUI(player, playerPages.getOrDefault(player.getUniqueId(), 0)));
-                        return;
-                    }
-                    configKey = mat.name().toLowerCase(); // normalize to canonical name
-                }
-                EditMode addMode = playerMode.getOrDefault(player.getUniqueId(), EditMode.SELL);
-                String addPriceType = (addMode == EditMode.BUY) ? "buy" : "sell";
-                player.sendMessage(ChatColor.YELLOW + "Now enter the " + addPriceType + " price for " + ChatColor.WHITE + configKey + ChatColor.YELLOW + ":");
-                awaitingChatInput.put(player.getUniqueId(), new ChatInputState(ChatInputType.EDIT_PRICE, configKey));
-                break;
-
-            case EDIT_PRICE:
+            case BUY_AMOUNT:
                 try {
-                    double price = Double.parseDouble(input);
-                    if (price < 0) {
-                        player.sendMessage(ChatColor.RED + "Price cannot be negative.");
+                    int amount = Integer.parseInt(input);
+                    if (amount < 1) {
+                        player.sendMessage(ChatColor.RED + "Amount must be at least 1.");
                         Bukkit.getScheduler().runTask(plugin, () -> openGUI(player, playerPages.getOrDefault(player.getUniqueId(), 0)));
                         return;
                     }
-                    String key = state.configKey;
-                    EditMode editMode = playerMode.getOrDefault(player.getUniqueId(), EditMode.SELL);
-                    if (editMode == EditMode.BUY) {
-                        eco.setBuyPrice(key, price);
-                    } else {
-                        eco.setPrice(key, price);
+                    Material material = resolveMaterial(state.configKey);
+                    if (material == null) {
+                        player.sendMessage(ChatColor.RED + "Unknown item.");
+                        Bukkit.getScheduler().runTask(plugin, () -> openGUI(player, playerPages.getOrDefault(player.getUniqueId(), 0)));
+                        return;
                     }
-                    String editLabel = (editMode == EditMode.BUY) ? "buy" : "sell";
-                    player.sendMessage(ChatColor.GREEN + "Set " + editLabel + " price for " + ChatColor.YELLOW + key + ChatColor.GREEN
-                            + " to " + ChatColor.YELLOW + eco.getUnit() + String.format("%." + eco.getDecimals() + "f", price) + ChatColor.GREEN + ".");
+                    final int finalAmount = amount;
+                    Bukkit.getScheduler().runTask(plugin, () -> {
+                        executeBuy(player, eco, material, finalAmount);
+                    });
                 } catch (NumberFormatException e) {
-                    player.sendMessage(ChatColor.RED + "Invalid price: " + input);
+                    player.sendMessage(ChatColor.RED + "Invalid amount: " + input);
+                    Bukkit.getScheduler().runTask(plugin, () -> openGUI(player, playerPages.getOrDefault(player.getUniqueId(), 0)));
                 }
-                Bukkit.getScheduler().runTask(plugin, () -> openGUI(player, playerPages.getOrDefault(player.getUniqueId(), 0)));
                 break;
         }
     }
@@ -312,28 +312,30 @@ public class ShopEditGUI implements Listener {
     //  Helpers
     // ════════════════════════════════════════════════════════════════
 
-    private List<Map.Entry<String, Double>> getFilteredPrices(Player player, EditMode mode) {
+    private List<Map.Entry<String, Double>> getFilteredPrices(Player player) {
         EconomyManager eco = plugin.getEconomyManager();
         if (eco == null) return Collections.emptyList();
 
-        Map<String, Double> all = (mode == EditMode.BUY) ? eco.getAllConfiguredBuyPrices() : eco.getAllConfiguredPrices();
+        Map<String, Double> all = eco.getAllConfiguredBuyPrices();
         String search = playerSearch.get(player.getUniqueId());
 
+        List<Map.Entry<String, Double>> entries;
         if (search == null || search.isEmpty()) {
-            return new ArrayList<>(all.entrySet());
+            entries = new ArrayList<>(all.entrySet());
+        } else {
+            entries = all.entrySet().stream()
+                    .filter(e -> e.getKey().toLowerCase().contains(search)
+                            || SellCommand.formatMaterial(resolveMaterialSafe(e.getKey())).toLowerCase().contains(search))
+                    .collect(Collectors.toList());
         }
-
-        return all.entrySet().stream()
-                .filter(e -> e.getKey().toLowerCase().contains(search))
-                .collect(Collectors.toList());
+        return entries;
     }
 
-    private ItemStack createPriceItem(EconomyManager eco, String configKey, double price, EditMode mode) {
+    private ItemStack createShopItem(EconomyManager eco, String configKey, double basePrice, Player player) {
         Material displayMat;
         String displayName;
 
         if (configKey.startsWith("#")) {
-            // Category — show a representative icon
             displayMat = Material.NAME_TAG;
             displayName = ChatColor.LIGHT_PURPLE + configKey;
         } else {
@@ -342,19 +344,26 @@ public class ShopEditGUI implements Listener {
             displayName = ChatColor.WHITE + SellCommand.formatMaterial(displayMat);
         }
 
-        String priceLabel = (mode == EditMode.BUY) ? "Buy Price" : "Sell Price";
-        ChatColor priceColor = (mode == EditMode.BUY) ? ChatColor.GREEN : ChatColor.YELLOW;
+        // Get dynamic buy price if available
+        Material actualMat = resolveMaterial(configKey);
+        String priceDisplay;
+        if (actualMat != null) {
+            EconomyManager.BuyPriceResult dynamic = eco.getBuyPrice(actualMat, player.getUniqueId());
+            priceDisplay = eco.getUnit() + dynamic.price.setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
+        } else {
+            priceDisplay = eco.getUnit() + BigDecimal.valueOf(basePrice).setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString();
+        }
 
         ItemStack item = new ItemStack(displayMat);
         ItemMeta meta = item.getItemMeta();
         if (meta != null) {
             meta.setDisplayName(displayName);
             List<String> lore = new ArrayList<>();
-            lore.add(priceColor + priceLabel + ": " + ChatColor.GREEN + eco.getUnit()
-                    + BigDecimal.valueOf(price).setScale(eco.getDecimals(), RoundingMode.HALF_UP).toPlainString());
+            lore.add(ChatColor.GOLD + "Buy Price: " + ChatColor.GREEN + priceDisplay);
             lore.add("");
-            lore.add(ChatColor.GRAY + "Click to edit price");
-            lore.add(ChatColor.GRAY + "Shift+Click to remove");
+            lore.add(ChatColor.GRAY + "Left-click: Buy 1");
+            lore.add(ChatColor.GRAY + "Right-click: Custom amount");
+            lore.add(ChatColor.GRAY + "Shift+click: Buy 64");
             lore.add(ChatColor.DARK_GRAY + "Key: " + configKey);
             meta.setLore(lore);
             item.setItemMeta(meta);
@@ -377,7 +386,6 @@ public class ShopEditGUI implements Listener {
         ItemMeta meta = item.getItemMeta();
         if (meta == null || meta.getLore() == null) return null;
 
-        // The config key is stored in the last lore line as "Key: <key>"
         for (String line : meta.getLore()) {
             String stripped = ChatColor.stripColor(line);
             if (stripped.startsWith("Key: ")) {
@@ -387,17 +395,30 @@ public class ShopEditGUI implements Listener {
         return null;
     }
 
+    /**
+     * Resolve a config key to a Material. Returns null for category keys.
+     */
+    private Material resolveMaterial(String configKey) {
+        if (configKey == null || configKey.startsWith("#")) return null;
+        return EconomyManager.parseMaterial(configKey);
+    }
+
+    private Material resolveMaterialSafe(String configKey) {
+        Material mat = resolveMaterial(configKey);
+        return mat != null ? mat : Material.BARRIER;
+    }
+
     // ════════════════════════════════════════════════════════════════
     //  Chat input state
     // ════════════════════════════════════════════════════════════════
 
     private enum ChatInputType {
-        SEARCH, ADD_ITEM, EDIT_PRICE
+        SEARCH, BUY_AMOUNT
     }
 
     private static class ChatInputState {
         final ChatInputType type;
-        final String configKey; // used for EDIT_PRICE
+        final String configKey;
 
         ChatInputState(ChatInputType type, String configKey) {
             this.type = type;

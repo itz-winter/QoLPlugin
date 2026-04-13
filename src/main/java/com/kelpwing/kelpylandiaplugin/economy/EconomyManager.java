@@ -60,6 +60,14 @@ public class EconomyManager {
     /** Explicit unsellable items with reason suffixes */
     private final Map<Material, String> unsellableItems = new LinkedHashMap<>();
 
+    // ── Buy price caches ─────────────────────────────────────────
+    /** Exact material -> buy price */
+    private final Map<Material, BigDecimal> buyItemPrices = new LinkedHashMap<>();
+    /** Tag-based category -> buy price */
+    private final Map<Tag<Material>, BigDecimal> buyCategoryPrices = new LinkedHashMap<>();
+    /** Custom category buy prices */
+    private final Map<String, BigDecimal> buyCustomCategoryPrices = new LinkedHashMap<>();
+
     // ── Derived settings ─────────────────────────────────────────
     private boolean enabled;
     private boolean useVault;
@@ -69,6 +77,7 @@ public class EconomyManager {
     private boolean taxEnabled;
     private BigDecimal taxRate;          // e.g. 9.25 for 9.25%
     private boolean taxOnServerSell;
+    private boolean buyingEnabled;
 
     public EconomyManager(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
@@ -100,6 +109,7 @@ public class EconomyManager {
         taxEnabled = economyConfig.getBoolean("tax.enabled", false);
         taxRate = BigDecimal.valueOf(economyConfig.getDouble("tax.rate", 9.25));
         taxOnServerSell = economyConfig.getBoolean("tax.apply-when-selling-to-server", false);
+        buyingEnabled = economyConfig.getBoolean("buying.enabled", false);
     }
 
     private void loadBalances() {
@@ -133,6 +143,9 @@ public class EconomyManager {
         customCategories.clear();
         customCategoryPrices.clear();
         unsellableItems.clear();
+        buyItemPrices.clear();
+        buyCategoryPrices.clear();
+        buyCustomCategoryPrices.clear();
 
         // ── Custom categories section ────────────────────────────
         // Defines groups of materials under arbitrary names.
@@ -211,6 +224,45 @@ public class EconomyManager {
         int totalCats = categoryPrices.size() + customCategoryPrices.size();
         plugin.getLogger().info("[Economy] Loaded " + itemPrices.size() + " item price(s) and "
                 + totalCats + " category price(s).");
+
+        // ── Buyable section ──────────────────────────────────────
+        ConfigurationSection buyable = economyConfig.getConfigurationSection("buying.items");
+        if (buyable != null) {
+            for (String key : buyable.getKeys(false)) {
+                double price = buyable.getDouble(key, -1);
+                if (price < 0) continue;
+
+                if (key.startsWith("#")) {
+                    String catRef = key.substring(1);
+
+                    // Try Bukkit Tag first
+                    Tag<Material> tag = resolveTag(catRef);
+                    if (tag != null) {
+                        buyCategoryPrices.put(tag, BigDecimal.valueOf(price));
+                        continue;
+                    }
+
+                    // Try custom category
+                    if (customCategories.containsKey(catRef.toLowerCase())) {
+                        buyCustomCategoryPrices.put(catRef.toLowerCase(), BigDecimal.valueOf(price));
+                        continue;
+                    }
+
+                    plugin.getLogger().warning("[Economy] Unknown buy tag or category: " + catRef);
+                } else {
+                    Material mat = parseMaterial(key);
+                    if (mat != null) {
+                        buyItemPrices.put(mat, BigDecimal.valueOf(price));
+                    } else {
+                        plugin.getLogger().warning("[Economy] Unknown buy material: " + key);
+                    }
+                }
+            }
+        }
+        int totalBuyCats = buyCategoryPrices.size() + buyCustomCategoryPrices.size();
+        plugin.getLogger().info("[Economy] Loaded " + buyItemPrices.size() + " buy price(s) and "
+                + totalBuyCats + " buy category price(s)."
+                + (buyingEnabled ? "" : " (buying DISABLED)"));
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -418,6 +470,91 @@ public class EconomyManager {
         return new PriceResult(dynamic, base.categoryName, true);
     }
 
+    // ════════════════════════════════════════════════════════════════
+    //  Buy price lookups
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Result of a buy price lookup.
+     */
+    public static class BuyPriceResult {
+        public final BigDecimal price;
+        public final String categoryName;
+        public final boolean buyable;
+
+        public BuyPriceResult(BigDecimal price, String categoryName, boolean buyable) {
+            this.price = price;
+            this.categoryName = categoryName;
+            this.buyable = buyable;
+        }
+    }
+
+    /**
+     * Look up the <b>base</b> buy price for a material (before dynamic pricing).
+     * Priority: per-item > per-Bukkit-Tag > per-custom-category > not buyable.
+     */
+    public BuyPriceResult getBaseBuyPrice(Material material) {
+        // Per-item buy price
+        BigDecimal itemPrice = buyItemPrices.get(material);
+        if (itemPrice != null) {
+            return new BuyPriceResult(itemPrice, null, true);
+        }
+
+        // Bukkit Tag category buy price
+        for (Map.Entry<Tag<Material>, BigDecimal> entry : buyCategoryPrices.entrySet()) {
+            if (entry.getKey().isTagged(material)) {
+                // Reuse sell category names map for display
+                String catName = categoryNames.get(entry.getKey());
+                return new BuyPriceResult(entry.getValue(), catName, true);
+            }
+        }
+
+        // Custom category buy price
+        for (Map.Entry<String, Set<Material>> entry : customCategories.entrySet()) {
+            if (entry.getValue().contains(material)) {
+                BigDecimal catPrice = buyCustomCategoryPrices.get(entry.getKey());
+                if (catPrice != null) {
+                    return new BuyPriceResult(catPrice, entry.getKey(), true);
+                }
+            }
+        }
+
+        return new BuyPriceResult(BigDecimal.ZERO, null, false);
+    }
+
+    /**
+     * Look up the buy price for a material, applying dynamic pricing if enabled.
+     */
+    public BuyPriceResult getBuyPrice(Material material) {
+        return getBuyPrice(material, null);
+    }
+
+    /**
+     * Look up the buy price for a material, applying dynamic pricing for a specific player.
+     */
+    public BuyPriceResult getBuyPrice(Material material, UUID playerUuid) {
+        BuyPriceResult base = getBaseBuyPrice(material);
+        if (!base.buyable || dynamicPricing == null || !dynamicPricing.isEnabled()) {
+            return base;
+        }
+        BigDecimal dynamic = dynamicPricing.applyBuyMultiplier(base.price, material, playerUuid);
+        return new BuyPriceResult(dynamic, base.categoryName, true);
+    }
+
+    /**
+     * Returns a snapshot of all configured buy prices (for ShopEdit GUI and /shop).
+     */
+    public Map<String, Double> getAllConfiguredBuyPrices() {
+        Map<String, Double> prices = new LinkedHashMap<>();
+        ConfigurationSection buyable = economyConfig.getConfigurationSection("buying.items");
+        if (buyable != null) {
+            for (String key : buyable.getKeys(false)) {
+                prices.put(key, buyable.getDouble(key));
+            }
+        }
+        return prices;
+    }
+
     /**
      * Get the unsellable reason for a material, or null if not explicitly listed.
      */
@@ -563,6 +700,34 @@ public class EconomyManager {
         return false;
     }
 
+    // ── Buy price management ─────────────────────────────────────
+
+    public void setBuyPrice(String key, double price) {
+        economyConfig.set("buying.items." + key, price);
+        saveEconomyConfig();
+        loadPrices(); // rebuild caches
+    }
+
+    public void setBuyPrice(Material material, BigDecimal price) {
+        setBuyPrice(material.name().toLowerCase(), price.doubleValue());
+    }
+
+    public void removeBuyPrice(String key) {
+        economyConfig.set("buying.items." + key, null);
+        saveEconomyConfig();
+        loadPrices();
+    }
+
+    /** Remove a per-item buy price. Returns true if it existed. */
+    public boolean removeBuyPrice(Material material) {
+        String key = material.name().toLowerCase();
+        if (economyConfig.contains("buying.items." + key)) {
+            removeBuyPrice(key);
+            return true;
+        }
+        return false;
+    }
+
     /** Returns a snapshot of all configured item prices (for ShopEdit GUI). */
     public Map<String, Double> getAllConfiguredPrices() {
         Map<String, Double> prices = new LinkedHashMap<>();
@@ -602,6 +767,16 @@ public class EconomyManager {
     public void recordSale(Material material, int amount, UUID playerUuid) {
         if (dynamicPricing != null) {
             dynamicPricing.recordSale(material, amount, playerUuid);
+        }
+    }
+
+    /**
+     * Record a purchase for dynamic pricing.
+     * Call this after a player successfully buys items from the server.
+     */
+    public void recordPurchase(Material material, int amount, UUID playerUuid) {
+        if (dynamicPricing != null) {
+            dynamicPricing.recordPurchase(material, amount, playerUuid);
         }
     }
 
@@ -689,6 +864,7 @@ public class EconomyManager {
 
     public boolean isEnabled() { return enabled; }
     public boolean isUseVault() { return useVault; }
+    public boolean isBuyingEnabled() { return buyingEnabled; }
     public String getUnit() { return unit; }
     public int getDecimals() { return decimals; }
     public BigDecimal getStartingBalance() { return startingBalance; }

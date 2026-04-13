@@ -16,100 +16,119 @@ import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
-/**
- * Experimental dynamic pricing engine.
- * <p>
- * When enabled, sell prices fluctuate based on supply and demand:
- * <ul>
- *   <li>Every sale pushes the multiplier <b>up</b> (more supply → price drops).</li>
- *   <li>Over time the multiplier <b>decays</b> back toward 1.0.</li>
- *   <li>Multipliers are clamped between {@code min-multiplier} and {@code max-multiplier}.</li>
- *   <li>Optional <b>per-user</b> mode tracks sales individually per player.</li>
- * </ul>
- * Price history snapshots are persisted to {@code dynamic-pricing-data.yml}.
- */
 public class DynamicPricingEngine {
 
     private final KelpylandiaPlugin plugin;
 
-    // ── Configuration ────────────────────────────────────────────
+    // Core Configuration
     private boolean enabled;
     private boolean perUser;
-    private int timeWindowMinutes;       // rolling window for sales tracking
+    private int timeWindowMinutes;
     private double maxMultiplier;
     private double minMultiplier;
-    private double multiplierIncrement;  // per sale
-    private double multiplierDecrement;  // alias kept for reference; decay uses decay-exponent
+    private double baseMultiplierIncrement;
+    private double baseMultiplierDecrement;
     private int decayIntervalMinutes;
     private double decayExponent;
     private double increaseExponent;
 
-    // ── Messages / status labels ─────────────────────────────────
-    private List<String> statusLabels; // HIGH→LOW: "ALL-TIME HIGHEST" .. "ALL-TIME LOWEST"
+    // Advanced Feature Toggles
+    private boolean volumeDampeningEnabled;
+    private double volumeDampeningScale;
+    private double volumeDampeningMinFactor;
 
-    // ── Runtime state ────────────────────────────────────────────
-    /**
-     * Current price multiplier for each material.
-     * Global mode: one multiplier shared by all players.
-     * Per-user mode: key is "MATERIAL:uuid", value is the multiplier for that user+material.
-     */
+    private boolean emaSmoothingEnabled;
+    private double emaAlpha;
+
+    private boolean supplyCurveEnabled;
+    private double supplyCurveStrength;
+    private long supplyCurveBaseline;
+
+    private boolean cooldownEnabled;
+    private int cooldownSeconds;
+
+    private boolean inflationEnabled;
+    private double inflationRate;
+    private double maxInflationCoefficient;
+    private double minInflationCoefficient;
+
+    private boolean velocityEnabled;
+    private double velocityStabilityFactor;
+    private int velocityWindowMinutes;
+
+    private boolean spreadEnabled;
+    private double spreadPercent;
+
+    private List<String> statusLabels;
+
+    // Runtime state
     private final Map<String, Double> multipliers = new ConcurrentHashMap<>();
-
-    /**
-     * Rolling sales count per material (or material:uuid) inside the current time window.
-     * Each entry stores a list of sale timestamps.
-     */
     private final Map<String, List<Long>> salesLog = new ConcurrentHashMap<>();
-
-    /**
-     * Price history: ordered list of snapshots (timestamp, effective price) per material.
-     * Used by /pricehistory.
-     */
     private final Map<Material, List<PriceSnapshot>> priceHistory = new ConcurrentHashMap<>();
+    private final Map<Material, Long> circulationCounts = new ConcurrentHashMap<>();
+    private final Map<String, Long> cooldownTracker = new ConcurrentHashMap<>();
+    private final Map<Material, List<Long>> velocityLog = new ConcurrentHashMap<>();
+    private volatile double inflationCoefficient = 1.0;
+    private final Map<Material, Double> emaState = new ConcurrentHashMap<>();
 
-    // ── Persistence ──────────────────────────────────────────────
+    // Persistence
     private File dataFile;
     private FileConfiguration dataConfig;
 
-    // ── Scheduled tasks ──────────────────────────────────────────
+    // Scheduled tasks
     private BukkitTask decayTask;
     private BukkitTask snapshotTask;
 
-    // ════════════════════════════════════════════════════════════════
-    //  Inner types
-    // ════════════════════════════════════════════════════════════════
-
-    /** A single price snapshot stored in history. */
     public static class PriceSnapshot {
         public final long timestamp;
         public final BigDecimal price;
-
         public PriceSnapshot(long timestamp, BigDecimal price) {
             this.timestamp = timestamp;
             this.price = price;
         }
     }
 
-    // ════════════════════════════════════════════════════════════════
-    //  Lifecycle
-    // ════════════════════════════════════════════════════════════════
-
     public DynamicPricingEngine(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
     }
 
-    /** Load config values from the economy.yml dynamic-pricing section. */
     public void loadConfig(FileConfiguration economyConfig) {
         enabled = economyConfig.getBoolean("dynamic-pricing.enabled", false);
         perUser = economyConfig.getBoolean("dynamic-pricing.per-user", false);
         timeWindowMinutes = economyConfig.getInt("dynamic-pricing.time-window", 10);
         maxMultiplier = economyConfig.getDouble("dynamic-pricing.max-multiplier", 2.0);
         minMultiplier = economyConfig.getDouble("dynamic-pricing.min-multiplier", 0.5);
-        multiplierIncrement = economyConfig.getDouble("dynamic-pricing.multiplier-increment", 0.015);
-        multiplierDecrement = economyConfig.getDouble("dynamic-pricing.multiplier-decrement", 0.012);
+        baseMultiplierIncrement = economyConfig.getDouble("dynamic-pricing.multiplier-increment", 0.015);
+        baseMultiplierDecrement = economyConfig.getDouble("dynamic-pricing.multiplier-decrement", 0.012);
         decayIntervalMinutes = economyConfig.getInt("dynamic-pricing.multiplier-decay-interval", 10);
-        decayExponent = economyConfig.getDouble("dynamic-pricing.decay-exponent", 1.0);
+        decayExponent = economyConfig.getDouble("dynamic-pricing.decay-exponent", 1.5);
         increaseExponent = economyConfig.getDouble("dynamic-pricing.increase-exponent", 1.5);
+
+        volumeDampeningEnabled = economyConfig.getBoolean("dynamic-pricing.advanced.volume-dampening.enabled", true);
+        volumeDampeningScale = economyConfig.getDouble("dynamic-pricing.advanced.volume-dampening.scale", 0.6);
+        volumeDampeningMinFactor = economyConfig.getDouble("dynamic-pricing.advanced.volume-dampening.min-factor", 0.1);
+
+        emaSmoothingEnabled = economyConfig.getBoolean("dynamic-pricing.advanced.ema-smoothing.enabled", true);
+        emaAlpha = economyConfig.getDouble("dynamic-pricing.advanced.ema-smoothing.alpha", 0.15);
+
+        supplyCurveEnabled = economyConfig.getBoolean("dynamic-pricing.advanced.supply-curve.enabled", true);
+        supplyCurveStrength = economyConfig.getDouble("dynamic-pricing.advanced.supply-curve.strength", 0.3);
+        supplyCurveBaseline = economyConfig.getLong("dynamic-pricing.advanced.supply-curve.baseline", 1000L);
+
+        cooldownEnabled = economyConfig.getBoolean("dynamic-pricing.advanced.cooldown.enabled", true);
+        cooldownSeconds = economyConfig.getInt("dynamic-pricing.advanced.cooldown.seconds", 5);
+
+        inflationEnabled = economyConfig.getBoolean("dynamic-pricing.advanced.inflation.enabled", false);
+        inflationRate = economyConfig.getDouble("dynamic-pricing.advanced.inflation.rate-per-cycle", 0.001);
+        maxInflationCoefficient = economyConfig.getDouble("dynamic-pricing.advanced.inflation.max-coefficient", 1.5);
+        minInflationCoefficient = economyConfig.getDouble("dynamic-pricing.advanced.inflation.min-coefficient", 0.8);
+
+        velocityEnabled = economyConfig.getBoolean("dynamic-pricing.advanced.velocity.enabled", false);
+        velocityStabilityFactor = economyConfig.getDouble("dynamic-pricing.advanced.velocity.stability-factor", 0.5);
+        velocityWindowMinutes = economyConfig.getInt("dynamic-pricing.advanced.velocity.window-minutes", 30);
+
+        spreadEnabled = economyConfig.getBoolean("dynamic-pricing.advanced.spread.enabled", true);
+        spreadPercent = economyConfig.getDouble("dynamic-pricing.advanced.spread.percent", 15.0);
 
         statusLabels = economyConfig.getStringList("dynamic-pricing.messages.status");
         if (statusLabels == null || statusLabels.isEmpty()) {
@@ -123,168 +142,342 @@ public class DynamicPricingEngine {
 
         if (enabled) {
             startTasks();
+            StringBuilder features = new StringBuilder();
+            if (volumeDampeningEnabled) features.append(" VolDamp");
+            if (emaSmoothingEnabled) features.append(" EMA");
+            if (supplyCurveEnabled) features.append(" SupplyCurve");
+            if (cooldownEnabled) features.append(" Cooldown");
+            if (inflationEnabled) features.append(" Inflation");
+            if (velocityEnabled) features.append(" Velocity");
+            if (spreadEnabled) features.append(" Spread");
             plugin.getLogger().info("[Economy] Dynamic pricing engine ENABLED"
-                    + (perUser ? " (per-user mode)" : " (global mode)") + ".");
+                    + (perUser ? " (per-user mode)" : " (global mode)")
+                    + " | Advanced:" + features);
         }
     }
 
-    /** Shut down tasks and persist state. */
     public void shutdown() {
         if (decayTask != null) { decayTask.cancel(); decayTask = null; }
         if (snapshotTask != null) { snapshotTask.cancel(); snapshotTask = null; }
         saveData();
     }
 
-    /** Full reload: cancel tasks, re-read config, restart. */
     public void reload(FileConfiguration economyConfig) {
         shutdown();
         multipliers.clear();
         salesLog.clear();
         priceHistory.clear();
+        cooldownTracker.clear();
+        velocityLog.clear();
+        emaState.clear();
         loadConfig(economyConfig);
     }
 
-    // ════════════════════════════════════════════════════════════════
-    //  Core API
-    // ════════════════════════════════════════════════════════════════
+    public boolean isEnabled() { return enabled; }
 
-    public boolean isEnabled() {
-        return enabled;
-    }
-
-    /**
-     * Get the current price multiplier for a material (global mode) or per-user.
-     * Returns 1.0 if dynamic pricing is disabled.
-     */
     public double getMultiplier(Material material, UUID playerUuid) {
         if (!enabled) return 1.0;
         String key = buildKey(material, playerUuid);
         return multipliers.getOrDefault(key, 1.0);
     }
 
-    /**
-     * Apply the dynamic multiplier to a base price.
-     */
+    public double getEffectiveSellMultiplier(Material material, UUID playerUuid) {
+        if (!enabled) return 1.0;
+        double base = getMultiplier(material, playerUuid);
+        return applyAdvancedModifiers(base, material, false);
+    }
+
     public BigDecimal applyMultiplier(BigDecimal basePrice, Material material, UUID playerUuid) {
         if (!enabled) return basePrice;
-        double mult = getMultiplier(material, playerUuid);
+        double mult = getEffectiveSellMultiplier(material, playerUuid);
         return basePrice.multiply(BigDecimal.valueOf(mult)).setScale(
                 plugin.getEconomyManager().getDecimals(), RoundingMode.HALF_UP);
     }
 
-    /**
-     * Record a sale of {@code amount} units of {@code material} by {@code playerUuid}.
-     * This pushes the multiplier DOWN (more supply → lower price).
-     */
     public void recordSale(Material material, int amount, UUID playerUuid) {
         if (!enabled) return;
+
+        if (cooldownEnabled && playerUuid != null) {
+            String cooldownKey = material.name() + ":" + playerUuid;
+            Long lastTrade = cooldownTracker.get(cooldownKey);
+            long now = System.currentTimeMillis();
+            if (lastTrade != null && (now - lastTrade) < cooldownSeconds * 1000L) {
+                circulationCounts.merge(material, (long) -amount, Long::sum);
+                if (circulationCounts.getOrDefault(material, 0L) < 0) {
+                    circulationCounts.put(material, 0L);
+                }
+                return;
+            }
+            cooldownTracker.put(cooldownKey, now);
+        }
+
         String key = buildKey(material, playerUuid);
         long now = System.currentTimeMillis();
 
-        // Log each unit as a sale event (capped at stack size to avoid huge lists)
-        int logged = Math.min(amount, 64);
         salesLog.computeIfAbsent(key, k -> Collections.synchronizedList(new ArrayList<>()));
         List<Long> log = salesLog.get(key);
-        for (int i = 0; i < logged; i++) {
+        for (int i = 0; i < amount; i++) {
             log.add(now);
         }
 
-        // Adjust multiplier downward (more sales → lower price)
+        double dampenedAmount = computeVolumeDampenedChange(amount);
+        double change = baseMultiplierIncrement * dampenedAmount;
+        change *= getVelocityDampeningFactor(material);
+
         double current = multipliers.getOrDefault(key, 1.0);
-        double change = multiplierIncrement * Math.pow(logged, 1.0 / increaseExponent);
         double newMult = Math.max(minMultiplier, current - change);
         multipliers.put(key, newMult);
 
-        // Record snapshot for history (global key only)
+        circulationCounts.merge(material, (long) -amount, Long::sum);
+        if (circulationCounts.getOrDefault(material, 0L) < 0) {
+            circulationCounts.put(material, 0L);
+        }
+
+        recordVelocityEvent(material);
         recordSnapshot(material);
     }
 
-    /**
-     * Get the price history for a material (most recent first).
-     */
+    public void recordPurchase(Material material, int amount, UUID playerUuid) {
+        if (!enabled) return;
+
+        if (cooldownEnabled && playerUuid != null) {
+            String cooldownKey = material.name() + ":" + playerUuid;
+            Long lastTrade = cooldownTracker.get(cooldownKey);
+            long now = System.currentTimeMillis();
+            if (lastTrade != null && (now - lastTrade) < cooldownSeconds * 1000L) {
+                circulationCounts.merge(material, (long) amount, Long::sum);
+                return;
+            }
+            cooldownTracker.put(cooldownKey, now);
+        }
+
+        String key = buildKey(material, playerUuid);
+
+        double dampenedAmount = computeVolumeDampenedChange(amount);
+        double change = baseMultiplierIncrement * dampenedAmount;
+        change *= getVelocityDampeningFactor(material);
+
+        double current = multipliers.getOrDefault(key, 1.0);
+        double newMult = Math.min(maxMultiplier, current + change);
+        multipliers.put(key, newMult);
+
+        circulationCounts.merge(material, (long) amount, Long::sum);
+
+        recordVelocityEvent(material);
+        recordSnapshot(material);
+    }
+
+    public BigDecimal applyBuyMultiplier(BigDecimal baseBuyPrice, Material material, UUID playerUuid) {
+        if (!enabled) return baseBuyPrice;
+
+        double sellMult = getEffectiveSellMultiplier(material, playerUuid);
+        double buyMult;
+        if (spreadEnabled) {
+            buyMult = sellMult * (1.0 + spreadPercent / 100.0);
+        } else {
+            buyMult = 2.0 - sellMult;
+        }
+        buyMult = Math.max(minMultiplier, Math.min(maxMultiplier, buyMult));
+
+        return baseBuyPrice.multiply(BigDecimal.valueOf(buyMult)).setScale(
+                plugin.getEconomyManager().getDecimals(), RoundingMode.HALF_UP);
+    }
+
     public List<PriceSnapshot> getHistory(Material material) {
         return priceHistory.getOrDefault(material, Collections.emptyList());
     }
 
-    /**
-     * Determine a human-readable status label for the current multiplier.
-     */
+    public List<PriceSnapshot> getSmoothedHistory(Material material) {
+        List<PriceSnapshot> raw = priceHistory.getOrDefault(material, Collections.emptyList());
+        if (!emaSmoothingEnabled || raw.isEmpty()) return raw;
+
+        List<PriceSnapshot> smoothed = new ArrayList<>(raw.size());
+        double ema = raw.get(0).price.doubleValue();
+
+        for (PriceSnapshot snap : raw) {
+            ema = emaAlpha * snap.price.doubleValue() + (1.0 - emaAlpha) * ema;
+            smoothed.add(new PriceSnapshot(snap.timestamp,
+                    BigDecimal.valueOf(ema).setScale(4, RoundingMode.HALF_UP)));
+        }
+        return smoothed;
+    }
+
     public String getStatus(Material material, UUID playerUuid) {
         if (!enabled || statusLabels.isEmpty()) return "STABLE";
-        double mult = getMultiplier(material, playerUuid);
+        double mult = getEffectiveSellMultiplier(material, playerUuid);
 
-        // Map multiplier range [minMultiplier, maxMultiplier] → status index
         double range = maxMultiplier - minMultiplier;
         if (range <= 0) return statusLabels.get(statusLabels.size() / 2);
 
-        // Invert: high multiplier = high price = first label, low = last
-        double normalised = (mult - minMultiplier) / range; // 0..1 where 1 = max (expensive)
+        double normalised = (mult - minMultiplier) / range;
         int idx = (int) ((1.0 - normalised) * (statusLabels.size() - 1));
         idx = Math.max(0, Math.min(statusLabels.size() - 1, idx));
         return statusLabels.get(idx);
     }
 
-    /**
-     * Percentage change from base (multiplier = 1.0).
-     * Positive = price above base, negative = below base.
-     */
     public double getChangePercent(Material material, UUID playerUuid) {
-        double mult = getMultiplier(material, playerUuid);
+        double mult = getEffectiveSellMultiplier(material, playerUuid);
         return (mult - 1.0) * 100.0;
     }
 
-    // ════════════════════════════════════════════════════════════════
-    //  Decay logic
-    // ════════════════════════════════════════════════════════════════
+    // Advanced economy modifiers
 
-    private void startTasks() {
-        long decayTicks = decayIntervalMinutes * 60L * 20L; // minutes → ticks
-        if (decayTicks < 20) decayTicks = 20;
-
-        decayTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::decayMultipliers, decayTicks, decayTicks);
-
-        // Take a price snapshot every time-window
-        long snapshotTicks = timeWindowMinutes * 60L * 20L;
-        if (snapshotTicks < 20) snapshotTicks = 20;
-        snapshotTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, this::takeSnapshots, snapshotTicks, snapshotTicks);
+    private double computeVolumeDampenedChange(int amount) {
+        if (!volumeDampeningEnabled || amount <= 0) {
+            return Math.pow(Math.min(amount, 64), 1.0 / increaseExponent);
+        }
+        double logFactor = 1.0 / (1.0 + volumeDampeningScale * Math.log1p(amount));
+        logFactor = Math.max(volumeDampeningMinFactor, logFactor);
+        return amount * logFactor;
     }
 
-    /** Decay all multipliers back toward 1.0. */
+    private double applyAdvancedModifiers(double rawMult, Material material, boolean isBuy) {
+        double mult = rawMult;
+
+        if (supplyCurveEnabled) {
+            long circulation = circulationCounts.getOrDefault(material, 0L);
+            double ratio = (double) (circulation + 1) / (double) (supplyCurveBaseline + 1);
+            double supplyPressure;
+            if (!isBuy) {
+                supplyPressure = 1.0 - supplyCurveStrength * Math.log1p(Math.max(0, ratio - 1.0));
+            } else {
+                supplyPressure = 1.0 + supplyCurveStrength * Math.log1p(Math.max(0, 1.0 - ratio));
+            }
+            mult *= Math.max(0.5, Math.min(1.5, supplyPressure));
+        }
+
+        if (inflationEnabled) {
+            mult *= inflationCoefficient;
+        }
+
+        return Math.max(minMultiplier, Math.min(maxMultiplier, mult));
+    }
+
+    private double getVelocityDampeningFactor(Material material) {
+        if (!velocityEnabled) return 1.0;
+
+        List<Long> log = velocityLog.get(material);
+        if (log == null || log.isEmpty()) return 1.0 + velocityStabilityFactor;
+
+        long now = System.currentTimeMillis();
+        long window = velocityWindowMinutes * 60_000L;
+
+        long recentTrades = 0;
+        for (Long ts : log) {
+            if ((now - ts) <= window) recentTrades++;
+        }
+
+        double normalised = recentTrades / 10.0;
+
+        if (normalised >= 1.0) {
+            double dampening = 1.0 - velocityStabilityFactor * Math.log1p(normalised - 1.0);
+            return Math.max(0.5, dampening);
+        } else {
+            double amplification = 1.0 + velocityStabilityFactor * (1.0 - normalised);
+            return Math.min(1.5, amplification);
+        }
+    }
+
+    private void recordVelocityEvent(Material material) {
+        if (!velocityEnabled) return;
+        velocityLog.computeIfAbsent(material, k -> Collections.synchronizedList(new ArrayList<>()));
+        velocityLog.get(material).add(System.currentTimeMillis());
+    }
+
+    // Decay logic
+
+    private void startTasks() {
+        long decayTicks = decayIntervalMinutes * 60L * 20L;
+        if (decayTicks < 20) decayTicks = 20;
+
+        decayTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin,
+                this::decayMultipliers, decayTicks, decayTicks);
+
+        long snapshotTicks = timeWindowMinutes * 60L * 20L;
+        if (snapshotTicks < 20) snapshotTicks = 20;
+        snapshotTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin,
+                this::takeSnapshots, snapshotTicks, snapshotTicks);
+    }
+
     private void decayMultipliers() {
         long now = System.currentTimeMillis();
         long window = timeWindowMinutes * 60_000L;
 
-        for (Map.Entry<String, Double> entry : multipliers.entrySet()) {
+        for (Iterator<Map.Entry<String, Double>> it = multipliers.entrySet().iterator(); it.hasNext(); ) {
+            Map.Entry<String, Double> entry = it.next();
             String key = entry.getKey();
             double current = entry.getValue();
 
-            // Purge old sales outside the window
             List<Long> log = salesLog.get(key);
             if (log != null) {
                 log.removeIf(ts -> (now - ts) > window);
             }
             int recentSales = (log != null) ? log.size() : 0;
 
-            // If no recent sales, decay toward 1.0
-            if (recentSales == 0) {
-                double decayAmount = multiplierDecrement * Math.pow(1.0, decayExponent);
-                if (current < 1.0) {
-                    current = Math.min(1.0, current + decayAmount);
-                } else if (current > 1.0) {
-                    current = Math.max(1.0, current - decayAmount);
-                }
-                entry.setValue(current);
+            double distanceFrom1 = Math.abs(current - 1.0);
+            if (distanceFrom1 < 0.001) {
+                it.remove();
+                salesLog.remove(key);
+                continue;
+            }
 
-                // If fully decayed, clean up
-                if (Math.abs(current - 1.0) < 0.001) {
-                    multipliers.remove(key);
-                    salesLog.remove(key);
+            double salesDampen = 1.0;
+            if (recentSales > 0) {
+                salesDampen = 1.0 / (1.0 + recentSales * 0.1);
+            }
+
+            double decayAmount = baseMultiplierDecrement
+                    * Math.pow(distanceFrom1, decayExponent)
+                    * salesDampen;
+
+            if (current < 1.0) {
+                current = Math.min(1.0, current + decayAmount);
+            } else {
+                current = Math.max(1.0, current - decayAmount);
+            }
+            entry.setValue(current);
+        }
+
+        if (cooldownEnabled) {
+            long cutoff = now - (cooldownSeconds * 2000L);
+            cooldownTracker.entrySet().removeIf(e -> e.getValue() < cutoff);
+        }
+
+        if (velocityEnabled) {
+            long velocityWindow = velocityWindowMinutes * 60_000L;
+            for (List<Long> vLog : velocityLog.values()) {
+                vLog.removeIf(ts -> (now - ts) > velocityWindow);
+            }
+            velocityLog.entrySet().removeIf(e -> e.getValue().isEmpty());
+        }
+
+        if (inflationEnabled) {
+            long totalCirculation = 0;
+            for (long c : circulationCounts.values()) {
+                totalCirculation += c;
+            }
+            double circulationFactor = 1.0 / (1.0 + totalCirculation / 100_000.0);
+            inflationCoefficient += inflationRate * circulationFactor;
+            inflationCoefficient = Math.max(minInflationCoefficient,
+                    Math.min(maxInflationCoefficient, inflationCoefficient));
+        }
+
+        if (perUser) {
+            for (Iterator<Map.Entry<String, Double>> it2 = multipliers.entrySet().iterator(); it2.hasNext(); ) {
+                Map.Entry<String, Double> entry = it2.next();
+                String key = entry.getKey();
+                if (!key.contains(":")) continue;
+                if (Math.abs(entry.getValue() - 1.0) < 0.001) {
+                    List<Long> userLog = salesLog.get(key);
+                    if (userLog == null || userLog.isEmpty()) {
+                        it2.remove();
+                        salesLog.remove(key);
+                    }
                 }
             }
         }
     }
 
-    /** Take a history snapshot for all materials that have active multipliers. */
     private void takeSnapshots() {
         EconomyManager eco = plugin.getEconomyManager();
         if (eco == null) return;
@@ -296,7 +489,6 @@ public class DynamicPricingEngine {
                 recordSnapshot(mat);
             }
         }
-        // Also persist periodically
         saveDataAsync();
     }
 
@@ -306,23 +498,37 @@ public class DynamicPricingEngine {
         EconomyManager.PriceResult base = eco.getBasePrice(material);
         if (!base.sellable) return;
 
-        double mult = multipliers.getOrDefault(material.name(), 1.0);
-        BigDecimal effective = base.price.multiply(BigDecimal.valueOf(mult))
+        double rawMult = multipliers.getOrDefault(material.name(), 1.0);
+        double effectiveMult = applyAdvancedModifiers(rawMult, material, false);
+        BigDecimal rawPrice = base.price.multiply(BigDecimal.valueOf(effectiveMult))
                 .setScale(eco.getDecimals(), RoundingMode.HALF_UP);
+
+        BigDecimal snapshotPrice;
+        if (emaSmoothingEnabled) {
+            double rawVal = rawPrice.doubleValue();
+            Double prevEma = emaState.get(material);
+            double ema;
+            if (prevEma == null) {
+                ema = rawVal;
+            } else {
+                ema = emaAlpha * rawVal + (1.0 - emaAlpha) * prevEma;
+            }
+            emaState.put(material, ema);
+            snapshotPrice = BigDecimal.valueOf(ema).setScale(eco.getDecimals(), RoundingMode.HALF_UP);
+        } else {
+            snapshotPrice = rawPrice;
+        }
 
         List<PriceSnapshot> history = priceHistory.computeIfAbsent(material,
                 k -> Collections.synchronizedList(new ArrayList<>()));
-        history.add(new PriceSnapshot(System.currentTimeMillis(), effective));
+        history.add(new PriceSnapshot(System.currentTimeMillis(), snapshotPrice));
 
-        // Keep history bounded (max ~1000 entries per material)
         while (history.size() > 1000) {
             history.remove(0);
         }
     }
 
-    // ════════════════════════════════════════════════════════════════
-    //  Persistence (dynamic-pricing-data.yml)
-    // ════════════════════════════════════════════════════════════════
+    // Persistence
 
     private void loadData() {
         dataFile = new File(plugin.getDataFolder(), "dynamic-pricing-data.yml");
@@ -332,7 +538,6 @@ public class DynamicPricingEngine {
         }
         dataConfig = YamlConfiguration.loadConfiguration(dataFile);
 
-        // Load multipliers
         ConfigurationSection multSec = dataConfig.getConfigurationSection("multipliers");
         if (multSec != null) {
             for (String key : multSec.getKeys(false)) {
@@ -340,7 +545,6 @@ public class DynamicPricingEngine {
             }
         }
 
-        // Load price history
         ConfigurationSection histSec = dataConfig.getConfigurationSection("history");
         if (histSec != null) {
             for (String matName : histSec.getKeys(false)) {
@@ -357,18 +561,38 @@ public class DynamicPricingEngine {
                 } catch (Exception ignored) {}
             }
         }
+
+        ConfigurationSection circSec = dataConfig.getConfigurationSection("circulation");
+        if (circSec != null) {
+            for (String matName : circSec.getKeys(false)) {
+                try {
+                    Material mat = Material.valueOf(matName);
+                    circulationCounts.put(mat, Math.max(0L, circSec.getLong(matName, 0L)));
+                } catch (Exception ignored) {}
+            }
+        }
+
+        inflationCoefficient = dataConfig.getDouble("inflation-coefficient", 1.0);
+
+        ConfigurationSection emaSec = dataConfig.getConfigurationSection("ema-state");
+        if (emaSec != null) {
+            for (String matName : emaSec.getKeys(false)) {
+                try {
+                    Material mat = Material.valueOf(matName);
+                    emaState.put(mat, emaSec.getDouble(matName));
+                } catch (Exception ignored) {}
+            }
+        }
     }
 
     private void saveData() {
         if (dataConfig == null) dataConfig = new YamlConfiguration();
 
-        // Save multipliers
         dataConfig.set("multipliers", null);
         for (Map.Entry<String, Double> entry : multipliers.entrySet()) {
             dataConfig.set("multipliers." + entry.getKey(), entry.getValue());
         }
 
-        // Save price history
         dataConfig.set("history", null);
         for (Map.Entry<Material, List<PriceSnapshot>> entry : priceHistory.entrySet()) {
             List<Map<String, Object>> list = new ArrayList<>();
@@ -379,6 +603,18 @@ public class DynamicPricingEngine {
                 list.add(map);
             }
             dataConfig.set("history." + entry.getKey().name(), list);
+        }
+
+        dataConfig.set("circulation", null);
+        for (Map.Entry<Material, Long> entry : circulationCounts.entrySet()) {
+            dataConfig.set("circulation." + entry.getKey().name(), Math.max(0L, entry.getValue()));
+        }
+
+        dataConfig.set("inflation-coefficient", inflationCoefficient);
+
+        dataConfig.set("ema-state", null);
+        for (Map.Entry<Material, Double> entry : emaState.entrySet()) {
+            dataConfig.set("ema-state." + entry.getKey().name(), entry.getValue());
         }
 
         try {
@@ -392,9 +628,7 @@ public class DynamicPricingEngine {
         Bukkit.getScheduler().runTaskAsynchronously(plugin, this::saveData);
     }
 
-    // ════════════════════════════════════════════════════════════════
-    //  Utility
-    // ════════════════════════════════════════════════════════════════
+    // Utility
 
     private String buildKey(Material material, UUID playerUuid) {
         if (perUser && playerUuid != null) {
@@ -412,11 +646,20 @@ public class DynamicPricingEngine {
         }
     }
 
-    // ── Getters for commands ─────────────────────────────────────
-
+    // Getters for commands
     public boolean isPerUser() { return perUser; }
     public double getMaxMultiplier() { return maxMultiplier; }
     public double getMinMultiplier() { return minMultiplier; }
     public int getTimeWindowMinutes() { return timeWindowMinutes; }
     public List<String> getStatusLabels() { return Collections.unmodifiableList(statusLabels); }
+    public long getCirculation(Material material) { return circulationCounts.getOrDefault(material, 0L); }
+    public double getInflationCoefficient() { return inflationCoefficient; }
+    public boolean isSpreadEnabled() { return spreadEnabled; }
+    public double getSpreadPercent() { return spreadPercent; }
+    public boolean isEmaSmoothingEnabled() { return emaSmoothingEnabled; }
+    public boolean isVolumeDampeningEnabled() { return volumeDampeningEnabled; }
+    public boolean isSupplyCurveEnabled() { return supplyCurveEnabled; }
+    public boolean isInflationEnabled() { return inflationEnabled; }
+    public boolean isVelocityEnabled() { return velocityEnabled; }
+    public boolean isCooldownEnabled() { return cooldownEnabled; }
 }

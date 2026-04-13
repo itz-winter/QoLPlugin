@@ -54,6 +54,9 @@ public class HomeGUI implements Listener {
     // Track players currently in the icon picker: viewer -> home name being icon-changed
     private final Map<UUID, String> pendingIcon = new HashMap<>();
 
+    // Remember which homes-page to return to when leaving the icon picker
+    private final Map<UUID, Integer> iconPickerReturnPage = new HashMap<>();
+
     public HomeGUI(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
     }
@@ -286,7 +289,9 @@ public class HomeGUI implements Listener {
             int slot = event.getRawSlot();
             if (slot < 0 || slot >= 9) return;
 
-            String homeName = pendingDelete.remove(viewerUUID);
+            // Don't remove pendingDelete yet — keep it alive so onInventoryClose
+            // doesn't wipe viewingHomes during the GUI transition.
+            String homeName = pendingDelete.get(viewerUUID);
             UUID homeOwner = viewingHomes.getOrDefault(viewerUUID, viewerUUID);
 
             if (slot == 2 && homeName != null) {
@@ -294,6 +299,7 @@ public class HomeGUI implements Listener {
                 homeManager.deleteHome(homeOwner, homeName);
                 player.sendMessage(ChatColor.RED + "Home " + ChatColor.GOLD + homeName + ChatColor.RED + " deleted.");
                 Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    pendingDelete.remove(viewerUUID);
                     List<Home> updated = homeManager.getHomeList(homeOwner);
                     int prevPage = playerPages.getOrDefault(viewerUUID, 0);
                     if (updated.isEmpty()) {
@@ -306,8 +312,10 @@ public class HomeGUI implements Listener {
                 }, 1L);
             } else {
                 int prevPage = playerPages.getOrDefault(viewerUUID, 0);
-                Bukkit.getScheduler().runTaskLater(plugin, () ->
-                        openGUI(player, homeOwner, prevPage), 1L);
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    pendingDelete.remove(viewerUUID);
+                    openGUI(player, homeOwner, prevPage);
+                }, 1L);
             }
             return;
         }
@@ -341,33 +349,64 @@ public class HomeGUI implements Listener {
                 return;
             }
             if (slot == 47) {
-                // Back to homes
-                pendingIcon.remove(viewerUUID);
-                int prevPage = playerPages.getOrDefault(viewerUUID, 0);
-                Bukkit.getScheduler().runTaskLater(plugin, () ->
-                        openGUI(player, homeOwner, prevPage), 1L);
+                // Back to homes — keep pendingIcon alive until the new GUI opens
+                // so that onInventoryClose doesn't wipe viewingHomes during the transition
+                int homesPage = iconPickerReturnPage.getOrDefault(viewerUUID, 0);
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    pendingIcon.remove(viewerUUID);
+                    iconPickerReturnPage.remove(viewerUUID);
+                    openGUI(player, homeOwner, homesPage);
+                }, 1L);
                 return;
             }
 
-            // Clicked an icon slot â€” could be palette (rows 1-5) or custom (slot 49)
-            if (slot >= 45) return; // nav row, handled above or ignore
+            // Slot 49 = custom held-item icon button (bottom-center)
+            if (slot == 49) {
+                ItemStack clicked = event.getCurrentItem();
+                if (clicked == null || clicked.getType().isAir()) return;
+                if (homeName == null) return;
 
+                Material chosen = clicked.getType();
+                int homesPage = iconPickerReturnPage.getOrDefault(viewerUUID, 0);
+
+                Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                    pendingIcon.remove(viewerUUID);
+                    iconPickerReturnPage.remove(viewerUUID);
+
+                    plugin.getHomeManager().setHomeIcon(homeOwner, homeName, chosen.name());
+                    player.sendMessage(ChatColor.GREEN + "Icon for home " + ChatColor.GOLD + homeName
+                            + ChatColor.GREEN + " set to " + ChatColor.YELLOW
+                            + chosen.name().replace("_", " ").toLowerCase() + ChatColor.GREEN + ".");
+
+                    openGUI(player, homeOwner, homesPage);
+                }, 1L);
+                return;
+            }
+
+            // Rest of bottom nav row — ignore
+            if (slot >= 45) return;
+
+            // Clicked a palette icon (rows 1-5, slots 0-44)
             ItemStack clicked = event.getCurrentItem();
             if (clicked == null || clicked.getType().isAir()) return;
             if (homeName == null) return;
 
-            // slot 49 is the custom-held-item button (within rows 1-5 = valid slot)
             Material chosen = clicked.getType();
-            pendingIcon.remove(viewerUUID);
+            int homesPage = iconPickerReturnPage.getOrDefault(viewerUUID, 0);
 
-            plugin.getHomeManager().setHomeIcon(homeOwner, homeName, chosen.name());
-            player.sendMessage(ChatColor.GREEN + "Icon for home " + ChatColor.GOLD + homeName
-                    + ChatColor.GREEN + " set to " + ChatColor.YELLOW + chosen.name().replace("_", " ").toLowerCase() + ChatColor.GREEN + ".");
+            Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                pendingIcon.remove(viewerUUID);
+                iconPickerReturnPage.remove(viewerUUID);
 
-            int prevPage = playerPages.getOrDefault(viewerUUID, 0);
-            Bukkit.getScheduler().runTaskLater(plugin, () ->
-                    openGUI(player, homeOwner, prevPage), 1L);
+                plugin.getHomeManager().setHomeIcon(homeOwner, homeName, chosen.name());
+                player.sendMessage(ChatColor.GREEN + "Icon for home " + ChatColor.GOLD + homeName
+                        + ChatColor.GREEN + " set to " + ChatColor.YELLOW
+                        + chosen.name().replace("_", " ").toLowerCase() + ChatColor.GREEN + ".");
+
+                openGUI(player, homeOwner, homesPage);
+            }, 1L);
             return;
+
         }
 
         // â”€â”€ Main homes GUI â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -412,12 +451,17 @@ public class HomeGUI implements Listener {
         Home home = homes.get(homeIndex);
 
         if (event.isShiftClick()) {
-            // Shift+click â†’ delete confirmation
+            // Shift+click → delete confirmation
+            // Set pendingDelete before close so onInventoryClose doesn't wipe state
+            pendingDelete.put(viewerUUID, home.getName());
             player.closeInventory();
             Bukkit.getScheduler().runTaskLater(plugin, () ->
                     openConfirmGUI(player, homeOwner, home.getName()), 1L);
         } else if (event.isRightClick()) {
-            // Right-click â†’ icon picker
+            // Right-click → icon picker
+            // Save the current homes page and set pendingIcon before close
+            iconPickerReturnPage.put(viewerUUID, page);
+            pendingIcon.put(viewerUUID, home.getName());
             player.closeInventory();
             Bukkit.getScheduler().runTaskLater(plugin, () ->
                     openIconPickerGUI(player, homeOwner, home.getName(), 0), 1L);
@@ -456,6 +500,7 @@ public class HomeGUI implements Listener {
         if (!pendingDelete.containsKey(uuid) && !pendingIcon.containsKey(uuid)) {
             playerPages.remove(uuid);
             viewingHomes.remove(uuid);
+            iconPickerReturnPage.remove(uuid);
         }
     }
 

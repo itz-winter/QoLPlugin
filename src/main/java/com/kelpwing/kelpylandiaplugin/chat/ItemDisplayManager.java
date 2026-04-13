@@ -1,20 +1,32 @@
 package com.kelpwing.kelpylandiaplugin.chat;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
+import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
 import net.md_5.bungee.api.ChatColor;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
+import net.md_5.bungee.api.chat.ItemTag;
 import net.md_5.bungee.api.chat.TextComponent;
+import net.md_5.bungee.api.chat.hover.content.Item;
 import net.md_5.bungee.api.chat.hover.content.Text;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.attribute.Attribute;
+import org.bukkit.attribute.AttributeModifier;
 import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
+import org.bukkit.inventory.EquipmentSlot;
 import org.bukkit.inventory.Inventory;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.Damageable;
+import org.bukkit.inventory.meta.EnchantmentStorageMeta;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.PotionMeta;
+import org.bukkit.potion.PotionEffect;
+import org.bukkit.potion.PotionEffectType;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -68,7 +80,7 @@ public class ItemDisplayManager {
         }, 20L * 60, 20L * 60);
     }
 
-    // ── Public API ──────────────────────────────────────────────────────────
+    //  Public API 
 
     /**
      * Returns {@code true} when the given raw message contains at least one
@@ -95,17 +107,17 @@ public class ItemDisplayManager {
         // Append the prefix + name + separator
         builder.append(TextComponent.fromLegacyText(prefixAndName), ComponentBuilder.FormatRetention.NONE);
 
-        // Now process the message body, splitting on keywords
+        // Now process the message body, splitting on [item]/[inv]/[enderchest] keywords.
+        // Plain-text segments between keywords are also checked for clickable command
+        // boxes (e.g. [/spawn]) — cherry-picked from IC's CommandsDisplay pipeline.
         Matcher matcher = KEYWORD_PATTERN.matcher(rawMessage);
         int lastEnd = 0;
 
         while (matcher.find()) {
-            // Append any text before this keyword
+            // Append any text before this keyword — passing through command boxes
             if (matcher.start() > lastEnd) {
                 String before = rawMessage.substring(lastEnd, matcher.start());
-                builder.append(TextComponent.fromLegacyText(
-                        org.bukkit.ChatColor.translateAlternateColorCodes('&', before)),
-                        ComponentBuilder.FormatRetention.NONE);
+                appendTextWithCommands(builder, before);
             }
 
             String keyword = matcher.group(1).toLowerCase();
@@ -126,15 +138,32 @@ public class ItemDisplayManager {
             lastEnd = matcher.end();
         }
 
-        // Append any trailing text after the last keyword
+        // Append any trailing text after the last keyword — with command box support
         if (lastEnd < rawMessage.length()) {
             String after = rawMessage.substring(lastEnd);
-            builder.append(TextComponent.fromLegacyText(
-                    org.bukkit.ChatColor.translateAlternateColorCodes('&', after)),
-                    ComponentBuilder.FormatRetention.NONE);
+            appendTextWithCommands(builder, after);
         }
 
         return builder.create();
+    }
+
+    /**
+     * Appends a plain-text segment to the builder, translating & colour codes and
+     * converting any clickable command boxes (e.g. {@code [/spawn]}) into
+     * interactive components using the config-driven settings.
+     *
+     * <p>Cherry-picked from IC's CommandsDisplay pipeline — command boxes are
+     * processed as part of the same component chain as item/inventory keywords.
+     */
+    private void appendTextWithCommands(ComponentBuilder builder, String rawSegment) {
+        String translated = org.bukkit.ChatColor.translateAlternateColorCodes('&', rawSegment);
+        if (ChatUtils.containsCommand(plugin, translated)) {
+            BaseComponent[] cmdComps = ChatUtils.parseClickableCommands(plugin, translated);
+            builder.append(cmdComps, ComponentBuilder.FormatRetention.NONE);
+        } else {
+            builder.append(TextComponent.fromLegacyText(translated),
+                    ComponentBuilder.FormatRetention.NONE);
+        }
     }
 
     /**
@@ -171,6 +200,370 @@ public class ItemDisplayManager {
     }
 
     /**
+     * Builds a list of {@link ItemDisplayData} objects for each keyword found
+     * in the message.  Called on the main thread so player inventory is accessible.
+     * The returned data is safe to use from any thread (all values are snapshots).
+     * <p>
+     * Also returns the message text with keywords stripped out (surroundingText).
+     */
+    public List<ItemDisplayData> buildDiscordData(Player player, String rawMessage) {
+        List<ItemDisplayData> results = new ArrayList<>();
+        Matcher matcher = KEYWORD_PATTERN.matcher(rawMessage);
+
+        // Build "surrounding text" = message with keywords replaced by nothing
+        String surrounding = KEYWORD_PATTERN.matcher(rawMessage).replaceAll("").trim();
+
+        while (matcher.find()) {
+            String keyword = matcher.group(1).toLowerCase();
+            switch (keyword) {
+                case "item":
+                    results.add(buildItemDisplayData(player, surrounding));
+                    break;
+                case "inv":
+                case "inventory":
+                    results.add(buildInventoryDisplayData(player, false, surrounding));
+                    break;
+                case "enderchest":
+                case "ec":
+                    results.add(buildInventoryDisplayData(player, true, surrounding));
+                    break;
+            }
+        }
+        return results;
+    }
+
+    private ItemDisplayData buildItemDisplayData(Player player, String surrounding) {
+        ItemStack item = player.getInventory().getItemInMainHand();
+        if (item == null || item.getType() == Material.AIR) {
+            return ItemDisplayData.builder(ItemDisplayData.DisplayType.ITEM)
+                    .itemName("Nothing")
+                    .materialName("AIR")
+                    .amount(0)
+                    .surroundingText(surrounding)
+                    .build();
+        }
+
+        String displayName = org.bukkit.ChatColor.stripColor(getItemDisplayName(item));
+        ItemMeta meta = item.hasItemMeta() ? item.getItemMeta() : null;
+        boolean hasMeta = meta != null;
+
+        // ── ItemFlags ────────────────────────────────────────────────────────
+        boolean hideEnchants   = hasMeta && meta.hasItemFlag(ItemFlag.HIDE_ENCHANTS);
+        boolean hideAttributes = hasMeta && meta.hasItemFlag(ItemFlag.HIDE_ATTRIBUTES);
+        // HIDE_UNBREAKABLE covers the Unbreakable tag; we reuse the flag for the durability line too
+        boolean hideDurability = hasMeta && meta.hasItemFlag(ItemFlag.HIDE_UNBREAKABLE);
+
+        // ── Enchantments ─────────────────────────────────────────────────────
+        Map<String, Integer> enchants = new java.util.LinkedHashMap<>();
+        if (!hideEnchants) {
+            // EnchantmentStorageMeta for enchanted books — stored enchants, not applied
+            Map<Enchantment, Integer> rawEnchants;
+            if (hasMeta && meta instanceof EnchantmentStorageMeta) {
+                rawEnchants = ((EnchantmentStorageMeta) meta).getStoredEnchants();
+            } else {
+                rawEnchants = new HashMap<>(item.getEnchantments());
+                if (hasMeta && meta.hasEnchants()) {
+                    rawEnchants.putAll(meta.getEnchants());
+                }
+            }
+            for (Map.Entry<Enchantment, Integer> e : rawEnchants.entrySet()) {
+                enchants.put(formatEnchantmentName(e.getKey()), e.getValue());
+            }
+        }
+
+        // ── Lore (colour stripped) ────────────────────────────────────────────
+        List<String> lore = new ArrayList<>();
+        if (hasMeta && meta.hasLore()) {
+            for (String line : meta.getLore()) {
+                lore.add(org.bukkit.ChatColor.stripColor(line));
+            }
+        }
+
+        // ── Durability (cherry-picked from IC DiscordItemStackUtils) ──────────
+        int durability = 0;
+        int maxDurability = 0;
+        boolean unbreakable = hasMeta && meta.isUnbreakable();
+        if (hasMeta && meta instanceof Damageable) {
+            short maxDur = item.getType().getMaxDurability();
+            if (maxDur > 0) {
+                int damage = ((Damageable) meta).getDamage();
+                maxDurability = maxDur;
+                durability = maxDur - damage;
+            }
+        }
+
+        // ── Potion effects (cherry-picked from IC DiscordItemStackUtils) ───────
+        List<String> potionEffects = new ArrayList<>();
+        if (hasMeta && meta instanceof PotionMeta) {
+            PotionMeta potionMeta = (PotionMeta) meta;
+            // Base potion type effects
+            org.bukkit.potion.PotionData baseData = potionMeta.getBasePotionData();
+            if (baseData != null && baseData.getType() != null
+                    && baseData.getType().getEffectType() != null) {
+                PotionEffectType type = baseData.getType().getEffectType();
+                // Duration: extended = 2x, upgraded = higher amplifier
+                int amplifier = baseData.isUpgraded() ? 1 : 0;
+                // Vanilla base durations for the base potion type (ticks)
+                int durationTicks = baseData.isExtended() ? 9600 : 3600;
+                potionEffects.add(formatPotionEffect(type, amplifier, durationTicks));
+            }
+            // Custom effects
+            if (potionMeta.hasCustomEffects()) {
+                for (PotionEffect effect : potionMeta.getCustomEffects()) {
+                    potionEffects.add(formatPotionEffect(
+                            effect.getType(), effect.getAmplifier(), effect.getDuration()));
+                }
+            }
+        }
+
+        // ── Attribute modifiers grouped by slot (cherry-picked from IC) ────────
+        List<String> attributeLines = new ArrayList<>();
+        if (!hideAttributes) {
+            buildAttributeLines(item, meta, attributeLines);
+        }
+
+        // ── Rarity (cherry-picked from IC) ────────────────────────────────────
+        // In 1.16: COMMON = no enchant, UNCOMMON = enchanted book / golden items,
+        // RARE = most enchanted tools/weapons, EPIC = enchanted netherite / rare items.
+        // Simple heuristic matching IC's approach: check enchantment count and material.
+        ItemDisplayData.Rarity rarity = determineRarity(item, hasMeta && meta.hasEnchants());
+
+        return ItemDisplayData.builder(ItemDisplayData.DisplayType.ITEM)
+                .itemName(displayName)
+                .materialName(item.getType().name())
+                .amount(item.getAmount())
+                .enchantments(enchants)
+                .lore(lore)
+                .hasCustomName(hasMeta && meta.hasDisplayName())
+                .durability(durability)
+                .maxDurability(maxDurability)
+                .unbreakable(unbreakable)
+                .hideEnchants(hideEnchants)
+                .hideAttributes(hideAttributes)
+                .hideDurability(hideDurability)
+                .potionEffects(potionEffects)
+                .attributeLines(attributeLines)
+                .rarity(rarity)
+                .surroundingText(surrounding)
+                .build();
+    }
+
+    /**
+     * Formats a single potion effect line in the style IC uses:
+     * "Speed II (3:00)" — name, roman numeral amplifier (if > 0), duration.
+     * Instant effects (health, damage) show no duration.
+     */
+    private static String formatPotionEffect(PotionEffectType type, int amplifier, int durationTicks) {
+        String name = formatPotionEffectName(type);
+        String level = amplifier > 0 ? " " + toRoman(amplifier + 1) : "";
+
+        // Instant effects have no meaningful duration
+        boolean instant = type.equals(PotionEffectType.HEAL)
+                || type.equals(PotionEffectType.HARM)
+                || type.equals(PotionEffectType.SATURATION);
+        if (instant) {
+            return name + level;
+        }
+
+        // Format duration as M:SS (matching IC's formatting)
+        int totalSeconds = durationTicks / 20;
+        int minutes = totalSeconds / 60;
+        int seconds = totalSeconds % 60;
+        String duration = String.format("%d:%02d", minutes, seconds);
+        return name + level + " (" + duration + ")";
+    }
+
+    /**
+     * Converts a PotionEffectType to a human-readable name.
+     * e.g. INCREASE_DAMAGE → "Strength", SLOW → "Slowness"
+     */
+    private static String formatPotionEffectName(PotionEffectType type) {
+        // Some effects have unintuitive internal names — map the common ones
+        String raw = type.getName(); // e.g. "SPEED", "INCREASE_DAMAGE"
+        switch (raw) {
+            case "INCREASE_DAMAGE":        return "Strength";
+            case "DAMAGE_RESISTANCE":      return "Resistance";
+            case "SLOW":                   return "Slowness";
+            case "FAST_DIGGING":           return "Haste";
+            case "SLOW_DIGGING":           return "Mining Fatigue";
+            case "JUMP":                   return "Jump Boost";
+            case "CONFUSION":              return "Nausea";
+            case "HEAL":                   return "Instant Health";
+            case "HARM":                   return "Instant Damage";
+            case "NIGHT_VISION":           return "Night Vision";
+            case "WATER_BREATHING":        return "Water Breathing";
+            case "INVISIBILITY":           return "Invisibility";
+            case "FIRE_RESISTANCE":        return "Fire Resistance";
+            case "HEALTH_BOOST":           return "Health Boost";
+            case "ABSORPTION":             return "Absorption";
+            case "SATURATION":             return "Saturation";
+            case "GLOWING":                return "Glowing";
+            case "LEVITATION":             return "Levitation";
+            case "LUCK":                   return "Luck";
+            case "UNLUCK":                 return "Bad Luck";
+            case "SLOW_FALLING":           return "Slow Falling";
+            case "CONDUIT_POWER":          return "Conduit Power";
+            case "DOLPHINS_GRACE":         return "Dolphin's Grace";
+            case "BAD_OMEN":               return "Bad Omen";
+            case "HERO_OF_THE_VILLAGE":    return "Hero of the Village";
+            default:
+                // Fall through: title-case the raw name
+                StringBuilder sb = new StringBuilder();
+                boolean cap = true;
+                for (char c : raw.toCharArray()) {
+                    if (c == '_') { sb.append(' '); cap = true; }
+                    else { sb.append(cap ? Character.toUpperCase(c) : Character.toLowerCase(c)); cap = false; }
+                }
+                return sb.toString();
+        }
+    }
+
+    /**
+     * Builds attribute modifier lines grouped by equipment slot.
+     * Cherry-picked from IC's DiscordItemStackUtils attribute rendering.
+     * Format: "When in [slot]:", " +8 Attack Damage", " -1.80 Attack Speed"
+     */
+    private void buildAttributeLines(ItemStack item, ItemMeta meta, List<String> lines) {
+        com.google.common.collect.Multimap<Attribute, AttributeModifier> modifiers = null;
+        if (meta != null && meta.hasAttributeModifiers()) {
+            modifiers = meta.getAttributeModifiers();
+        }
+        if (modifiers == null || modifiers.isEmpty()) {
+            modifiers = getDefaultAttributes(item);
+        }
+        if (modifiers == null || modifiers.isEmpty()) return;
+
+        EquipmentSlot[] slots = {
+            EquipmentSlot.HAND, EquipmentSlot.OFF_HAND,
+            EquipmentSlot.HEAD, EquipmentSlot.CHEST,
+            EquipmentSlot.LEGS, EquipmentSlot.FEET
+        };
+
+        for (EquipmentSlot slot : slots) {
+            List<String> slotLines = new ArrayList<>();
+            for (var entry : modifiers.entries()) {
+                Attribute attr = entry.getKey();
+                AttributeModifier mod = entry.getValue();
+                if (mod.getSlot() != null && mod.getSlot() != slot) continue;
+                if (mod.getSlot() == null && slot != EquipmentSlot.HAND) continue;
+
+                double amount = mod.getAmount();
+                // Apply base value offsets (matching IC behaviour for main-hand items)
+                if (slot == EquipmentSlot.HAND || slot == EquipmentSlot.OFF_HAND) {
+                    if (attr == Attribute.GENERIC_ATTACK_DAMAGE) {
+                        amount += 1.0;
+                    } else if (attr == Attribute.GENERIC_ATTACK_SPEED) {
+                        amount += 4.0;
+                    }
+                }
+
+                String attrName = formatAttributeName(attr);
+                String sign = amount >= 0 ? "+" : "";
+                String formatted;
+                if (mod.getOperation() == AttributeModifier.Operation.ADD_NUMBER) {
+                    // Display as integer if whole number, else 1 decimal
+                    formatted = amount == (long) amount
+                            ? sign + (long) amount + " " + attrName
+                            : sign + String.format("%.2f", amount) + " " + attrName;
+                } else {
+                    // Multiply operations — display as percentage
+                    formatted = sign + String.format("%.0f", amount * 100) + "% " + attrName;
+                }
+                String prefix = amount >= 0 ? " +" : " ";
+                // For ADD_NUMBER already has sign embedded, fix prefix
+                slotLines.add(" " + formatted);
+            }
+            if (!slotLines.isEmpty()) {
+                lines.add("When in " + getSlotLabel(slot) + ":");
+                lines.addAll(slotLines);
+            }
+        }
+    }
+
+    /**
+     * Determines item rarity using a simple heuristic that matches Minecraft 1.16 rarity:
+     * <ul>
+     *   <li>EPIC — enchanted items whose base rarity is EPIC (ender dragon egg, elytra, etc.)
+     *       or any item with 3+ enchantments</li>
+     *   <li>RARE — enchanted tools/weapons/armour, or items with base rarity of RARE</li>
+     *   <li>UNCOMMON — golden items, enchanted books, spawn eggs</li>
+     *   <li>COMMON — everything else</li>
+     * </ul>
+     */
+    private static ItemDisplayData.Rarity determineRarity(ItemStack item, boolean hasEnchants) {
+        Material mat = item.getType();
+        String name = mat.name();
+
+        // Vanilla EPIC items
+        if (mat == Material.ELYTRA
+                || mat == Material.DRAGON_EGG
+                || mat == Material.DRAGON_HEAD) {
+            return ItemDisplayData.Rarity.EPIC;
+        }
+
+        // Enchanted items get bumped up by one rarity tier
+        if (hasEnchants) {
+            // Netherite gear base = rare, enchanted = epic
+            if (name.startsWith("NETHERITE_")) {
+                return ItemDisplayData.Rarity.EPIC;
+            }
+            // Enchanted books = uncommon → rare
+            if (mat == Material.ENCHANTED_BOOK) {
+                return ItemDisplayData.Rarity.RARE;
+            }
+            // Any other enchanted item = rare
+            return ItemDisplayData.Rarity.RARE;
+        }
+
+        // Vanilla UNCOMMON items (golden gear, spawn eggs, enchanted book unenchanted)
+        if (name.startsWith("GOLDEN_")
+                || mat == Material.ENCHANTED_BOOK
+                || mat == Material.EXPERIENCE_BOTTLE
+                || name.endsWith("_SPAWN_EGG")) {
+            return ItemDisplayData.Rarity.UNCOMMON;
+        }
+
+        return ItemDisplayData.Rarity.COMMON;
+    }
+
+    private ItemDisplayData buildInventoryDisplayData(Player player, boolean enderChest, String surrounding) {
+        Inventory source = enderChest ? player.getEnderChest() : player.getInventory();
+        int usedSlots = 0;
+        int totalSlots = source.getSize();
+        Map<String, Integer> itemCounts = new java.util.LinkedHashMap<>();
+
+        for (ItemStack stack : source.getContents()) {
+            if (stack != null && stack.getType() != Material.AIR) {
+                usedSlots++;
+                String name = org.bukkit.ChatColor.stripColor(getItemDisplayName(stack));
+                itemCounts.merge(name, stack.getAmount(), Integer::sum);
+            }
+        }
+
+        // Top 8 items sorted by count
+        List<Map.Entry<String, Integer>> sorted = new ArrayList<>(itemCounts.entrySet());
+        sorted.sort((a, b) -> Integer.compare(b.getValue(), a.getValue()));
+        List<String> topItems = new ArrayList<>();
+        int shown = 0;
+        for (Map.Entry<String, Integer> entry : sorted) {
+            if (shown >= 8) break;
+            topItems.add(entry.getKey() + " x" + entry.getValue());
+            shown++;
+        }
+
+        ItemDisplayData.DisplayType type = enderChest
+                ? ItemDisplayData.DisplayType.ENDER_CHEST
+                : ItemDisplayData.DisplayType.INVENTORY;
+
+        return ItemDisplayData.builder(type)
+                .usedSlots(usedSlots)
+                .totalSlots(totalSlots)
+                .topItems(topItems)
+                .surroundingText(surrounding)
+                .build();
+    }
+
+    /**
      * Retrieves and opens a snapshot inventory for the given snapshot UUID.
      * Returns {@code null} if the snapshot has expired or doesn't exist.
      */
@@ -187,7 +580,7 @@ public class ItemDisplayManager {
         return entry != null ? entry.title : null;
     }
 
-    // ── Item component ──────────────────────────────────────────────────────
+    //  Item component 
 
     private BaseComponent[] buildItemComponent(Player player) {
         ItemStack item = player.getInventory().getItemInMainHand();
@@ -211,9 +604,8 @@ public class ItemDisplayManager {
 
         TextComponent comp = new TextComponent(TextComponent.fromLegacyText(label));
 
-        // Hover: show item details (name, lore, enchants)
-        comp.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                new Text(buildItemHoverText(item))));
+        // Hover: use SHOW_ITEM so the client renders the exact vanilla tooltip
+        comp.setHoverEvent(buildShowItemHover(item));
 
         // Click: open a 1-slot inventory showing the item
         UUID snapId = createItemSnapshot(player, item);
@@ -223,52 +615,425 @@ public class ItemDisplayManager {
         return new BaseComponent[]{comp};
     }
 
-    private BaseComponent[] buildItemHoverText(ItemStack item) {
+    /**
+     * Creates a SHOW_ITEM HoverEvent using the item's actual NBT data.
+     * The client renders the exact vanilla tooltip from this — no manual
+     * tooltip building needed.  Uses reflection to access CraftBukkit's
+     * NMS item serialisation, falling back to a SHOW_TEXT hover if reflection fails.
+     */
+    private HoverEvent buildShowItemHover(ItemStack item) {
+        try {
+            // Get the NMS NBT tag via reflection:
+            // Object nmsItem = CraftItemStack.asNMSCopy(item);
+            // Object tag = nmsItem.getTag();   // NBTTagCompound (may be null)
+            String cbPkg = Bukkit.getServer().getClass().getPackage().getName(); // org.bukkit.craftbukkit.v1_16_R3
+            Class<?> craftItemStackClass = Class.forName(cbPkg + ".inventory.CraftItemStack");
+            java.lang.reflect.Method asNMSCopy = craftItemStackClass.getMethod("asNMSCopy", ItemStack.class);
+            Object nmsItem = asNMSCopy.invoke(null, item);
+
+            // getTag() returns the NBT compound (may be null for items with no extra data)
+            java.lang.reflect.Method getTag = nmsItem.getClass().getMethod("getTag");
+            Object tag = getTag.invoke(nmsItem);
+
+            String itemId = item.getType().getKey().toString(); // "minecraft:diamond_sword"
+            int count = item.getAmount();
+
+            ItemTag itemTag = tag != null ? ItemTag.ofNbt(tag.toString()) : null;
+            return new HoverEvent(HoverEvent.Action.SHOW_ITEM,
+                    new Item(itemId, count, itemTag));
+
+        } catch (Exception e) {
+            // Reflection failed — fall back to a basic text tooltip
+            plugin.getLogger().warning("SHOW_ITEM reflection failed, using text fallback: " + e.getMessage());
+            return new HoverEvent(HoverEvent.Action.SHOW_TEXT,
+                    new Text(buildItemHoverTextFallback(item)));
+        }
+    }
+
+    /**
+     * Builds a hover tooltip that closely mirrors the vanilla 1.16.5 advanced
+     * tooltip (F3+H mode):
+     * <ol>
+     *   <li>Item name — white (normal) or italic aqua (custom renamed)</li>
+     *   <li>Enchantments — gray; curses in red</li>
+     *   <li>Lore — dark-purple italic</li>
+     *   <li>Attribute modifiers grouped by slot</li>
+     *   <li>Unbreakable <em>or</em> Durability: current / max</li>
+     *   <li>{@code minecraft:material} — dark gray</li>
+     *   <li>Tag count estimate — dark gray</li>
+     * </ol>
+     */
+    private BaseComponent[] buildItemHoverTextFallback(ItemStack item) {
         ComponentBuilder hover = new ComponentBuilder();
-
-        // Item name (with colour)
-        String name = getItemDisplayName(item);
-        hover.append(TextComponent.fromLegacyText(org.bukkit.ChatColor.AQUA + name),
-                ComponentBuilder.FormatRetention.NONE);
-
         ItemMeta meta = item.hasItemMeta() ? item.getItemMeta() : null;
 
-        // Enchantments
-        Map<Enchantment, Integer> enchants = item.getEnchantments();
-        if (meta != null && meta.hasEnchants()) {
-            enchants = new HashMap<>(enchants);
-            enchants.putAll(meta.getEnchants());
-        }
-        if (!enchants.isEmpty()) {
-            for (Map.Entry<Enchantment, Integer> e : enchants.entrySet()) {
-                hover.append("\n", ComponentBuilder.FormatRetention.NONE);
-                String enchName = formatEnchantmentName(e.getKey());
-                hover.append(TextComponent.fromLegacyText(
-                        org.bukkit.ChatColor.GRAY + enchName + " " + toRoman(e.getValue())),
-                        ComponentBuilder.FormatRetention.NONE);
-            }
+        //  1. Item name 
+        boolean hasCustomName = meta != null && meta.hasDisplayName();
+        if (hasCustomName) {
+            // Custom names render italic aqua in vanilla
+            hover.append(TextComponent.fromLegacyText(
+                    org.bukkit.ChatColor.AQUA + "" + org.bukkit.ChatColor.ITALIC + meta.getDisplayName()),
+                    ComponentBuilder.FormatRetention.NONE);
+        } else {
+            // Default name renders white
+            String prettyName = getItemDisplayName(item);
+            hover.append(TextComponent.fromLegacyText(
+                    org.bukkit.ChatColor.WHITE + prettyName),
+                    ComponentBuilder.FormatRetention.NONE);
         }
 
-        // Lore
+        //  2. Enchantments 
+        Map<Enchantment, Integer> enchants = new java.util.LinkedHashMap<>();
+        if (meta != null && meta.hasEnchants()) {
+            enchants.putAll(meta.getEnchants());
+        }
+        // Include enchants stored directly on the stack (books, etc.)
+        for (Map.Entry<Enchantment, Integer> e : item.getEnchantments().entrySet()) {
+            enchants.putIfAbsent(e.getKey(), e.getValue());
+        }
+        for (Map.Entry<Enchantment, Integer> e : enchants.entrySet()) {
+            hover.append("\n", ComponentBuilder.FormatRetention.NONE);
+            boolean isCurse = e.getKey().equals(Enchantment.BINDING_CURSE)
+                           || e.getKey().equals(Enchantment.VANISHING_CURSE);
+            String colour = isCurse
+                    ? org.bukkit.ChatColor.RED.toString()
+                    : org.bukkit.ChatColor.GRAY.toString();
+            String enchName = formatEnchantmentName(e.getKey());
+            String level = e.getValue() > 1 || enchants.size() > 0
+                    ? " " + toRoman(e.getValue()) : "";
+            // Vanilla only shows the level numeral when max level > 1 or level > 1
+            if (e.getKey().getMaxLevel() == 1 && e.getValue() == 1) {
+                level = "";
+            }
+            hover.append(TextComponent.fromLegacyText(colour + enchName + level),
+                    ComponentBuilder.FormatRetention.NONE);
+        }
+
+        //  3. Lore 
         if (meta != null && meta.hasLore()) {
             for (String line : meta.getLore()) {
                 hover.append("\n", ComponentBuilder.FormatRetention.NONE);
+                // Lore lines already contain their colour codes — wrap in purple italic as fallback
                 hover.append(TextComponent.fromLegacyText(
                         org.bukkit.ChatColor.DARK_PURPLE + "" + org.bukkit.ChatColor.ITALIC + line),
                         ComponentBuilder.FormatRetention.NONE);
             }
         }
 
-        // Amount & type
+        //  4. Attribute modifiers 
+        appendAttributeModifiers(hover, item, meta);
+
+        //  5. Durability 
+        if (meta instanceof org.bukkit.inventory.meta.Damageable) {
+            org.bukkit.inventory.meta.Damageable dmg = (org.bukkit.inventory.meta.Damageable) meta;
+            if (meta.isUnbreakable()) {
+                hover.append("\n", ComponentBuilder.FormatRetention.NONE);
+                hover.append(TextComponent.fromLegacyText(
+                        org.bukkit.ChatColor.BLUE + "Unbreakable"),
+                        ComponentBuilder.FormatRetention.NONE);
+            } else {
+                short maxDurability = item.getType().getMaxDurability();
+                if (maxDurability > 0) {
+                    int remaining = maxDurability - dmg.getDamage();
+                    hover.append("\n", ComponentBuilder.FormatRetention.NONE);
+                    hover.append(TextComponent.fromLegacyText(
+                            org.bukkit.ChatColor.WHITE + "Durability: " + remaining + " / " + maxDurability),
+                            ComponentBuilder.FormatRetention.NONE);
+                }
+            }
+        }
+
+        //  6. minecraft:id 
         hover.append("\n", ComponentBuilder.FormatRetention.NONE);
+        String materialId = "minecraft:" + item.getType().getKey().getKey();
         hover.append(TextComponent.fromLegacyText(
-                org.bukkit.ChatColor.DARK_GRAY + item.getType().name() + " x" + item.getAmount()),
+                org.bukkit.ChatColor.DARK_GRAY + materialId),
                 ComponentBuilder.FormatRetention.NONE);
+
+        //  7. NBT tag count (estimated) 
+        int tagCount = estimateNbtTagCount(item, meta, enchants);
+        if (tagCount > 0) {
+            hover.append("\n", ComponentBuilder.FormatRetention.NONE);
+            hover.append(TextComponent.fromLegacyText(
+                    org.bukkit.ChatColor.DARK_GRAY + "" + tagCount + " tag(s)"),
+                    ComponentBuilder.FormatRetention.NONE);
+        }
 
         return hover.create();
     }
 
-    // ── Inventory / Ender Chest component ───────────────────────────────────
+    //  Attribute modifier rendering (vanilla style) 
+
+    @SuppressWarnings("deprecation")
+    private void appendAttributeModifiers(ComponentBuilder hover, ItemStack item, ItemMeta meta) {
+        // Collect modifiers: explicit meta overrides → then default material attributes
+        com.google.common.collect.Multimap<org.bukkit.attribute.Attribute, org.bukkit.attribute.AttributeModifier> modifiers = null;
+        if (meta != null && meta.hasAttributeModifiers()) {
+            modifiers = meta.getAttributeModifiers();
+        }
+
+        // Vanilla groups by equipment slot.  For items without explicit modifiers
+        // we show the default attributes for the item's natural slot.
+        // We'll show modifiers for each slot that has at least one entry.
+        org.bukkit.inventory.EquipmentSlot[] slots = {
+            org.bukkit.inventory.EquipmentSlot.HAND,
+            org.bukkit.inventory.EquipmentSlot.OFF_HAND,
+            org.bukkit.inventory.EquipmentSlot.HEAD,
+            org.bukkit.inventory.EquipmentSlot.CHEST,
+            org.bukkit.inventory.EquipmentSlot.LEGS,
+            org.bukkit.inventory.EquipmentSlot.FEET
+        };
+
+        // If no custom modifiers, derive defaults from material base attributes
+        if (modifiers == null || modifiers.isEmpty()) {
+            modifiers = getDefaultAttributes(item);
+        }
+        if (modifiers == null || modifiers.isEmpty()) return;
+
+        for (org.bukkit.inventory.EquipmentSlot slot : slots) {
+            com.google.common.collect.Multimap<org.bukkit.attribute.Attribute, org.bukkit.attribute.AttributeModifier> slotMods =
+                    com.google.common.collect.MultimapBuilder.hashKeys().arrayListValues().build();
+
+            for (var entry : modifiers.entries()) {
+                org.bukkit.attribute.AttributeModifier mod = entry.getValue();
+                if (mod.getSlot() == null || mod.getSlot() == slot) {
+                    slotMods.put(entry.getKey(), mod);
+                }
+            }
+            if (slotMods.isEmpty()) continue;
+
+            // Slot header
+            hover.append("\n", ComponentBuilder.FormatRetention.NONE);
+            hover.append("\n", ComponentBuilder.FormatRetention.NONE);
+            String slotLabel = getSlotLabel(slot);
+            hover.append(TextComponent.fromLegacyText(
+                    org.bukkit.ChatColor.GRAY + "When in " + slotLabel + ":"),
+                    ComponentBuilder.FormatRetention.NONE);
+
+            for (var entry : slotMods.entries()) {
+                org.bukkit.attribute.Attribute attr = entry.getKey();
+                org.bukkit.attribute.AttributeModifier mod = entry.getValue();
+                double amount = mod.getAmount();
+
+                String attrName = formatAttributeName(attr);
+                String line;
+
+                if (mod.getOperation() == org.bukkit.attribute.AttributeModifier.Operation.ADD_NUMBER) {
+                    // Vanilla adds base values (e.g. +8 Attack Damage includes the base 1.0)
+                    if (attr == org.bukkit.attribute.Attribute.GENERIC_ATTACK_DAMAGE) {
+                        amount += 1.0; // base entity attack damage
+                    } else if (attr == org.bukkit.attribute.Attribute.GENERIC_ATTACK_SPEED) {
+                        amount += 4.0; // base attack speed
+                    }
+                    String sign = amount >= 0 ? "+" : "";
+                    // Format to remove trailing zeros
+                    String formatted = amount == (int) amount
+                            ? String.valueOf((int) amount) : String.format("%.1f", amount);
+                    line = org.bukkit.ChatColor.DARK_GREEN + " " + sign + formatted + " " + attrName;
+                } else if (mod.getOperation() == org.bukkit.attribute.AttributeModifier.Operation.ADD_SCALAR) {
+                    String sign = amount >= 0 ? "+" : "";
+                    String formatted = String.format("%.0f", amount * 100);
+                    line = org.bukkit.ChatColor.DARK_GREEN + " " + sign + formatted + "% " + attrName;
+                } else {
+                    // MULTIPLY_SCALAR_1
+                    String sign = amount >= 0 ? "+" : "";
+                    String formatted = String.format("%.0f", amount * 100);
+                    line = org.bukkit.ChatColor.DARK_GREEN + " " + sign + formatted + "% " + attrName;
+                }
+
+                // Negative values render red in vanilla
+                if (amount < 0) {
+                    line = line.replace(org.bukkit.ChatColor.DARK_GREEN.toString(),
+                                        org.bukkit.ChatColor.RED.toString());
+                }
+
+                hover.append("\n", ComponentBuilder.FormatRetention.NONE);
+                hover.append(TextComponent.fromLegacyText(line),
+                        ComponentBuilder.FormatRetention.NONE);
+            }
+        }
+    }
+
+    /**
+     * Derive the default attribute modifiers for common item types.
+     * The Bukkit API does not expose default item attributes, so we hard-code
+     * the vanilla 1.16 values for weapons, tools, and armor.
+     */
+    @SuppressWarnings("deprecation")
+    private com.google.common.collect.Multimap<org.bukkit.attribute.Attribute, org.bukkit.attribute.AttributeModifier>
+            getDefaultAttributes(ItemStack item) {
+        Material mat = item.getType();
+        com.google.common.collect.Multimap<org.bukkit.attribute.Attribute, org.bukkit.attribute.AttributeModifier> map =
+                com.google.common.collect.MultimapBuilder.hashKeys().arrayListValues().build();
+
+        // Attack damage & speed (weapons / tools) — values are the ADDED amount on top of base
+        // Base attack damage = 1.0, base attack speed = 4.0
+        double dmg = 0, spd = 0;
+        org.bukkit.inventory.EquipmentSlot slot = org.bukkit.inventory.EquipmentSlot.HAND;
+        boolean hasAttack = true;
+
+        switch (mat) {
+            // Swords
+            case WOODEN_SWORD:      dmg = 3;  spd = -2.4; break;
+            case STONE_SWORD:       dmg = 4;  spd = -2.4; break;
+            case IRON_SWORD:        dmg = 5;  spd = -2.4; break;
+            case GOLDEN_SWORD:      dmg = 3;  spd = -2.4; break;
+            case DIAMOND_SWORD:     dmg = 6;  spd = -2.4; break;
+            case NETHERITE_SWORD:   dmg = 7;  spd = -2.4; break;
+            // Axes
+            case WOODEN_AXE:        dmg = 6;  spd = -3.2; break;
+            case STONE_AXE:         dmg = 8;  spd = -3.2; break;
+            case IRON_AXE:          dmg = 8;  spd = -3.1; break;
+            case GOLDEN_AXE:        dmg = 6;  spd = -3.0; break;
+            case DIAMOND_AXE:       dmg = 8;  spd = -3.0; break;
+            case NETHERITE_AXE:     dmg = 9;  spd = -3.0; break;
+            // Pickaxes
+            case WOODEN_PICKAXE:    dmg = 1;  spd = -2.8; break;
+            case STONE_PICKAXE:     dmg = 2;  spd = -2.8; break;
+            case IRON_PICKAXE:      dmg = 3;  spd = -2.8; break;
+            case GOLDEN_PICKAXE:    dmg = 1;  spd = -2.8; break;
+            case DIAMOND_PICKAXE:   dmg = 4;  spd = -2.8; break;
+            case NETHERITE_PICKAXE: dmg = 5;  spd = -2.8; break;
+            // Shovels
+            case WOODEN_SHOVEL:     dmg = 1.5; spd = -3.0; break;
+            case STONE_SHOVEL:      dmg = 2.5; spd = -3.0; break;
+            case IRON_SHOVEL:       dmg = 3.5; spd = -3.0; break;
+            case GOLDEN_SHOVEL:     dmg = 1.5; spd = -3.0; break;
+            case DIAMOND_SHOVEL:    dmg = 4.5; spd = -3.0; break;
+            case NETHERITE_SHOVEL:  dmg = 5.5; spd = -3.0; break;
+            // Hoes
+            case WOODEN_HOE:        dmg = 0;  spd = -3.0; break;
+            case STONE_HOE:         dmg = 0;  spd = -2.0; break;
+            case IRON_HOE:          dmg = 0;  spd = -1.0; break;
+            case GOLDEN_HOE:        dmg = 0;  spd = -3.0; break;
+            case DIAMOND_HOE:       dmg = 0;  spd =  0.0; break;
+            case NETHERITE_HOE:     dmg = 0;  spd =  0.0; break;
+            // Trident
+            case TRIDENT:           dmg = 8;  spd = -2.9; break;
+            default: hasAttack = false; break;
+        }
+
+        if (hasAttack) {
+            map.put(org.bukkit.attribute.Attribute.GENERIC_ATTACK_DAMAGE,
+                    new org.bukkit.attribute.AttributeModifier(
+                            UUID.randomUUID(), "generic.attackDamage", dmg,
+                            org.bukkit.attribute.AttributeModifier.Operation.ADD_NUMBER, slot));
+            map.put(org.bukkit.attribute.Attribute.GENERIC_ATTACK_SPEED,
+                    new org.bukkit.attribute.AttributeModifier(
+                            UUID.randomUUID(), "generic.attackSpeed", spd,
+                            org.bukkit.attribute.AttributeModifier.Operation.ADD_NUMBER, slot));
+        }
+
+        // Armor — defense & toughness & knockback resistance
+        double armor = 0, toughness = 0, kbRes = 0;
+        org.bukkit.inventory.EquipmentSlot armorSlot = null;
+        boolean hasArmor = true;
+
+        switch (mat) {
+            // Helmets
+            case LEATHER_HELMET:     armor = 1; armorSlot = org.bukkit.inventory.EquipmentSlot.HEAD; break;
+            case CHAINMAIL_HELMET:   armor = 2; armorSlot = org.bukkit.inventory.EquipmentSlot.HEAD; break;
+            case IRON_HELMET:        armor = 2; armorSlot = org.bukkit.inventory.EquipmentSlot.HEAD; break;
+            case GOLDEN_HELMET:      armor = 2; armorSlot = org.bukkit.inventory.EquipmentSlot.HEAD; break;
+            case DIAMOND_HELMET:     armor = 3; toughness = 2; armorSlot = org.bukkit.inventory.EquipmentSlot.HEAD; break;
+            case NETHERITE_HELMET:   armor = 3; toughness = 3; kbRes = 0.1; armorSlot = org.bukkit.inventory.EquipmentSlot.HEAD; break;
+            case TURTLE_HELMET:      armor = 2; armorSlot = org.bukkit.inventory.EquipmentSlot.HEAD; break;
+            // Chestplates
+            case LEATHER_CHESTPLATE:   armor = 3; armorSlot = org.bukkit.inventory.EquipmentSlot.CHEST; break;
+            case CHAINMAIL_CHESTPLATE: armor = 5; armorSlot = org.bukkit.inventory.EquipmentSlot.CHEST; break;
+            case IRON_CHESTPLATE:      armor = 6; armorSlot = org.bukkit.inventory.EquipmentSlot.CHEST; break;
+            case GOLDEN_CHESTPLATE:    armor = 5; armorSlot = org.bukkit.inventory.EquipmentSlot.CHEST; break;
+            case DIAMOND_CHESTPLATE:   armor = 8; toughness = 2; armorSlot = org.bukkit.inventory.EquipmentSlot.CHEST; break;
+            case NETHERITE_CHESTPLATE: armor = 8; toughness = 3; kbRes = 0.1; armorSlot = org.bukkit.inventory.EquipmentSlot.CHEST; break;
+            // Leggings
+            case LEATHER_LEGGINGS:   armor = 2; armorSlot = org.bukkit.inventory.EquipmentSlot.LEGS; break;
+            case CHAINMAIL_LEGGINGS: armor = 4; armorSlot = org.bukkit.inventory.EquipmentSlot.LEGS; break;
+            case IRON_LEGGINGS:      armor = 5; armorSlot = org.bukkit.inventory.EquipmentSlot.LEGS; break;
+            case GOLDEN_LEGGINGS:    armor = 3; armorSlot = org.bukkit.inventory.EquipmentSlot.LEGS; break;
+            case DIAMOND_LEGGINGS:   armor = 6; toughness = 2; armorSlot = org.bukkit.inventory.EquipmentSlot.LEGS; break;
+            case NETHERITE_LEGGINGS: armor = 6; toughness = 3; kbRes = 0.1; armorSlot = org.bukkit.inventory.EquipmentSlot.LEGS; break;
+            // Boots
+            case LEATHER_BOOTS:    armor = 1; armorSlot = org.bukkit.inventory.EquipmentSlot.FEET; break;
+            case CHAINMAIL_BOOTS:  armor = 1; armorSlot = org.bukkit.inventory.EquipmentSlot.FEET; break;
+            case IRON_BOOTS:       armor = 2; armorSlot = org.bukkit.inventory.EquipmentSlot.FEET; break;
+            case GOLDEN_BOOTS:     armor = 1; armorSlot = org.bukkit.inventory.EquipmentSlot.FEET; break;
+            case DIAMOND_BOOTS:    armor = 3; toughness = 2; armorSlot = org.bukkit.inventory.EquipmentSlot.FEET; break;
+            case NETHERITE_BOOTS:  armor = 3; toughness = 3; kbRes = 0.1; armorSlot = org.bukkit.inventory.EquipmentSlot.FEET; break;
+            default: hasArmor = false; break;
+        }
+
+        if (hasArmor && armorSlot != null) {
+            map.put(org.bukkit.attribute.Attribute.GENERIC_ARMOR,
+                    new org.bukkit.attribute.AttributeModifier(
+                            UUID.randomUUID(), "generic.armor", armor,
+                            org.bukkit.attribute.AttributeModifier.Operation.ADD_NUMBER, armorSlot));
+            if (toughness > 0) {
+                map.put(org.bukkit.attribute.Attribute.GENERIC_ARMOR_TOUGHNESS,
+                        new org.bukkit.attribute.AttributeModifier(
+                                UUID.randomUUID(), "generic.armorToughness", toughness,
+                                org.bukkit.attribute.AttributeModifier.Operation.ADD_NUMBER, armorSlot));
+            }
+            if (kbRes > 0) {
+                map.put(org.bukkit.attribute.Attribute.GENERIC_KNOCKBACK_RESISTANCE,
+                        new org.bukkit.attribute.AttributeModifier(
+                                UUID.randomUUID(), "generic.knockbackResistance", kbRes,
+                                org.bukkit.attribute.AttributeModifier.Operation.ADD_NUMBER, armorSlot));
+            }
+        }
+
+        return map;
+    }
+
+    private static String getSlotLabel(org.bukkit.inventory.EquipmentSlot slot) {
+        switch (slot) {
+            case HAND:     return "Main Hand";
+            case OFF_HAND: return "Off Hand";
+            case HEAD:     return "Head";
+            case CHEST:    return "Chest";
+            case LEGS:     return "Legs";
+            case FEET:     return "Feet";
+            default:       return slot.name();
+        }
+    }
+
+    private static String formatAttributeName(org.bukkit.attribute.Attribute attr) {
+        // GENERIC_ATTACK_DAMAGE → "Attack Damage"
+        String raw = attr.name();
+        if (raw.startsWith("GENERIC_")) raw = raw.substring(8);
+        StringBuilder sb = new StringBuilder();
+        boolean cap = true;
+        for (char c : raw.toCharArray()) {
+            if (c == '_') { sb.append(' '); cap = true; }
+            else { sb.append(cap ? Character.toUpperCase(c) : Character.toLowerCase(c)); cap = false; }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Estimates the number of NBT tags on the item (vanilla shows this in F3+H mode).
+     * Bukkit doesn't expose raw NBT, so we count known meta properties.
+     */
+    private int estimateNbtTagCount(ItemStack item, ItemMeta meta,
+                                    Map<Enchantment, Integer> enchants) {
+        if (meta == null) return 0;
+        int count = 0;
+        if (meta.hasDisplayName()) count++;
+        if (meta.hasLore()) count++;
+        if (!enchants.isEmpty()) count++;
+        if (meta.hasAttributeModifiers()) count++;
+        if (meta.isUnbreakable()) count++;
+        if (meta instanceof org.bukkit.inventory.meta.Damageable
+                && ((org.bukkit.inventory.meta.Damageable) meta).getDamage() > 0) count++;
+        if (meta.hasCustomModelData()) count++;
+        // Repair cost
+        if (meta instanceof org.bukkit.inventory.meta.Repairable
+                && ((org.bukkit.inventory.meta.Repairable) meta).getRepairCost() > 0) count++;
+        // ItemFlags (HideEnchants etc.)
+        if (!meta.getItemFlags().isEmpty()) count++;
+        return count;
+    }
+
+    //  Inventory / Ender Chest component 
 
     private BaseComponent[] buildInventoryComponent(Player player, boolean enderChest) {
         String label;
@@ -358,7 +1123,7 @@ public class ItemDisplayManager {
         return hover.create();
     }
 
-    // ── Snapshot management ─────────────────────────────────────────────────
+    //  Snapshot management 
 
     private UUID createItemSnapshot(Player player, ItemStack item) {
         UUID id = UUID.randomUUID();
@@ -393,7 +1158,7 @@ public class ItemDisplayManager {
         return id;
     }
 
-    // ── Utility ─────────────────────────────────────────────────────────────
+    //  Utility 
 
     private String getItemDisplayName(ItemStack item) {
         if (item.hasItemMeta() && item.getItemMeta().hasDisplayName()) {
@@ -448,7 +1213,7 @@ public class ItemDisplayManager {
         return numerals[value];
     }
 
-    // ── Snapshot entry ──────────────────────────────────────────────────────
+    //  Snapshot entry 
 
     private static class SnapshotEntry {
         final Inventory inventory;

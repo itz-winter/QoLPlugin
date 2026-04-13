@@ -1,6 +1,9 @@
 package com.kelpwing.kelpylandiaplugin.integrations;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
+import com.kelpwing.kelpylandiaplugin.economy.DynamicPricingEngine;
+import com.kelpwing.kelpylandiaplugin.economy.EconomyManager;
+import com.kelpwing.kelpylandiaplugin.economy.commands.SellCommand;
 import com.kelpwing.kelpylandiaplugin.moderation.models.Punishment;
 import com.kelpwing.kelpylandiaplugin.utils.DurationParser;
 import net.dv8tion.jda.api.JDA;
@@ -20,6 +23,7 @@ import net.dv8tion.jda.api.interactions.commands.build.Commands;
 import net.dv8tion.jda.api.requests.GatewayIntent;
 import org.bukkit.BanList;
 import org.bukkit.Bukkit;
+import org.bukkit.Material;
 import org.bukkit.entity.Player;
 import com.kelpwing.kelpylandiaplugin.utils.VersionHelper;
 
@@ -39,8 +43,11 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 import java.io.OutputStream;
 import java.lang.reflect.Method;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 
 public class DiscordIntegration extends ListenerAdapter {
@@ -171,7 +178,305 @@ public class DiscordIntegration extends ListenerAdapter {
             }
         });
     }
-    
+
+    /**
+     * Sends a chat message via webhook with rich embeds for [item]/[inv]/[enderchest].
+     * Must be called from the main thread (player data is captured here).
+     */
+    public void sendChatItemEmbed(Player player, String surroundingText,
+                                   java.util.List<com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData> items,
+                                   String channelId) {
+        if (!enabled || channelId == null || channelId.isEmpty()) return;
+
+        // --- capture everything on the main thread ---
+        final String playerName = player.getName();
+        final String displayName = player.getDisplayName();
+        final String uuidStr = player.getUniqueId().toString();
+
+        final String username = stripSectionCodes(
+                plugin.getConfig().getString("discord.formats.username-format", "{displayname}")
+                        .replace("{player}", playerName)
+                        .replace("{displayname}", displayName));
+
+        final String avatarUrl = plugin.getConfig()
+                .getString("discord.formats.avatar-url", "https://mc-heads.net/avatar/{uuid}/64")
+                .replace("{uuid}", uuidStr)
+                .replace("{player}", playerName);
+
+        final String contentText = stripSectionCodes(
+                plugin.getConfig().getString("discord.formats.minecraft-to-discord", "{message}")
+                        .replace("{message}", surroundingText)
+                        .replace("{player}", playerName)
+                        .replace("{displayname}", displayName));
+
+        // Deep-copy the list so it's safe off-thread
+        final java.util.List<com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData> safeItems =
+                new java.util.ArrayList<>(items);
+
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                // ── Render tooltip images for each item ──────────────
+                java.util.List<java.io.InputStream> tooltipImages = new java.util.ArrayList<>();
+                java.util.List<String> tooltipFilenames = new java.util.ArrayList<>();
+                int imgIdx = 0;
+                for (com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData data : safeItems) {
+                    java.io.InputStream img = null;
+                    if (data.getType() == com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData.DisplayType.ITEM) {
+                        img = com.kelpwing.kelpylandiaplugin.chat.TooltipImageRenderer.renderTooltip(data);
+                    } else {
+                        img = com.kelpwing.kelpylandiaplugin.chat.TooltipImageRenderer.renderInventoryTooltip(data);
+                    }
+                    if (img != null) {
+                        String filename = "tooltip_" + imgIdx + ".png";
+                        tooltipImages.add(img);
+                        tooltipFilenames.add(filename);
+                    }
+                    imgIdx++;
+                }
+
+                // ── Try JDA-based send with tooltip image attachments ──
+                if (!tooltipImages.isEmpty()) {
+                    TextChannel ch = jda.getTextChannelById(channelId);
+                    if (ch != null) {
+                        // Build embeds with image references
+                        java.util.List<net.dv8tion.jda.api.entities.MessageEmbed> embeds = new java.util.ArrayList<>();
+                        int embedIdx = 0;
+                        for (com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData data : safeItems) {
+                            EmbedBuilder eb = buildItemEmbedObject(data);
+                            // Attach tooltip image to embed if we have one for this index
+                            if (embedIdx < tooltipFilenames.size()) {
+                                eb.setImage("attachment://" + tooltipFilenames.get(embedIdx));
+                            }
+                            embeds.add(eb.build());
+                            embedIdx++;
+                        }
+
+                        // Build the message with content + embeds + file attachments
+                        net.dv8tion.jda.api.requests.restaction.MessageCreateAction action =
+                                ch.sendMessage("**" + escapeMarkdown(username) + "**: " + escapeMarkdown(contentText));
+                        for (net.dv8tion.jda.api.entities.MessageEmbed embed : embeds) {
+                            action = action.addEmbeds(embed);
+                        }
+                        for (int i = 0; i < tooltipImages.size(); i++) {
+                            action = action.addFiles(net.dv8tion.jda.api.utils.FileUpload.fromData(
+                                    tooltipImages.get(i), tooltipFilenames.get(i)));
+                        }
+                        action.queue();
+                        return;
+                    }
+                }
+
+                // ── Fallback: webhook without tooltip images ─────────
+                String webhookUrl = getWebhookUrl(channelId);
+                if (webhookUrl == null) {
+                    TextChannel ch = jda.getTextChannelById(channelId);
+                    if (ch != null) ch.sendMessage("[" + username + "] " + contentText).queue();
+                    return;
+                }
+
+                StringBuilder embedsJson = new StringBuilder("[");
+                boolean first = true;
+
+                for (com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData data : safeItems) {
+                    if (!first) embedsJson.append(",");
+                    first = false;
+                    embedsJson.append(buildItemEmbedJson(data));
+                }
+                embedsJson.append("]");
+
+                String payload = String.format(
+                        "{\"content\":\"%s\",\"username\":\"%s\",\"avatar_url\":\"%s\",\"embeds\":%s}",
+                        escapeJson(contentText),
+                        escapeJson(username),
+                        avatarUrl,
+                        embedsJson);
+
+                sendWebhookRequest(webhookUrl, payload);
+
+            } catch (Exception e) {
+                plugin.getLogger().warning("Failed to send chat item embed: " + e.getMessage());
+            }
+        });
+    }
+
+    /**
+     * Builds a single Discord embed JSON object for an {@link com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData}.
+     */
+    private String buildItemEmbedJson(com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData data) {
+        StringBuilder sb = new StringBuilder("{");
+
+        switch (data.getType()) {
+            case ITEM:
+                sb.append("\"title\":\"").append(escapeJson(data.getItemName())).append("\"");
+                sb.append(",\"color\":").append(data.hasCustomName() ? 16750848 : 5635925); // orange for custom, teal for normal
+
+                // Thumbnail — item icon from Minecraft Wiki
+                String iconUrl = data.getItemIconUrl();
+                if (iconUrl != null) {
+                    sb.append(",\"thumbnail\":{\"url\":\"").append(escapeJson(iconUrl)).append("\"}");
+                }
+
+                // Fields
+                sb.append(",\"fields\":[");
+                boolean fieldFirst = true;
+
+                if (data.getAmount() > 1) {
+                    fieldFirst = false;
+                    sb.append("{\"name\":\"Amount\",\"value\":\"")
+                      .append(data.getAmount())
+                      .append("\",\"inline\":true}");
+                }
+
+                if (!data.getEnchantments().isEmpty()) {
+                    if (!fieldFirst) sb.append(",");
+                    fieldFirst = false;
+                    StringBuilder enchLines = new StringBuilder();
+                    for (java.util.Map.Entry<String, Integer> e : data.getEnchantments().entrySet()) {
+                        if (enchLines.length() > 0) enchLines.append("\n");
+                        enchLines.append(e.getKey());
+                        if (e.getValue() > 1) enchLines.append(" ").append(e.getValue());
+                    }
+                    sb.append("{\"name\":\"Enchantments\",\"value\":\"")
+                      .append(escapeJson(enchLines.toString()))
+                      .append("\",\"inline\":true}");
+                }
+
+                if (!data.getLore().isEmpty()) {
+                    if (!fieldFirst) sb.append(",");
+                    StringBuilder loreLines = new StringBuilder();
+                    for (String line : data.getLore()) {
+                        if (loreLines.length() > 0) loreLines.append("\n");
+                        loreLines.append(line);
+                    }
+                    sb.append("{\"name\":\"Lore\",\"value\":\"")
+                      .append(escapeJson(loreLines.toString()))
+                      .append("\",\"inline\":false}");
+                }
+
+                sb.append("]");
+                break;
+
+            case INVENTORY:
+            case ENDER_CHEST:
+                boolean isEC = data.getType() == com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData.DisplayType.ENDER_CHEST;
+                String title = isEC ? "\uD83D\uDD2E Ender Chest" : "\uD83C\uDF92 Inventory";
+                sb.append("\"title\":\"").append(escapeJson(title)).append("\"");
+                sb.append(",\"color\":").append(isEC ? 5046016 : 11184810); // dark purple / grey
+
+                // Slots field
+                sb.append(",\"fields\":[");
+                sb.append("{\"name\":\"Slots Used\",\"value\":\"")
+                  .append(data.getUsedSlots()).append("/").append(data.getTotalSlots())
+                  .append("\",\"inline\":true}");
+
+                if (!data.getTopItems().isEmpty()) {
+                    sb.append(",{\"name\":\"Top Items\",\"value\":\"");
+                    StringBuilder topLines = new StringBuilder();
+                    for (String item : data.getTopItems()) {
+                        if (topLines.length() > 0) topLines.append("\n");
+                        topLines.append(item);
+                    }
+                    sb.append(escapeJson(topLines.toString()));
+                    sb.append("\",\"inline\":false}");
+                }
+
+                sb.append("]");
+
+                // Thumbnail — chest icon
+                if (isEC) {
+                    sb.append(",\"thumbnail\":{\"url\":\"https://minecraft.wiki/images/Invicon_Ender_Chest.png\"}");
+                } else {
+                    sb.append(",\"thumbnail\":{\"url\":\"https://minecraft.wiki/images/Invicon_Chest.png\"}");
+                }
+                break;
+        }
+
+        sb.append("}");
+        return sb.toString();
+    }
+
+    /**
+     * Builds a JDA {@link EmbedBuilder} for an item/inventory display.
+     * Used when we want to attach tooltip images (requires JDA MessageCreateAction).
+     */
+    private EmbedBuilder buildItemEmbedObject(com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData data) {
+        EmbedBuilder eb = new EmbedBuilder();
+
+        switch (data.getType()) {
+            case ITEM:
+                eb.setTitle(data.getItemName());
+                eb.setColor(data.hasCustomName() ? new Color(0xFFAA00) : new Color(0x55FF55));
+
+                String iconUrl = data.getItemIconUrl();
+                if (iconUrl != null) {
+                    eb.setThumbnail(iconUrl);
+                }
+
+                if (data.getAmount() > 1) {
+                    eb.addField("Amount", String.valueOf(data.getAmount()), true);
+                }
+
+                if (!data.getEnchantments().isEmpty()) {
+                    StringBuilder enchLines = new StringBuilder();
+                    for (java.util.Map.Entry<String, Integer> e : data.getEnchantments().entrySet()) {
+                        if (enchLines.length() > 0) enchLines.append("\n");
+                        enchLines.append(e.getKey());
+                        if (e.getValue() > 1) enchLines.append(" ").append(e.getValue());
+                    }
+                    eb.addField("Enchantments", enchLines.toString(), true);
+                }
+
+                if (!data.getLore().isEmpty()) {
+                    StringBuilder loreLines = new StringBuilder();
+                    for (String line : data.getLore()) {
+                        if (loreLines.length() > 0) loreLines.append("\n");
+                        loreLines.append(line);
+                    }
+                    eb.addField("Lore", loreLines.toString(), false);
+                }
+                break;
+
+            case INVENTORY:
+            case ENDER_CHEST:
+                boolean isEC = data.getType() == com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData.DisplayType.ENDER_CHEST;
+                eb.setTitle(isEC ? "\uD83D\uDD2E Ender Chest" : "\uD83C\uDF92 Inventory");
+                eb.setColor(isEC ? new Color(0x4D0080) : new Color(0xAAAAAA));
+
+                eb.addField("Slots Used",
+                        data.getUsedSlots() + "/" + data.getTotalSlots(), true);
+
+                if (!data.getTopItems().isEmpty()) {
+                    StringBuilder topLines = new StringBuilder();
+                    for (String item : data.getTopItems()) {
+                        if (topLines.length() > 0) topLines.append("\n");
+                        topLines.append(item);
+                    }
+                    eb.addField("Top Items", topLines.toString(), false);
+                }
+
+                eb.setThumbnail(isEC
+                        ? "https://minecraft.wiki/images/Invicon_Ender_Chest.png"
+                        : "https://minecraft.wiki/images/Invicon_Chest.png");
+                break;
+        }
+
+        return eb;
+    }
+
+    /**
+     * Escapes Discord Markdown special characters.
+     */
+    private static String escapeMarkdown(String text) {
+        if (text == null) return "";
+        return text.replace("\\", "\\\\")
+                   .replace("*", "\\*")
+                   .replace("_", "\\_")
+                   .replace("~", "\\~")
+                   .replace("`", "\\`")
+                   .replace("|", "\\|")
+                   .replace(">", "\\>");
+    }
+
     public void sendPunishmentMessage(Object punishment) {
         plugin.getLogger().info("[DISCORD DEBUG] sendPunishmentMessage called");
         plugin.getLogger().info("[DISCORD DEBUG] enabled: " + enabled);
@@ -1036,7 +1341,11 @@ public class DiscordIntegration extends ListenerAdapter {
                 Commands.slash("testmute", "Send a test mute punishment message"),
                 Commands.slash("testunban", "Send a test unban punishment message"),
                 Commands.slash("testunwarn", "Send a test unwarn punishment message"),
-                Commands.slash("testunmute", "Send a test unmute punishment message")
+                Commands.slash("testunmute", "Send a test unmute punishment message"),
+                
+                // Economy commands
+                Commands.slash("price", "Check an item's price and view a price history graph")
+                    .addOption(OptionType.STRING, "item", "The item to check (e.g., diamond, iron_ingot)", true)
             ).queue(
                 success -> plugin.getLogger().info("Successfully registered Discord slash commands!"),
                 error -> plugin.getLogger().warning("Failed to register Discord slash commands: " + error.getMessage())
@@ -1138,6 +1447,10 @@ public class DiscordIntegration extends ListenerAdapter {
                 break;
             case "testunmute":
                 handleTestUnmuteCommand(event, staffName);
+                break;
+                
+            case "price":
+                handlePriceCommand(event);
                 break;
                 
             default:
@@ -1742,6 +2055,210 @@ public class DiscordIntegration extends ListenerAdapter {
         Bukkit.broadcastMessage(message);
         
         event.reply("✅ Test unmute message sent!").setEphemeral(true).queue();
+    }
+    
+    // ── Economy: /price command ──────────────────────────────────────
+    
+    private void handlePriceCommand(SlashCommandInteractionEvent event) {
+        EconomyManager eco = plugin.getEconomyManager();
+        if (eco == null || !eco.isEnabled()) {
+            event.reply("❌ The economy system is disabled.").setEphemeral(true).queue();
+            return;
+        }
+        
+        String itemArg = event.getOption("item").getAsString().trim();
+        Material material = EconomyManager.parseMaterial(itemArg);
+        if (material == null) {
+            event.reply("❌ Unknown item: `" + itemArg + "`").setEphemeral(true).queue();
+            return;
+        }
+        
+        // Defer because we may do HTTP call for chart
+        event.deferReply().queue();
+        
+        // Run on async thread so chart URL generation doesn't block
+        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+            try {
+                String itemName = SellCommand.formatMaterial(material);
+                int decimals = eco.getDecimals();
+                String unit = eco.getUnit();
+                
+                EconomyManager.PriceResult sellResult = eco.getPrice(material);
+                EconomyManager.BuyPriceResult buyResult = eco.getBuyPrice(material);
+                boolean canSell = sellResult.sellable;
+                boolean canBuy = buyResult.buyable && eco.isBuyingEnabled();
+                
+                if (!canSell && !canBuy) {
+                    event.getHook().editOriginal("❌ **" + itemName + "** is not sellable or buyable.").queue();
+                    return;
+                }
+                
+                EmbedBuilder embed = new EmbedBuilder();
+                embed.setTitle("💰 " + itemName + " — Price Info");
+                embed.setColor(new Color(0x2ECC71));
+                
+                // Sell price field
+                if (canSell) {
+                    String sellStr = unit + sellResult.price.setScale(decimals, RoundingMode.HALF_UP).toPlainString();
+                    String sellField = "**" + sellStr + "** each";
+                    if (sellResult.categoryName != null) {
+                        sellField += "\n*(Category: " + sellResult.categoryName + ")*";
+                    }
+                    embed.addField("📤 Sell Price", sellField, true);
+                }
+                
+                // Buy price field
+                if (canBuy) {
+                    String buyStr = unit + buyResult.price.setScale(decimals, RoundingMode.HALF_UP).toPlainString();
+                    String buyField = "**" + buyStr + "** each";
+                    if (buyResult.categoryName != null) {
+                        buyField += "\n*(Category: " + buyResult.categoryName + ")*";
+                    }
+                    embed.addField("📥 Buy Price", buyField, true);
+                } else if (!eco.isBuyingEnabled()) {
+                    embed.addField("📥 Buy Price", "*Buying disabled*", true);
+                } else {
+                    embed.addField("📥 Buy Price", "*Not available*", true);
+                }
+                
+                // Circulation
+                DynamicPricingEngine engine = eco.getDynamicPricing();
+                if (engine != null) {
+                    long circ = engine.getCirculation(material);
+                    embed.addField("📊 Circulation", String.valueOf(circ) + " items", true);
+                }
+                
+                // Dynamic pricing status
+                if (engine != null && engine.isEnabled()) {
+                    double changePercent = engine.getChangePercent(material, null);
+                    String status = engine.getStatus(material, null);
+                    String emoji = changePercent > 1.0 ? "🔴" : (changePercent < -1.0 ? "🟢" : "🟡");
+                    String changeStr = String.format("%+.1f%%", changePercent);
+                    embed.addField("📈 Market Status", emoji + " " + status + " (" + changeStr + ")", false);
+                    
+                    // Build QuickChart price history graph (use smoothed data for curvy lines)
+                    java.util.List<DynamicPricingEngine.PriceSnapshot> history = engine.getSmoothedHistory(material);
+                    if (history.isEmpty()) {
+                        history = engine.getHistory(material);
+                    }
+                    if (!history.isEmpty()) {
+                        String chartUrl = buildPriceChartUrl(history, itemName, unit, decimals, canSell ? sellResult : null);
+                        if (chartUrl != null) {
+                            embed.setImage(chartUrl);
+                        }
+                    }
+                }
+                
+                embed.setFooter("Kelpylandia Economy");
+                embed.setTimestamp(Instant.now());
+                
+                event.getHook().editOriginalEmbeds(embed.build()).queue();
+            } catch (Exception e) {
+                plugin.getLogger().warning("Error handling Discord /price command: " + e.getMessage());
+                event.getHook().editOriginal("❌ An error occurred while fetching price info.").queue();
+            }
+        });
+    }
+    
+    /**
+     * Build a QuickChart URL for the price history graph.
+     * Uses the QuickChart.io API to render a Chart.js line chart as a PNG.
+     */
+    private String buildPriceChartUrl(java.util.List<DynamicPricingEngine.PriceSnapshot> history,
+                                       String itemName, String unit, int decimals,
+                                       EconomyManager.PriceResult baseSellResult) {
+        try {
+            // Limit to last 30 data points for a clean graph
+            int maxPoints = 30;
+            int start = Math.max(0, history.size() - maxPoints);
+            
+            StringBuilder labels = new StringBuilder("[");
+            StringBuilder data = new StringBuilder("[");
+            
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("MM/dd HH:mm");
+            
+            for (int i = start; i < history.size(); i++) {
+                DynamicPricingEngine.PriceSnapshot snap = history.get(i);
+                if (i > start) {
+                    labels.append(",");
+                    data.append(",");
+                }
+                labels.append("\"").append(sdf.format(new java.util.Date(snap.timestamp))).append("\"");
+                data.append(snap.price.setScale(decimals, RoundingMode.HALF_UP).toPlainString());
+            }
+            labels.append("]");
+            data.append("]");
+            
+            // Build base price annotation line if we have a base sell price
+            String annotationPlugin = "";
+            if (baseSellResult != null) {
+                String baseVal = baseSellResult.price.setScale(decimals, RoundingMode.HALF_UP).toPlainString();
+                annotationPlugin = ",annotation:{annotations:{line1:{type:'line',yMin:" + baseVal 
+                    + ",yMax:" + baseVal + ",borderColor:'rgba(255,99,132,0.6)',borderWidth:2,borderDash:[6,4],"
+                    + "label:{display:true,content:'Base: " + unit + baseVal + "',position:'start',backgroundColor:'rgba(255,99,132,0.7)'}}}}";
+            }
+            
+            String chartConfig = "{type:'line',data:{labels:" + labels + ",datasets:[{label:'Sell Price (" + unit + ")',"
+                + "data:" + data + ",borderColor:'#2ecc71',backgroundColor:'rgba(46,204,113,0.1)',fill:true,"
+                + "tension:0.4,pointRadius:2}]},options:{plugins:{title:{display:true,text:'" + itemName 
+                + " Price History',color:'#fff',font:{size:16}},legend:{labels:{color:'#ccc'}}" + annotationPlugin 
+                + "},scales:{x:{ticks:{color:'#aaa',maxTicksLimit:8},grid:{color:'rgba(255,255,255,0.1)'}},"
+                + "y:{ticks:{color:'#aaa',callback:function(v){return '" + unit + "'+v}},grid:{color:'rgba(255,255,255,0.1)'}}},"
+                + "layout:{padding:10}},plugins:['chartjs-plugin-annotation']}";
+            
+            String encoded = URLEncoder.encode(chartConfig, "UTF-8");
+            String url = "https://quickchart.io/chart?c=" + encoded + "&w=600&h=300&bkg=%232f3136&f=png";
+            
+            // QuickChart URLs have a ~16k char limit; fall back if too long
+            if (url.length() > 16000) {
+                // Reduce points and retry
+                return buildPriceChartUrlSimple(history, itemName, unit, decimals);
+            }
+            return url;
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to build price chart URL: " + e.getMessage());
+            return null;
+        }
+    }
+    
+    /**
+     * Simplified chart with fewer data points as a fallback.
+     */
+    private String buildPriceChartUrlSimple(java.util.List<DynamicPricingEngine.PriceSnapshot> history,
+                                             String itemName, String unit, int decimals) {
+        try {
+            int maxPoints = 10;
+            int step = Math.max(1, history.size() / maxPoints);
+            
+            StringBuilder labels = new StringBuilder("[");
+            StringBuilder data = new StringBuilder("[");
+            
+            java.text.SimpleDateFormat sdf = new java.text.SimpleDateFormat("MM/dd");
+            boolean first = true;
+            
+            for (int i = 0; i < history.size(); i += step) {
+                DynamicPricingEngine.PriceSnapshot snap = history.get(i);
+                if (!first) {
+                    labels.append(",");
+                    data.append(",");
+                }
+                first = false;
+                labels.append("\"").append(sdf.format(new java.util.Date(snap.timestamp))).append("\"");
+                data.append(snap.price.setScale(decimals, RoundingMode.HALF_UP).toPlainString());
+            }
+            labels.append("]");
+            data.append("]");
+            
+            String chartConfig = "{type:'line',data:{labels:" + labels + ",datasets:[{label:'Price (" + unit + ")',"
+                + "data:" + data + ",borderColor:'#2ecc71',fill:false,tension:0.4}]},"
+                + "options:{plugins:{title:{display:true,text:'" + itemName + " Price History',color:'#fff'}},"
+                + "scales:{x:{ticks:{color:'#aaa'}},y:{ticks:{color:'#aaa'}}}}}";
+            
+            String encoded = URLEncoder.encode(chartConfig, "UTF-8");
+            return "https://quickchart.io/chart?c=" + encoded + "&w=600&h=300&bkg=%232f3136&f=png";
+        } catch (Exception e) {
+            return null;
+        }
     }
     
     // Server lifecycle event methods

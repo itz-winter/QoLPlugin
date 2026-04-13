@@ -95,6 +95,7 @@ import com.kelpwing.kelpylandiaplugin.economy.EconomyManager;
 import com.kelpwing.kelpylandiaplugin.economy.VaultEconomyProvider;
 import com.kelpwing.kelpylandiaplugin.economy.SellGUI;
 import com.kelpwing.kelpylandiaplugin.economy.ShopEditGUI;
+import com.kelpwing.kelpylandiaplugin.economy.ShopGUI;
 import com.kelpwing.kelpylandiaplugin.economy.commands.*;
 import com.kelpwing.kelpylandiaplugin.placeholders.KpauPlaceholders;
 import org.bukkit.Bukkit;
@@ -157,6 +158,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
     private VaultEconomyProvider vaultEconomyProvider;
     private SellGUI sellGUI;
     private ShopEditGUI shopEditGUI;
+    private ShopGUI shopGUI;
     
     @Override
     public void onEnable() {
@@ -592,6 +594,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
                 economyManager = new EconomyManager(this);
                 sellGUI = new SellGUI(this);
                 shopEditGUI = new ShopEditGUI(this);
+                shopGUI = new ShopGUI(this);
                 
                 // Register Vault provider if Vault is present and use-vault is true
                 if (economyManager.isUseVault() && getServer().getPluginManager().getPlugin("Vault") != null) {
@@ -627,9 +630,16 @@ public class KelpylandiaPlugin extends JavaPlugin {
                 registerCommand("shopedit", shopEditCmd, "Open the shop editor GUI.", "/shopedit", "qol.economy.shopedit", "se");
                 registerCommand("pricehistory", priceHistCmd, "View an item's price history.", "/pricehistory <item> [length]", "qol.economy.pricehistory", "ph");
                 
+                ShopCommand shopCmd = new ShopCommand(this);
+                registerCommand("shop", shopCmd, "Open the server shop to buy items.", "/shop", "qol.economy.shop", "buy", "store");
+
+                EcoCommand ecoCmd = new EcoCommand(this);
+                registerCommand("eco", ecoCmd, "Admin: manage player balances.", "/eco <add|subtract|set|reset|check> <player> [amount]", "qol.economy.eco", "economy");
+                
                 // Register GUI listeners
                 getServer().getPluginManager().registerEvents(sellGUI, this);
                 getServer().getPluginManager().registerEvents(shopEditGUI, this);
+                getServer().getPluginManager().registerEvents(shopGUI, this);
                 
                 getLogger().info("Economy system enabled!");
             }
@@ -962,6 +972,10 @@ public class KelpylandiaPlugin extends JavaPlugin {
 
     public ShopEditGUI getShopEditGUI() {
         return shopEditGUI;
+    }
+
+    public ShopGUI getShopGUI() {
+        return shopGUI;
     }
 
     public VaultEconomyProvider getVaultEconomyProvider() {

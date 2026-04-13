@@ -48,8 +48,8 @@ public class TrashCommand implements CommandExecutor, TabCompleter, Listener {
             return true;
         }
 
-        // Open a 4-row (36 slot) chest inventory as a trash can
-        Inventory trash = Bukkit.createInventory(null, 36, TRASH_TITLE);
+        // Open a 6-row (54 slot) chest inventory as a trash can
+        Inventory trash = Bukkit.createInventory(null, 54, TRASH_TITLE);
         trashUsers.add(player.getUniqueId());
         player.openInventory(trash);
         player.sendMessage(ChatColor.GREEN + "Opened " + ChatColor.GOLD + "Trash" + ChatColor.GREEN

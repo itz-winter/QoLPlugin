@@ -753,6 +753,7 @@ permissions:
       qol.economy.delprice: true
       qol.economy.shopedit: true
       qol.economy.balance.others: true
+      qol.economy.eco: true
 
   qol.economy.balance:
     description: Allows checking your own balance
@@ -800,6 +801,10 @@ permissions:
 
   qol.economy.shopedit:
     description: Allows using the shop editor GUI
+    default: op
+
+  qol.economy.eco:
+    description: Allows managing player balances (add, subtract, set, reset, check)
     default: op
 
   qol.economy.baltop.exclude:
