@@ -58,14 +58,24 @@ public class AfkManager {
         boolean wasAfk = isAfk(player);
         afkPlayers.put(player.getUniqueId(), afk);
 
+        // Never announce AFK status changes for vanished players — they are
+        // invisible to other players and leaking their state would reveal them.
+        com.kelpwing.kelpylandiaplugin.moderation.commands.VanishCommand vc =
+                plugin.getVanishCommand();
+        boolean vanished = vc != null && vc.isVanished(player);
+
         if (afk && !wasAfk) {
-            Bukkit.broadcastMessage(ChatColor.GRAY + "* " + player.getName() + " is now AFK.");
+            if (!vanished) {
+                Bukkit.broadcastMessage(ChatColor.GRAY + "* " + player.getName() + " is now AFK.");
+            }
             // Update player list name to show AFK tag
             String currentList = player.getPlayerListName();
             if (currentList == null || currentList.isEmpty()) currentList = player.getName();
             player.setPlayerListName(ChatColor.GRAY + "[AFK] " + ChatColor.RESET + currentList);
         } else if (!afk && wasAfk) {
-            Bukkit.broadcastMessage(ChatColor.GRAY + "* " + player.getName() + " is no longer AFK.");
+            if (!vanished) {
+                Bukkit.broadcastMessage(ChatColor.GRAY + "* " + player.getName() + " is no longer AFK.");
+            }
             // Restore player list name
             NickManager nickManager = plugin.getNickManager();
             if (nickManager != null && nickManager.hasNickname(player.getUniqueId())) {

@@ -24,7 +24,7 @@ public class ReloadCommand implements CommandExecutor {
 
         // Check if command has no arguments
         if (args.length != 0) {
-            sender.sendMessage(ChatColor.RED + "Usage: /kpaumodreload");
+            sender.sendMessage(ChatColor.RED + "Usage: /kpreload, or /qolreload");
             return true;
         }
 
@@ -67,11 +67,11 @@ public class ReloadCommand implements CommandExecutor {
             }
             
             // Send success message
-            sender.sendMessage(ChatColor.GREEN + "KelpylandiaPlugin configuration has been reloaded successfully!");
+            sender.sendMessage(ChatColor.WHITE + "[" + ChatColor.GREEN + "QoLPlugin" + ChatColor.WHITE + "]" +ChatColor.GREEN + " Configuration has been reloaded successfully!");
             
         } catch (Exception e) {
             // Send error message if reload fails
-            sender.sendMessage(ChatColor.RED + "Failed to reload configuration: " + e.getMessage());
+            sender.sendMessage(ChatColor.WHITE + "[" + ChatColor.GREEN + "QoLPlugin" + ChatColor.WHITE + "]" + ChatColor.RED + " Failed to reload configuration: " + e.getMessage());
             e.printStackTrace();
         }
 
