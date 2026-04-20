@@ -72,17 +72,31 @@ public class ConsoleListener extends Handler implements Listener {
             String loggerName = event.getLoggerName();
             if (loggerName == null) loggerName = "";
 
-            // Only relay events from NMS/vanilla loggers that never go through JUL.
-            // - "net.minecraft.*"  — pure NMS loggers (say output, [Not Secure], etc.)
-            // - "Minecraft"        — Spigot's main server logger (some vanilla output)
-            // Explicitly EXCLUDE:
-            // - ""  (root)         — JUL-bridged messages land here; already handled by publish()
-            // - "com.*", "org.*"   — plugin/library loggers already in JUL
-            // - anything containing "jul" or "jdk" — JUL bridge markers
-            boolean isNmsOnly = loggerName.startsWith("net.minecraft")
-                    || loggerName.equals("Minecraft");
-
-            if (!isNmsOnly) return;
+            // Only relay events from loggers that do NOT already go through our JUL handler.
+            //
+            // In Spigot/Paper, the JUL LogManager is bridged to log4j2, so JUL messages show up
+            // in log4j2 too.  Bukkit plugin JUL loggers use simple names without dots (e.g.
+            // "LuckPerms", "EssentialsX") — our JUL Handler already captures those, so skip them
+            // here to avoid double-posting.
+            //
+            // Loggers with dotted names (e.g. "me.lucko.luckperms.*", "net.minecraft.*") come
+            // from SLF4J→log4j2 or NMS and are NOT captured by the JUL handler — relay those.
+            //
+            // Explicitly excluded (handled by JUL or feedback-loop risk):
+            //   ""               — root logger (JUL bridge)
+            //   no dots in name  — Bukkit plugin JUL logger (simple plugin name)
+            //   com.kelpwing.*   — our own plugin (prevents Discord feedback loops)
+            //   org.bukkit.*     — Bukkit internals (JUL)
+            //   java.* / sun.* / javax.* / jdk.*  — JDK internals
+            boolean isJulHandled = loggerName.isEmpty()
+                    || !loggerName.contains(".")          // simple name = Bukkit JUL plugin logger
+                    || loggerName.startsWith("com.kelpwing")
+                    || loggerName.startsWith("org.bukkit")
+                    || loggerName.startsWith("java.")
+                    || loggerName.startsWith("sun.")
+                    || loggerName.startsWith("javax.")
+                    || loggerName.startsWith("jdk.");
+            if (isJulHandled) return;
 
             String level = event.getLevel().name();
             relayLog4j(message, level);

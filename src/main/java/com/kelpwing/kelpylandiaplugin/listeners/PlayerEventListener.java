@@ -115,22 +115,23 @@ public class PlayerEventListener implements Listener {
             }
         }
 
-        // Give first-join kits to new players (delay 1 tick so inventory is ready)
+        // First-ever join: create economy account
         if (!player.hasPlayedBefore()) {
-            // Create economy account with starting balance
             EconomyManager eco = plugin.getEconomyManager();
             if (eco != null && eco.isEnabled()) {
                 eco.createAccount(player.getUniqueId());
             }
+        }
 
-            KitManager km = plugin.getKitManager();
-            if (km != null) {
-                org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
-                    if (player.isOnline()) {
-                        km.giveFirstJoinKits(player);
-                    }
-                }, 5L);  // 5 tick delay to let the player fully load
-            }
+        // Give any first-join kits the player hasn't claimed yet (runs on every join
+        // so existing players who missed a kit when it was added still receive it).
+        KitManager km = plugin.getKitManager();
+        if (km != null) {
+            org.bukkit.Bukkit.getScheduler().runTaskLater(plugin, () -> {
+                if (player.isOnline()) {
+                    km.giveFirstJoinKits(player);
+                }
+            }, 5L);  // 5-tick delay to let the player fully load
         }
     }
 

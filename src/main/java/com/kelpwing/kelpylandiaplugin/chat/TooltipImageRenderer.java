@@ -8,32 +8,17 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
 /**
  * Renders a Minecraft-style tooltip as a PNG image using Java2D.
  * <p>
- * The generated image mimics the in-game item tooltip appearance:
- * <ul>
- *   <li>Dark semi-transparent background with purple gradient border</li>
- *   <li>Item name coloured by rarity: white (common), yellow (uncommon),
- *       aqua (rare), light-purple (epic). Custom-renamed items always show aqua italic.</li>
- *   <li>Potion effects in aqua</li>
- *   <li>Enchantments in gray (curses in red)</li>
- *   <li>Attribute modifier lines in dark green (positive) / red (negative),
- *       grouped under a gray slot header</li>
- *   <li>Unbreakable in blue; Durability line in white</li>
- *   <li>Lore in dark purple italic</li>
- *   <li>Material ID in dark gray</li>
- * </ul>
- * <p>
- * This class is thread-safe and designed to be called from async threads
- * (e.g. Discord event handlers).
- * <p>
- * Content logic cherry-picked from InteractiveChat-DiscordSRV-Addon's
- * {@code DiscordItemStackUtils.getToolTip()}, using Java2D rendering
- * instead of the resource-pack bitmap font system.
+ * Supports multi-coloured lore lines: § colour/format codes embedded in lore
+ * strings are parsed into coloured segments so each segment is drawn with its
+ * correct colour.  All other tooltip lines (name, enchants, attributes …) are
+ * still created with a single explicit colour via the simple constructor.
  */
 public class TooltipImageRenderer {
 
@@ -61,20 +46,61 @@ public class TooltipImageRenderer {
     private static final String FONT_NAME = "Consolas";
     private static final int FONT_SIZE    = 14;
 
+    // ── Fonts (created once) ──────────────────────────────────────
+    private static final Font FONT_BASE        = new Font(FONT_NAME, Font.PLAIN,        FONT_SIZE);
+    private static final Font FONT_ITALIC      = new Font(FONT_NAME, Font.ITALIC,       FONT_SIZE);
+    private static final Font FONT_BOLD        = new Font(FONT_NAME, Font.BOLD,         FONT_SIZE);
+    private static final Font FONT_BOLD_ITALIC = new Font(FONT_NAME, Font.BOLD | Font.ITALIC, FONT_SIZE);
+
+    // ════════════════════════════════════════════════════════════════
+    //  Inner classes
+    // ════════════════════════════════════════════════════════════════
+
     /**
-     * A single line of tooltip text with its colour.
+     * A single coloured run of text within a tooltip line.
      */
-    private static class TooltipLine {
+    private static class ColorSegment {
         final String text;
-        final Color color;
+        final Color  color;
+        final boolean bold;
         final boolean italic;
 
-        TooltipLine(String text, Color color, boolean italic) {
+        ColorSegment(String text, Color color, boolean bold, boolean italic) {
             this.text   = text;
             this.color  = color;
+            this.bold   = bold;
             this.italic = italic;
         }
     }
+
+    /**
+     * One logical line in the tooltip — may contain multiple {@link ColorSegment}s
+     * (for lore lines that embed § colour codes) or just a single segment (for all
+     * other lines where we supply the colour explicitly).
+     */
+    private static class TooltipLine {
+        final List<ColorSegment> segments;
+
+        /** Simple single-colour, single-style constructor used by most lines. */
+        TooltipLine(String text, Color color, boolean italic) {
+            this.segments = Collections.singletonList(
+                    new ColorSegment(text, color, false, italic));
+        }
+
+        /** Multi-segment constructor — used for colour-parsed lore lines. */
+        TooltipLine(List<ColorSegment> segments) {
+            this.segments = segments;
+        }
+
+        boolean isEmpty() {
+            return segments.isEmpty()
+                    || segments.stream().allMatch(s -> s.text.isEmpty());
+        }
+    }
+
+    // ════════════════════════════════════════════════════════════════
+    //  Public API
+    // ════════════════════════════════════════════════════════════════
 
     /**
      * Render a tooltip image for the given item data.
@@ -83,12 +109,8 @@ public class TooltipImageRenderer {
      * @return PNG image bytes as an InputStream, or null if the item is air/nothing
      */
     public static InputStream renderTooltip(ItemDisplayData data) {
-        if (data == null || data.getType() != ItemDisplayData.DisplayType.ITEM) {
-            return null;
-        }
-        if ("AIR".equals(data.getMaterialName()) || data.getAmount() == 0) {
-            return null;
-        }
+        if (data == null || data.getType() != ItemDisplayData.DisplayType.ITEM) return null;
+        if ("AIR".equals(data.getMaterialName()) || data.getAmount() == 0) return null;
 
         List<TooltipLine> lines = buildTooltipLines(data);
         if (lines.isEmpty()) return null;
@@ -109,9 +131,7 @@ public class TooltipImageRenderer {
     public static InputStream renderInventoryTooltip(ItemDisplayData data) {
         if (data == null) return null;
         if (data.getType() != ItemDisplayData.DisplayType.INVENTORY
-                && data.getType() != ItemDisplayData.DisplayType.ENDER_CHEST) {
-            return null;
-        }
+                && data.getType() != ItemDisplayData.DisplayType.ENDER_CHEST) return null;
 
         List<TooltipLine> lines = buildInventoryLines(data);
         if (lines.isEmpty()) return null;
@@ -133,20 +153,19 @@ public class TooltipImageRenderer {
     private static List<TooltipLine> buildTooltipLines(ItemDisplayData data) {
         List<TooltipLine> lines = new ArrayList<>();
 
-        // 1. Item name — colour by rarity; custom-renamed → italic aqua (matches vanilla)
+        // 1. Item name — parse § codes so custom formatting is preserved.
+        //    Custom-renamed items use their own § codes; default colour is rarity-based.
+        //    Vanilla names have no § codes so parseLegacyLine falls back to rarityColor.
         String name = data.getItemName();
-        if (data.getAmount() > 1) {
-            name += " x" + data.getAmount();
-        }
+        if (data.getAmount() > 1) name += " x" + data.getAmount();
         if (data.hasCustomName()) {
-            // Custom name always renders italic aqua regardless of rarity
-            lines.add(new TooltipLine(name, TEXT_AQUA, true));
+            // Custom names: parse § codes (default to aqua+italic if no code present)
+            lines.add(parseLegacyLine(name, TEXT_AQUA, true));
         } else {
-            Color rarityColor = rarityToColor(data.getRarity());
-            lines.add(new TooltipLine(name, rarityColor, false));
+            lines.add(new TooltipLine(name, rarityToColor(data.getRarity()), false));
         }
 
-        // 2. Potion effects (aqua — matching IC's rendering for positive effects)
+        // 2. Potion effects (aqua)
         for (String effect : data.getPotionEffects()) {
             lines.add(new TooltipLine(effect, TEXT_AQUA, false));
         }
@@ -158,52 +177,48 @@ public class TooltipImageRenderer {
                 int level = ench.getValue();
                 boolean isCurse = enchName.toLowerCase().contains("curse");
                 Color color = isCurse ? TEXT_RED : TEXT_GRAY;
-                String levelStr = "";
-                // IC: only show level numeral if maxLevel > 1 or level > 1
-                if (level > 1) {
-                    levelStr = " " + toRoman(level);
-                }
+                String levelStr = level > 1 ? " " + toRoman(level) : "";
                 lines.add(new TooltipLine(enchName + levelStr, color, false));
             }
         }
 
-        // 4. Lore
+        // 4. Lore — parse § colour codes so each line renders with its correct colours.
+        //    Vanilla default for lore: dark-purple italic; codes in the line override this.
         for (String loreLine : data.getLore()) {
-            lines.add(new TooltipLine(loreLine, TEXT_PURPLE, true));
+            lines.add(parseLegacyLine(loreLine, TEXT_PURPLE, true));
         }
 
-        // 5. Attribute modifier lines (slot header in gray, values in dark green/red)
+        // 5. Attribute modifier lines
         if (!data.isHideAttributes()) {
             for (String attrLine : data.getAttributeLines()) {
                 if (attrLine.startsWith("When in ")) {
-                    // Blank separator before each slot section (matches IC)
-                    lines.add(new TooltipLine("", TEXT_GRAY, false));
+                    lines.add(new TooltipLine("", TEXT_GRAY, false)); // blank separator
                     lines.add(new TooltipLine(attrLine, TEXT_GRAY, false));
                 } else {
-                    // Determine colour from sign
-                    boolean negative = attrLine.trim().startsWith("-")
-                            || attrLine.trim().startsWith(" -");
+                    boolean negative = attrLine.trim().startsWith("-");
                     lines.add(new TooltipLine(attrLine, negative ? TEXT_RED : TEXT_DARK_GREEN, false));
                 }
             }
         }
 
-        // 6. Unbreakable (blue — matches IC/vanilla)
+        // 6. Unbreakable
         if (data.isUnbreakable() && !data.isHideDurability()) {
             lines.add(new TooltipLine("Unbreakable", TEXT_BLUE, false));
         }
 
-        // 7. Durability line — IC shows "Durability: X / MAX" only when damaged
+        // 7. Durability
         if (!data.isUnbreakable() && !data.isHideDurability()
                 && data.getMaxDurability() > 0
                 && data.getDurability() < data.getMaxDurability()) {
-            String durLine = "Durability: " + data.getDurability() + " / " + data.getMaxDurability();
-            lines.add(new TooltipLine(durLine, TEXT_WHITE, false));
+            lines.add(new TooltipLine(
+                    "Durability: " + data.getDurability() + " / " + data.getMaxDurability(),
+                    TEXT_WHITE, false));
         }
 
-        // 8. Material ID (dark gray — matches IC's "showAdvanceDetails" minecraft:id line)
-        String matId = "minecraft:" + data.getMaterialName().toLowerCase();
-        lines.add(new TooltipLine(matId, TEXT_DARK_GRAY, false));
+        // 8. Material ID
+        lines.add(new TooltipLine(
+                "minecraft:" + data.getMaterialName().toLowerCase(),
+                TEXT_DARK_GRAY, false));
 
         return lines;
     }
@@ -212,25 +227,108 @@ public class TooltipImageRenderer {
         List<TooltipLine> lines = new ArrayList<>();
 
         boolean isEC = data.getType() == ItemDisplayData.DisplayType.ENDER_CHEST;
-        String title = isEC ? "Ender Chest" : "Inventory";
-        lines.add(new TooltipLine(title, isEC ? TEXT_LIGHT_PURPLE : TEXT_WHITE, false));
-
+        lines.add(new TooltipLine(isEC ? "Ender Chest" : "Inventory",
+                isEC ? TEXT_LIGHT_PURPLE : TEXT_WHITE, false));
         lines.add(new TooltipLine(
                 "Slots: " + data.getUsedSlots() + "/" + data.getTotalSlots(),
                 TEXT_GRAY, false));
-
         for (String item : data.getTopItems()) {
             lines.add(new TooltipLine("  " + item, TEXT_GRAY, false));
         }
+        int remaining = data.getUsedSlots() - data.getTopItems().size();
+        if (remaining > 0) {
+            lines.add(new TooltipLine("  ..." + remaining + " more", TEXT_DARK_GRAY, true));
+        }
+        return lines;
+    }
 
-        if (data.getTopItems().size() < data.getUsedSlots()) {
-            int remaining = data.getUsedSlots() - data.getTopItems().size();
-            if (remaining > 0) {
-                lines.add(new TooltipLine("  ..." + remaining + " more", TEXT_DARK_GRAY, true));
-            }
+    // ════════════════════════════════════════════════════════════════
+    //  Legacy colour-code parser
+    // ════════════════════════════════════════════════════════════════
+
+    /**
+     * Parses a string that may contain § colour/format codes into a {@link TooltipLine}
+     * whose segments each carry the correct colour and style.
+     *
+     * <p>Colour codes reset bold/italic to defaults.  Format codes {@code §l} (bold),
+     * {@code §o} (italic) accumulate on top of the current colour.  {@code §r} resets
+     * everything to {@code defaultColor}/{@code defaultItalic}.</p>
+     */
+    private static TooltipLine parseLegacyLine(String legacy,
+                                                Color defaultColor,
+                                                boolean defaultItalic) {
+        if (legacy == null || legacy.isEmpty()) {
+            return new TooltipLine(legacy == null ? "" : legacy, defaultColor, defaultItalic);
         }
 
-        return lines;
+        List<ColorSegment> segments = new ArrayList<>();
+        Color   currentColor  = defaultColor;
+        boolean currentBold   = false;
+        boolean currentItalic = defaultItalic;
+        StringBuilder buf = new StringBuilder();
+
+        for (int i = 0; i < legacy.length(); i++) {
+            char c = legacy.charAt(i);
+            if ((c == '§' || c == '\u00a7') && i + 1 < legacy.length()) {
+                // Flush accumulated text before applying the code
+                if (buf.length() > 0) {
+                    segments.add(new ColorSegment(buf.toString(), currentColor, currentBold, currentItalic));
+                    buf = new StringBuilder();
+                }
+                char code = Character.toLowerCase(legacy.charAt(++i));
+                Color newColor = legacyCodeToColor(code);
+                if (newColor != null) {
+                    // Colour code: also resets bold/italic (vanilla behaviour)
+                    currentColor  = newColor;
+                    currentBold   = false;
+                    currentItalic = false;
+                } else {
+                    switch (code) {
+                        case 'l': currentBold   = true;  break;
+                        case 'o': currentItalic = true;  break;
+                        case 'r':
+                            currentColor  = defaultColor;
+                            currentBold   = false;
+                            currentItalic = defaultItalic;
+                            break;
+                        // k (obfuscated), m (strikethrough), n (underline) — ignored visually
+                        default: break;
+                    }
+                }
+            } else {
+                buf.append(c);
+            }
+        }
+        if (buf.length() > 0) {
+            segments.add(new ColorSegment(buf.toString(), currentColor, currentBold, currentItalic));
+        }
+        if (segments.isEmpty()) {
+            segments.add(new ColorSegment("", defaultColor, false, defaultItalic));
+        }
+        return new TooltipLine(segments);
+    }
+
+    /** Maps a legacy colour char ('0'–'f') to a Java2D {@link Color}, or {@code null} for format codes. */
+    private static Color legacyCodeToColor(char code) {
+        switch (code) {
+            case '0': return new Color(0,   0,   0  ); // BLACK
+            case '1': return new Color(0,   0,   170); // DARK_BLUE
+            case '2': return new Color(0,   170, 0  ); // DARK_GREEN
+            case '3': return new Color(0,   170, 170); // DARK_AQUA
+            case '4': return new Color(170, 0,   0  ); // DARK_RED
+            case '5': return new Color(170, 0,   170); // DARK_PURPLE
+            case '6': return new Color(255, 170, 0  ); // GOLD
+            case '7': return new Color(170, 170, 170); // GRAY
+            case '8': return new Color(85,  85,  85 ); // DARK_GRAY
+            case '9': return new Color(85,  85,  255); // BLUE
+            case 'a': return new Color(85,  255, 85 ); // GREEN
+            case 'b': return new Color(85,  255, 255); // AQUA
+            case 'c': return new Color(255, 85,  85 ); // RED
+            case 'd': return new Color(255, 85,  255); // LIGHT_PURPLE
+            case 'e': return new Color(255, 255, 85 ); // YELLOW
+            case 'f': return new Color(255, 255, 255); // WHITE
+            default:  return null; // format code, not a colour
+        }
     }
 
     // ════════════════════════════════════════════════════════════════
@@ -238,77 +336,75 @@ public class TooltipImageRenderer {
     // ════════════════════════════════════════════════════════════════
 
     private static BufferedImage renderLines(List<TooltipLine> lines) {
-        // First pass: measure text widths to determine image size
+        // ── First pass: measure maximum line width ────────────────
         BufferedImage measure = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         Graphics2D mg = measure.createGraphics();
-        Font baseFont   = new Font(FONT_NAME, Font.PLAIN, FONT_SIZE);
-        Font italicFont = new Font(FONT_NAME, Font.ITALIC, FONT_SIZE);
-        mg.setFont(baseFont);
+        mg.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
 
         int maxWidth = 0;
         for (TooltipLine line : lines) {
-            if (line.text.isEmpty()) continue;
-            mg.setFont(line.italic ? italicFont : baseFont);
-            int w = mg.getFontMetrics().stringWidth(line.text);
-            if (w > maxWidth) maxWidth = w;
+            if (line.isEmpty()) continue;
+            int lineWidth = 0;
+            for (ColorSegment seg : line.segments) {
+                if (seg.text.isEmpty()) continue;
+                mg.setFont(fontFor(seg));
+                lineWidth += mg.getFontMetrics().stringWidth(seg.text);
+            }
+            if (lineWidth > maxWidth) maxWidth = lineWidth;
         }
         mg.dispose();
 
-        int imgWidth  = maxWidth + PADDING_X * 2 + BORDER_WIDTH * 2 + 4;
-        int imgHeight = lines.size() * LINE_HEIGHT + PADDING_Y * 2 + BORDER_WIDTH * 2;
+        int imgWidth  = Math.max(100, maxWidth + PADDING_X * 2 + BORDER_WIDTH * 2 + 4);
+        int imgHeight = Math.max(30,  lines.size() * LINE_HEIGHT + PADDING_Y * 2 + BORDER_WIDTH * 2);
 
-        // Minimum size
-        imgWidth  = Math.max(imgWidth, 100);
-        imgHeight = Math.max(imgHeight, 30);
-
-        // Second pass: render
+        // ── Second pass: render ───────────────────────────────────
         BufferedImage image = new BufferedImage(imgWidth, imgHeight, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        g.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g.setRenderingHint(RenderingHints.KEY_RENDERING,         RenderingHints.VALUE_RENDER_QUALITY);
 
-        // ── Background ───────────────────────────────────────────
+        // Background
         g.setColor(BORDER_OUTER);
         g.fillRect(0, 0, imgWidth, imgHeight);
-
         g.setColor(BG_FILL);
         g.fillRect(BORDER_WIDTH, BORDER_WIDTH,
                 imgWidth - BORDER_WIDTH * 2, imgHeight - BORDER_WIDTH * 2);
 
-        // Inner gradient border (the characteristic MC purple fade)
-        g.setPaint(new GradientPaint(
-                0, BORDER_WIDTH, BORDER_INNER_TOP,
+        // Inner gradient border (characteristic MC purple fade)
+        g.setPaint(new GradientPaint(0, BORDER_WIDTH, BORDER_INNER_TOP,
                 0, imgHeight - BORDER_WIDTH, BORDER_INNER_BOTTOM));
-        g.fillRect(BORDER_WIDTH, BORDER_WIDTH + 1,
-                1, imgHeight - BORDER_WIDTH * 2 - 2);
-        g.fillRect(imgWidth - BORDER_WIDTH - 1, BORDER_WIDTH + 1,
-                1, imgHeight - BORDER_WIDTH * 2 - 2);
+        g.fillRect(BORDER_WIDTH, BORDER_WIDTH + 1, 1, imgHeight - BORDER_WIDTH * 2 - 2);
+        g.fillRect(imgWidth - BORDER_WIDTH - 1, BORDER_WIDTH + 1, 1, imgHeight - BORDER_WIDTH * 2 - 2);
         g.setColor(BORDER_INNER_TOP);
-        g.fillRect(BORDER_WIDTH + 1, BORDER_WIDTH,
-                imgWidth - BORDER_WIDTH * 2 - 2, 1);
+        g.fillRect(BORDER_WIDTH + 1, BORDER_WIDTH, imgWidth - BORDER_WIDTH * 2 - 2, 1);
         g.setColor(BORDER_INNER_BOTTOM);
-        g.fillRect(BORDER_WIDTH + 1, imgHeight - BORDER_WIDTH - 1,
-                imgWidth - BORDER_WIDTH * 2 - 2, 1);
+        g.fillRect(BORDER_WIDTH + 1, imgHeight - BORDER_WIDTH - 1, imgWidth - BORDER_WIDTH * 2 - 2, 1);
 
-        // ── Text ─────────────────────────────────────────────────
-        int x = PADDING_X + BORDER_WIDTH;
-        int y = PADDING_Y + BORDER_WIDTH + FONT_SIZE; // baseline
+        // Text
+        int baseX = PADDING_X + BORDER_WIDTH;
+        int y     = PADDING_Y + BORDER_WIDTH + FONT_SIZE; // baseline
 
         for (TooltipLine line : lines) {
-            if (!line.text.isEmpty()) {
-                g.setFont(line.italic ? italicFont : baseFont);
+            int segX = baseX;
+            for (ColorSegment seg : line.segments) {
+                if (seg.text.isEmpty()) continue;
+                Font f = fontFor(seg);
+                g.setFont(f);
+                FontMetrics fm = g.getFontMetrics();
 
-                // Drop shadow (Minecraft-style: 1px offset at ¼ brightness)
+                // Drop shadow (MC-style: 1 px offset at ¼ brightness)
                 Color shadow = new Color(
-                        line.color.getRed() / 4,
-                        line.color.getGreen() / 4,
-                        line.color.getBlue() / 4,
-                        line.color.getAlpha());
+                        seg.color.getRed()   / 4,
+                        seg.color.getGreen() / 4,
+                        seg.color.getBlue()  / 4,
+                        seg.color.getAlpha());
                 g.setColor(shadow);
-                g.drawString(line.text, x + 1, y + 1);
+                g.drawString(seg.text, segX + 1, y + 1);
 
-                g.setColor(line.color);
-                g.drawString(line.text, x, y);
+                g.setColor(seg.color);
+                g.drawString(seg.text, segX, y);
+
+                segX += fm.stringWidth(seg.text);
             }
             y += LINE_HEIGHT;
         }
@@ -321,7 +417,13 @@ public class TooltipImageRenderer {
     //  Utility
     // ════════════════════════════════════════════════════════════════
 
-    /** Maps ItemDisplayData.Rarity to a Java2D Color matching Minecraft's name colours. */
+    private static Font fontFor(ColorSegment seg) {
+        if (seg.bold && seg.italic) return FONT_BOLD_ITALIC;
+        if (seg.bold)               return FONT_BOLD;
+        if (seg.italic)             return FONT_ITALIC;
+        return FONT_BASE;
+    }
+
     private static Color rarityToColor(ItemDisplayData.Rarity rarity) {
         switch (rarity) {
             case UNCOMMON: return TEXT_YELLOW;
@@ -337,3 +439,4 @@ public class TooltipImageRenderer {
         return numerals[value];
     }
 }
+

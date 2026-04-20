@@ -71,6 +71,15 @@ public class DiscordIntegration extends ListenerAdapter {
     private final Object consoleLock = new Object();
     /** Max characters kept in the rolling message before starting a new one. */
     private static final int CONSOLE_MAX_CHARS = 1900;
+
+    // ── Per-command output capture (for c! prefix replies) ───────────────────
+    /** Lines captured during the active command window, to be replied to the invoker. */
+    private final java.util.concurrent.ConcurrentLinkedQueue<String> cmdCaptureLines
+            = new java.util.concurrent.ConcurrentLinkedQueue<>();
+    /** True while we are collecting output for a command reply. */
+    private volatile boolean cmdCaptureActive = false;
+    /** The Discord message that issued the command (reply target). */
+    private volatile Message cmdCaptureSource = null;
     
     public DiscordIntegration(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
@@ -238,12 +247,39 @@ public class DiscordIntegration extends ListenerAdapter {
                 if (!tooltipImages.isEmpty()) {
                     TextChannel ch = jda.getTextChannelById(channelId);
                     if (ch != null) {
-                        // Build embeds with image references
+                        // IC dsrv embed structure:
+                        //   author  = "PlayerName's Item" / "…'s Inventory" / "…'s Ender Chest"
+                        //   title   = item name / inventory label
+                        //   color   = rarity colour (ITEM) or fixed (INV/EC)
+                        //   thumbnail (small, top-right) = item icon URL  [ITEM only]
+                        //   image   (large, bottom)      = rendered tooltip PNG
                         java.util.List<net.dv8tion.jda.api.entities.MessageEmbed> embeds = new java.util.ArrayList<>();
                         int embedIdx = 0;
                         for (com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData data : safeItems) {
-                            EmbedBuilder eb = buildItemEmbedObject(data);
-                            // Attach tooltip image to embed if we have one for this index
+                            EmbedBuilder eb = new EmbedBuilder();
+                            switch (data.getType()) {
+                                case ITEM:
+                                    // Author: "PlayerName's Item" with avatar
+                                    eb.setAuthor(username + "'s Item", null, avatarUrl);
+                                    eb.setTitle(stripSectionCodes(data.getItemName()));
+                                    // Embed colour = rarity (custom name always gold)
+                                    eb.setColor(rarityEmbedColor(data));
+                                    // Thumbnail = small item icon beside the tooltip image
+                                    String iconUrl = data.getItemIconUrl();
+                                    if (iconUrl != null) eb.setThumbnail(iconUrl);
+                                    break;
+                                case INVENTORY:
+                                    eb.setAuthor(username + "'s Inventory", null, avatarUrl);
+                                    eb.setTitle(playerName + "'s Inventory");
+                                    eb.setColor(new java.awt.Color(0xAAAAAA));
+                                    break;
+                                case ENDER_CHEST:
+                                    eb.setAuthor(username + "'s Ender Chest", null, avatarUrl);
+                                    eb.setTitle(playerName + "'s Ender Chest");
+                                    eb.setColor(new java.awt.Color(0x4D0080));
+                                    break;
+                            }
+                            // Large image = rendered tooltip/inventory PNG
                             if (embedIdx < tooltipFilenames.size()) {
                                 eb.setImage("attachment://" + tooltipFilenames.get(embedIdx));
                             }
@@ -251,12 +287,9 @@ public class DiscordIntegration extends ListenerAdapter {
                             embedIdx++;
                         }
 
-                        // Build the message with content + embeds + file attachments
+                        // Send embeds + file attachments — no separate message content (IC sends embeds only)
                         net.dv8tion.jda.api.requests.restaction.MessageCreateAction action =
-                                ch.sendMessage("**" + escapeMarkdown(username) + "**: " + escapeMarkdown(contentText));
-                        for (net.dv8tion.jda.api.entities.MessageEmbed embed : embeds) {
-                            action = action.addEmbeds(embed);
-                        }
+                                ch.sendMessageEmbeds(embeds);
                         for (int i = 0; i < tooltipImages.size(); i++) {
                             action = action.addFiles(net.dv8tion.jda.api.utils.FileUpload.fromData(
                                     tooltipImages.get(i), tooltipFilenames.get(i)));
@@ -393,74 +426,6 @@ public class DiscordIntegration extends ListenerAdapter {
 
         sb.append("}");
         return sb.toString();
-    }
-
-    /**
-     * Builds a JDA {@link EmbedBuilder} for an item/inventory display.
-     * Used when we want to attach tooltip images (requires JDA MessageCreateAction).
-     */
-    private EmbedBuilder buildItemEmbedObject(com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData data) {
-        EmbedBuilder eb = new EmbedBuilder();
-
-        switch (data.getType()) {
-            case ITEM:
-                eb.setTitle(data.getItemName());
-                eb.setColor(data.hasCustomName() ? new Color(0xFFAA00) : new Color(0x55FF55));
-
-                String iconUrl = data.getItemIconUrl();
-                if (iconUrl != null) {
-                    eb.setThumbnail(iconUrl);
-                }
-
-                if (data.getAmount() > 1) {
-                    eb.addField("Amount", String.valueOf(data.getAmount()), true);
-                }
-
-                if (!data.getEnchantments().isEmpty()) {
-                    StringBuilder enchLines = new StringBuilder();
-                    for (java.util.Map.Entry<String, Integer> e : data.getEnchantments().entrySet()) {
-                        if (enchLines.length() > 0) enchLines.append("\n");
-                        enchLines.append(e.getKey());
-                        if (e.getValue() > 1) enchLines.append(" ").append(e.getValue());
-                    }
-                    eb.addField("Enchantments", enchLines.toString(), true);
-                }
-
-                if (!data.getLore().isEmpty()) {
-                    StringBuilder loreLines = new StringBuilder();
-                    for (String line : data.getLore()) {
-                        if (loreLines.length() > 0) loreLines.append("\n");
-                        loreLines.append(line);
-                    }
-                    eb.addField("Lore", loreLines.toString(), false);
-                }
-                break;
-
-            case INVENTORY:
-            case ENDER_CHEST:
-                boolean isEC = data.getType() == com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData.DisplayType.ENDER_CHEST;
-                eb.setTitle(isEC ? "\uD83D\uDD2E Ender Chest" : "\uD83C\uDF92 Inventory");
-                eb.setColor(isEC ? new Color(0x4D0080) : new Color(0xAAAAAA));
-
-                eb.addField("Slots Used",
-                        data.getUsedSlots() + "/" + data.getTotalSlots(), true);
-
-                if (!data.getTopItems().isEmpty()) {
-                    StringBuilder topLines = new StringBuilder();
-                    for (String item : data.getTopItems()) {
-                        if (topLines.length() > 0) topLines.append("\n");
-                        topLines.append(item);
-                    }
-                    eb.addField("Top Items", topLines.toString(), false);
-                }
-
-                eb.setThumbnail(isEC
-                        ? "https://minecraft.wiki/images/Invicon_Ender_Chest.png"
-                        : "https://minecraft.wiki/images/Invicon_Chest.png");
-                break;
-        }
-
-        return eb;
     }
 
     /**
@@ -672,7 +637,7 @@ public class DiscordIntegration extends ListenerAdapter {
     public void onMessageReceived(@Nonnull MessageReceivedEvent event) {
         boolean debugRelay = plugin.getConfig().getBoolean("discord.formats.debug-relay", false);
 
-        if (!enabled || event.getAuthor().isBot()) return;
+        if (!enabled || event.getAuthor().isBot() || event.getMessage().isWebhookMessage()) return;
 
         String channelId = event.getChannel().getId();
         String content = event.getMessage().getContentDisplay().trim();
@@ -896,6 +861,9 @@ public class DiscordIntegration extends ListenerAdapter {
         plugin.getLogger().info("[Console-Discord] " + username + " issued: " + command);
         event.getMessage().addReaction(Emoji.fromUnicode("✅")).queue(null, e -> {});
 
+        // Start capturing console output lines for a private reply to the invoker
+        startCmdCapture(event.getMessage());
+
         Bukkit.getScheduler().runTask(plugin, () -> {
             try {
                 // Use CraftServer.dispatchServerCommand so vanilla brigadier commands (clear, give, tp, etc.)
@@ -918,9 +886,62 @@ public class DiscordIntegration extends ListenerAdapter {
                 sendToConsole("Error executing command '" + command + "': " + e.getMessage());
                 event.getMessage().addReaction(Emoji.fromUnicode("❌")).queue(null, err -> {});
             }
+
+            // Schedule capture flush 10 seconds after the command was dispatched.
+            // Some commands (e.g. lp editor) generate output asynchronously and may
+            // take several seconds to print their result — 3 s was too short.
+            Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, this::flushCmdCapture, 200L);
         });
     }
-    
+
+    /** Begin capturing console lines for a single command invocation. */
+    private void startCmdCapture(Message source) {
+        cmdCaptureLines.clear();
+        cmdCaptureSource = source;
+        cmdCaptureActive = true;
+    }
+
+    /**
+     * Stop capturing, collect lines, and reply to the invoker with a code-block.
+     * The reply auto-deletes after 30 seconds.
+     */
+    private void flushCmdCapture() {
+        cmdCaptureActive = false;
+        Message source = cmdCaptureSource;
+        cmdCaptureSource = null;
+
+        java.util.List<String> lines = new java.util.ArrayList<>(cmdCaptureLines);
+        cmdCaptureLines.clear();
+
+        if (source == null) return;
+
+        String body;
+        if (lines.isEmpty()) {
+            body = "```\n(no output)\n```";
+        } else {
+            StringBuilder sb = new StringBuilder("```\n");
+            for (String line : lines) {
+                if (sb.length() + line.length() + 1 > 1950) {
+                    sb.append("… (truncated)\n");
+                    break;
+                }
+                sb.append(line).append("\n");
+            }
+            sb.append("```");
+            body = sb.toString();
+        }
+
+        try {
+            source.reply(body).mentionRepliedUser(false).queue(
+                    reply -> Bukkit.getScheduler().runTaskLaterAsynchronously(plugin,
+                            () -> reply.delete().queue(null, e -> {}), 600L), // auto-delete after 30 s
+                    err -> plugin.getLogger().warning("Failed to send command reply: " + err.getMessage())
+            );
+        } catch (Exception e) {
+            plugin.getLogger().warning("Failed to reply to c! command: " + e.getMessage());
+        }
+    }
+
     /**
      * Send a message to the global chat Discord channel
      */
@@ -1260,6 +1281,20 @@ public class DiscordIntegration extends ListenerAdapter {
     /**
      * Removes Minecraft section codes (color codes) from text before sending to Discord
      */
+    /**
+     * Maps an item's rarity (and whether it has a custom name) to a Discord embed accent colour.
+     * Matches the Minecraft tooltip name colours used by IC-dsrv.
+     */
+    private static java.awt.Color rarityEmbedColor(com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData data) {
+        if (data.hasCustomName()) return new java.awt.Color(0xFFAA00); // gold — custom name
+        switch (data.getRarity()) {
+            case UNCOMMON: return new java.awt.Color(0xFFFF55); // yellow
+            case RARE:     return new java.awt.Color(0x55FFFF); // aqua
+            case EPIC:     return new java.awt.Color(0xFF55FF); // light purple
+            default:       return new java.awt.Color(0xAAAAAA); // gray — common
+        }
+    }
+
     private String stripSectionCodes(String text) {
         if (text == null) return "";
         // Remove all section codes (§ followed by any character)
@@ -2501,6 +2536,12 @@ public class DiscordIntegration extends ListenerAdapter {
         // Truncate a single line that is unreasonably long
         if (cleanMsg.length() > 400) cleanMsg = cleanMsg.substring(0, 397) + "...";
         String newLine = "[" + timestamp + " " + normalizedLevel + "]: " + cleanMsg;
+
+        // Feed the active per-command capture buffer immediately, before the async hop,
+        // so lines are never lost due to the flush firing while the async task is queued.
+        if (cmdCaptureActive) {
+            cmdCaptureLines.add(newLine);
+        }
 
         final String finalLine = newLine;
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {

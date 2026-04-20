@@ -1,16 +1,9 @@
-﻿package com.kelpwing.kelpylandiaplugin.chat;
-
-// Formatting helpers only — IC command-box logic is in CommandsDisplay.java.
+package com.kelpwing.kelpylandiaplugin.chat;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import org.bukkit.entity.Player;
 
-public class ChatUtils {
-
-    // IC command-box logic lives in CommandsDisplay.java.
-    // This class is kept only for chat formatting helpers.
-
-    // Chat formatting helpers
+public class ChatFormatUtils {
 
     /**
      * Builds the fully-formatted chat prefix (everything before the message body).

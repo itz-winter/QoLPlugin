@@ -2,13 +2,15 @@ package com.kelpwing.kelpylandiaplugin.chat.listeners;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.chat.Channel;
-import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
+import com.kelpwing.kelpylandiaplugin.chat.ChatFormatUtils;
+import com.kelpwing.kelpylandiaplugin.chat.modules.CommandsDisplay;
 import com.kelpwing.kelpylandiaplugin.chat.ItemDisplayData;
 import com.kelpwing.kelpylandiaplugin.chat.ItemDisplayManager;
 import com.kelpwing.kelpylandiaplugin.commands.MsgCommand;
 import com.kelpwing.kelpylandiaplugin.integrations.DiscordIntegration;
 import com.kelpwing.kelpylandiaplugin.utils.LevelManager;
 import com.kelpwing.kelpylandiaplugin.utils.SpyManager;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -68,7 +70,7 @@ public class ChatListener implements Listener {
         }
 
         // ── Mute check ─────────────────────────────────────────────────────
-        if (ChatUtils.isPlayerMuted(player)) {
+        if (ChatFormatUtils.isPlayerMuted(player)) {
             player.sendMessage(ChatColor.RED + "You are currently muted and cannot speak.");
             event.setCancelled(true);
             return;
@@ -81,7 +83,7 @@ public class ChatListener implements Listener {
         }
 
         // ── Permission check ────────────────────────────────────────────────
-        if (!ChatUtils.hasPermission(player, playerChannel.getPermission())) {
+        if (!ChatFormatUtils.hasPermission(player, playerChannel.getPermission())) {
             player.sendMessage(ChatColor.RED + "You don't have permission to speak in this channel.");
             event.setCancelled(true);
             return;
@@ -118,9 +120,6 @@ public class ChatListener implements Listener {
             }
         }
 
-        // ── Build the prefix (everything before the message body) ───────────
-        String prefix = ChatUtils.formatPrefix(plugin, player, playerChannel);
-
         // ── Check for item-display keywords ─────────────────────────────────
         ItemDisplayManager idm = plugin.getItemDisplayManager();
         boolean hasKeywords = idm != null && idm.containsKeyword(message);
@@ -133,10 +132,15 @@ public class ChatListener implements Listener {
             // AsyncPlayerChatEvent is async, so schedule synchronously.
             final Set<Player> finalRecipients = recipients;
             final Channel finalChannel = playerChannel;
-            final String finalPrefix = prefix;
+            // idm is non-null here — guarded by hasKeywords = idm != null && ...
+            final ItemDisplayManager safeIdm = idm;
 
             Bukkit.getScheduler().runTask(plugin, () -> {
-                BaseComponent[] components = idm.buildChatLine(player, finalPrefix, message);
+                // Build the FULL formatted line first (prefix + message), then pass it
+                // to buildChatLine so the entire string is parsed in one fromLegacyText()
+                // call — this preserves colour inheritance across the whole line (IC approach).
+                String fullLine = ChatFormatUtils.formatMessage(plugin, player, finalChannel, message);
+                BaseComponent[] components = safeIdm.buildChatLine(player, fullLine);
 
                 // Send to all recipients
                 for (Player recipient : finalRecipients) {
@@ -151,37 +155,58 @@ public class ChatListener implements Listener {
             });
         } else {
             // No item keywords — check for clickable [/command] patterns
-            String fullLine = ChatUtils.formatMessage(plugin, player, playerChannel, message);
+            String fullLine = ChatFormatUtils.formatMessage(plugin, player, playerChannel, message);
 
-            if (ChatUtils.containsCommand(plugin, fullLine)) {
-                // Cancel vanilla and send components with clickable commands
-                event.setCancelled(true);
-                final Set<Player> cmdRecipients = recipients;
-                final Channel cmdChannel = playerChannel;
-                net.md_5.bungee.api.chat.BaseComponent[] cmdComponents =
-                        ChatUtils.parseClickableCommands(plugin, fullLine);
+            if (CommandsDisplay.isEnabled()) {
+                // Deserialize legacy string to Adventure Component, process, re-serialize to Bungee
+                net.kyori.adventure.text.Component lineComponent =
+                        LegacyComponentSerializer.legacySection().deserialize(fullLine);
+                net.kyori.adventure.text.Component processed = CommandsDisplay.process(lineComponent);
+                // Compare serialized legacy strings — object equality is unreliable because
+                // ComponentReplacing always flattens/compacts the tree even when nothing matched.
+                String serializedBefore = LegacyComponentSerializer.legacySection().serialize(lineComponent);
+                String serializedAfter  = LegacyComponentSerializer.legacySection().serialize(processed);
+                boolean changed = !serializedAfter.equals(serializedBefore);
+                if (changed) {
+                    event.setCancelled(true);
+                    final Set<Player> cmdRecipients = recipients;
+                    final Channel cmdChannel = playerChannel;
+                    // Convert via JSON round-trip (Adventure → Minecraft JSON ↔ BungeeCord JSON)
+                    // so that click/hover events on the command box are preserved.
+                    final String processedJson =
+                            net.kyori.adventure.text.serializer.gson.GsonComponentSerializer
+                                    .gson().serialize(processed);
+                    final net.md_5.bungee.api.chat.BaseComponent[] cmdComponents =
+                            net.md_5.bungee.chat.ComponentSerializer.parse(processedJson);
 
-                for (Player recipient : cmdRecipients) {
-                    recipient.spigot().sendMessage(cmdComponents);
+                    for (Player recipient : cmdRecipients) {
+                        recipient.spigot().sendMessage(cmdComponents);
+                    }
+
+                    plugin.getLogger().info("[" + cmdChannel.getName() + "] " + player.getName() + ": " + message);
+                    relayToDiscord(player, message, cmdChannel, false);
+                } else {
+                    // Plain text — let Bukkit dispatch normally
+                    event.setFormat(fullLine.replace("%", "%%"));
+
+                    if (!playerChannel.isGlobal()) {
+                        event.getRecipients().clear();
+                        event.getRecipients().addAll(recipients);
+                    }
+
+                    plugin.getLogger().info("[" + playerChannel.getName() + "] " + player.getName() + ": " + message);
+                    relayToDiscord(player, message, playerChannel, false);
                 }
-
-                plugin.getLogger().info("[" + cmdChannel.getName() + "] " + player.getName() + ": " + message);
-                relayToDiscord(player, message, cmdChannel, false);
             } else {
-                // Plain text — let Bukkit dispatch normally
-                // Escape % for String.format safety (Bukkit calls String.format on the format)
+                // Commands module disabled — plain text
                 event.setFormat(fullLine.replace("%", "%%"));
 
-                // Trim recipients for non-global channels
                 if (!playerChannel.isGlobal()) {
                     event.getRecipients().clear();
                     event.getRecipients().addAll(recipients);
                 }
 
-                // Log
                 plugin.getLogger().info("[" + playerChannel.getName() + "] " + player.getName() + ": " + message);
-
-                // Discord relay (plain text, no keywords)
                 relayToDiscord(player, message, playerChannel, false);
             }
         }
@@ -214,7 +239,7 @@ public class ChatListener implements Listener {
     // ── Recipient filter ────────────────────────────────────────────────────
 
     private boolean shouldReceiveMessage(Player recipient, Player sender, Channel channel) {
-        if (!ChatUtils.hasPermission(recipient, channel.getPermission())) {
+        if (!ChatFormatUtils.hasPermission(recipient, channel.getPermission())) {
             return false;
         }
         if (!channel.isWorldAllowed(recipient.getWorld().getName())) {

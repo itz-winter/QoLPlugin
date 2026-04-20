@@ -1,16 +1,15 @@
 package com.kelpwing.kelpylandiaplugin.chat;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
-import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
-import net.md_5.bungee.api.ChatColor;
+import net.kyori.adventure.text.serializer.gson.GsonComponentSerializer;
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.ClickEvent;
 import net.md_5.bungee.api.chat.ComponentBuilder;
 import net.md_5.bungee.api.chat.HoverEvent;
-import net.md_5.bungee.api.chat.ItemTag;
 import net.md_5.bungee.api.chat.TextComponent;
-import net.md_5.bungee.api.chat.hover.content.Item;
 import net.md_5.bungee.api.chat.hover.content.Text;
+import net.md_5.bungee.chat.ComponentSerializer;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.attribute.Attribute;
@@ -55,11 +54,13 @@ import java.util.regex.Pattern;
  */
 public class ItemDisplayManager {
 
-    // Pattern that matches [item], [inv], [inventory], [enderchest], [ec] — case insensitive
-    private static final Pattern KEYWORD_PATTERN = Pattern.compile(
-            "\\[(item|inv|inventory|enderchest|ec)]",
-            Pattern.CASE_INSENSITIVE
-    );
+    // ── Keyword patterns — loaded from config, matching IC's ItemDisplay.*.Keyword ──
+    // Defaults mirror IC's config.yml verbatim.
+    private final Pattern itemPattern;
+    private final Pattern invPattern;
+    private final Pattern enderPattern;
+    /** Combined OR of all three patterns, used for quick containsKeyword() checks. */
+    private final Pattern combinedPattern;
 
     private final KelpylandiaPlugin plugin;
 
@@ -72,10 +73,21 @@ public class ItemDisplayManager {
     public ItemDisplayManager(KelpylandiaPlugin plugin) {
         this.plugin = plugin;
 
+        // Load keyword patterns from config — key names match IC exactly
+        String itemKw  = plugin.getConfig().getString("ItemDisplay.Item.Keyword",      "(?i)\\[item\\]|\\[i\\]");
+        String invKw   = plugin.getConfig().getString("ItemDisplay.Inventory.Keyword", "(?i)\\[inv\\]|\\[inventory\\]");
+        String enderKw = plugin.getConfig().getString("ItemDisplay.EnderChest.Keyword","(?i)\\[ender\\]|\\[e\\]");
+
+        itemPattern    = Pattern.compile(itemKw);
+        invPattern     = Pattern.compile(invKw);
+        enderPattern   = Pattern.compile(enderKw);
+        combinedPattern = Pattern.compile(itemKw + "|" + invKw + "|" + enderKw);
+
         // Purge expired snapshots every 60 seconds
+        long ttlMinutes = plugin.getConfig().getLong("ItemDisplay.Settings.Timeout", 5);
         Bukkit.getScheduler().runTaskTimer(plugin, () -> {
             long now = System.currentTimeMillis();
-            long ttl = plugin.getConfig().getLong("chat-items.snapshot-ttl-seconds", 300) * 1000L;
+            long ttl = ttlMinutes * 60_000L;
             snapshots.entrySet().removeIf(e -> now - e.getValue().createdAt > ttl);
         }, 20L * 60, 20L * 60);
     }
@@ -84,119 +96,197 @@ public class ItemDisplayManager {
 
     /**
      * Returns {@code true} when the given raw message contains at least one
-     * recognised keyword ([item], [inv], [enderchest]).
+     * recognised keyword ([item]/[i], [inv]/[inventory], [ender]/[e]).
      */
     public boolean containsKeyword(String message) {
-        return KEYWORD_PATTERN.matcher(message).find();
+        return combinedPattern.matcher(message).find();
     }
 
     /**
      * Build the full chat line as a component array, replacing any recognised
-     * keywords with interactive components.  Non-keyword portions are kept as
-     * plain {@link TextComponent}s with the supplied legacy chat colours.
+     * keywords with interactive components.
+     *
+     * <p><b>Formatting fix:</b> We accept the <em>complete</em> already-formatted
+     * line (prefix + separator + message body, colour codes already translated) and
+     * parse it in one {@link TextComponent#fromLegacyText} call.  This preserves
+     * the colour inherited from the prefix across the entire message body — the same
+     * approach IC uses via {@code ComponentReplacing.replace()} on the full component.
+     *
+     * <p>We then scan the <em>plain-text</em> representation of that line for
+     * keyword/command positions and splice interactive components in place of those
+     * plain-text spans.  Because all segments come from the same initial
+     * {@code fromLegacyText} parse, colour inheritance is never broken.
      *
      * @param player        sender — used to snapshot held item / inventory
-     * @param prefixAndName the already-coloured prefix+display-name section
-     *                      (everything <em>before</em> the message body)
-     * @param rawMessage    the player's raw chat message
+     * @param fullLine      the complete formatted chat line (prefix + message),
+     *                      with {@code &} colour codes already translated to §
      * @return ready-to-send component array
      */
-    public BaseComponent[] buildChatLine(Player player, String prefixAndName, String rawMessage) {
+    public BaseComponent[] buildChatLine(Player player, String fullLine) {
+        // Parse the entire formatted line at once — colour codes stay intact.
+        BaseComponent[] parsed = TextComponent.fromLegacyText(fullLine);
+
+        // Build a plain-text version (no colour codes) to drive regex scanning.
+        // org.bukkit.ChatColor.stripColor handles § codes produced by translateAlternateColorCodes.
+        String plain = org.bukkit.ChatColor.stripColor(fullLine);
+
+        // Walk through plain text finding keyword/command positions, then rebuild the
+        // component list by slicing the already-parsed components.
         ComponentBuilder builder = new ComponentBuilder();
-
-        // Append the prefix + name + separator
-        builder.append(TextComponent.fromLegacyText(prefixAndName), ComponentBuilder.FormatRetention.NONE);
-
-        // Now process the message body, splitting on [item]/[inv]/[enderchest] keywords.
-        // Plain-text segments between keywords are also checked for clickable command
-        // boxes (e.g. [/spawn]) — cherry-picked from IC's CommandsDisplay pipeline.
-        Matcher matcher = KEYWORD_PATTERN.matcher(rawMessage);
         int lastEnd = 0;
 
-        while (matcher.find()) {
-            // Append any text before this keyword — passing through command boxes
-            if (matcher.start() > lastEnd) {
-                String before = rawMessage.substring(lastEnd, matcher.start());
-                appendTextWithCommands(builder, before);
+        while (lastEnd < plain.length()) {
+            // Find the earliest keyword match among all three patterns
+            Matcher im = itemPattern.matcher(plain); im.region(lastEnd, plain.length());
+            Matcher vm = invPattern.matcher(plain);  vm.region(lastEnd, plain.length());
+            Matcher em = enderPattern.matcher(plain); em.region(lastEnd, plain.length());
+
+            boolean iFound = im.find();
+            boolean vFound = vm.find();
+            boolean eFound = em.find();
+
+            if (!iFound && !vFound && !eFound) {
+                // No more keywords — emit the remaining span (checking for command boxes)
+                appendParsedSpan(builder, parsed, plain, lastEnd, plain.length());
+                break;
             }
 
-            String keyword = matcher.group(1).toLowerCase();
-            switch (keyword) {
-                case "item":
-                    builder.append(buildItemComponent(player), ComponentBuilder.FormatRetention.NONE);
-                    break;
-                case "inv":
-                case "inventory":
-                    builder.append(buildInventoryComponent(player, false), ComponentBuilder.FormatRetention.NONE);
-                    break;
-                case "enderchest":
-                case "ec":
-                    builder.append(buildInventoryComponent(player, true), ComponentBuilder.FormatRetention.NONE);
-                    break;
+            // Pick the earliest match
+            Matcher first = null;
+            int firstStart = Integer.MAX_VALUE;
+            if (iFound && im.start() < firstStart) { first = im; firstStart = im.start(); }
+            if (vFound && vm.start() < firstStart) { first = vm; firstStart = vm.start(); }
+            if (eFound && em.start() < firstStart) { first = em; firstStart = em.start(); }
+
+            // Emit the segment before this keyword (may contain command boxes)
+            if (firstStart > lastEnd) {
+                appendParsedSpan(builder, parsed, plain, lastEnd, firstStart);
             }
 
-            lastEnd = matcher.end();
-        }
+            // Emit the interactive keyword component
+            if (first == im) {
+                builder.append(buildItemComponent(player), ComponentBuilder.FormatRetention.NONE);
+            } else if (first == vm) {
+                builder.append(buildInventoryComponent(player, false), ComponentBuilder.FormatRetention.NONE);
+            } else {
+                builder.append(buildInventoryComponent(player, true), ComponentBuilder.FormatRetention.NONE);
+            }
 
-        // Append any trailing text after the last keyword — with command box support
-        if (lastEnd < rawMessage.length()) {
-            String after = rawMessage.substring(lastEnd);
-            appendTextWithCommands(builder, after);
+            lastEnd = first.end();
         }
 
         return builder.create();
     }
 
     /**
-     * Appends a plain-text segment to the builder, translating & colour codes and
-     * converting any clickable command boxes (e.g. {@code [/spawn]}) into
-     * interactive components using the config-driven settings.
+     * Emits the slice of {@code parsed[]} that corresponds to the plain-text
+     * range {@code [from, to)}, then checks that slice for clickable command
+     * boxes (CommandsDisplay).
      *
-     * <p>Cherry-picked from IC's CommandsDisplay pipeline — command boxes are
-     * processed as part of the same component chain as item/inventory keywords.
+     * <p>The {@code parsed} array is the result of one {@link TextComponent#fromLegacyText}
+     * call on the full formatted line.  Each element carries its own colour/formatting
+     * but the plain-text characters map 1-to-1 with {@code plain}.  We extract the
+     * plain-text substring for this span and, if it contains commands, re-process
+     * only that substring through CommandsDisplay (colour codes are re-derived from
+     * the full-line context by re-translating the substring of the original
+     * formatted line).
+     *
+     * <p>To keep this efficient we reconstruct the legacy-colour string for the span
+     * by walking the parsed components and re-emitting their text with § codes.
      */
-    private void appendTextWithCommands(ComponentBuilder builder, String rawSegment) {
-        String translated = org.bukkit.ChatColor.translateAlternateColorCodes('&', rawSegment);
-        if (ChatUtils.containsCommand(plugin, translated)) {
-            BaseComponent[] cmdComps = ChatUtils.parseClickableCommands(plugin, translated);
+    private void appendParsedSpan(ComponentBuilder builder, BaseComponent[] parsed,
+                                   String plain, int from, int to) {
+        if (from >= to) return;
+
+        // Reconstruct the legacy-colour string for just this plain-text span.
+        // We walk the parsed components, accumulating plain chars and tagging colours.
+        String spanLegacy = extractLegacySpan(parsed, plain, from, to);
+
+        if (CommandsDisplay.containsCommand(plugin, spanLegacy)) {
+            // Let CommandsDisplay re-parse — it calls fromLegacyText internally, preserving colours.
+            BaseComponent[] cmdComps = CommandsDisplay.process(plugin, spanLegacy);
             builder.append(cmdComps, ComponentBuilder.FormatRetention.NONE);
         } else {
-            builder.append(TextComponent.fromLegacyText(translated),
+            builder.append(TextComponent.fromLegacyText(spanLegacy),
                     ComponentBuilder.FormatRetention.NONE);
         }
     }
 
     /**
-     * Returns a plain-text description of the keywords for Discord relay.
-     * Replaces [item] with the item name, [inv]/[enderchest] with summaries.
+     * Walks the {@code parsed} component array (from one {@code fromLegacyText} call)
+     * and reconstructs the legacy-colour string for the plain-text range [{@code from},{@code to}).
+     *
+     * <p>Each {@link TextComponent} in the array has its own colour/bold/etc. state plus
+     * a plain text string.  We accumulate plain chars until we have covered {@code [from,to)},
+     * prepending § codes whenever the formatting changes.
+     */
+    private static String extractLegacySpan(BaseComponent[] parsed, String plain, int from, int to) {
+        StringBuilder sb = new StringBuilder();
+        int plainPos = 0; // how many plain-text chars we have consumed so far
+
+        for (BaseComponent bc : parsed) {
+            if (!(bc instanceof TextComponent)) continue;
+            String text = ((TextComponent) bc).getText();
+            int textLen = text.length();
+
+            int segEnd = plainPos + textLen;
+
+            if (segEnd <= from) {
+                // This segment is entirely before our range
+                plainPos = segEnd;
+                continue;
+            }
+            if (plainPos >= to) {
+                // This segment is entirely after our range
+                break;
+            }
+
+            // Overlap: [max(from,plainPos), min(to,segEnd))
+            int sliceFrom = Math.max(from, plainPos) - plainPos;
+            int sliceTo   = Math.min(to,   segEnd)   - plainPos;
+
+            // Emit colour/format codes for this component
+            sb.append(componentToLegacyCodes(bc));
+            sb.append(text, sliceFrom, sliceTo);
+
+            plainPos = segEnd;
+        }
+
+        return sb.toString();
+    }
+
+    /** Converts a component's colour/decoration state to § legacy codes. */
+    private static String componentToLegacyCodes(BaseComponent bc) {
+        StringBuilder sb = new StringBuilder();
+        net.md_5.bungee.api.ChatColor color = bc.getColorRaw();
+        if (color != null) {
+            sb.append(color);
+        }
+        if (Boolean.TRUE.equals(bc.isBoldRaw()))          sb.append(net.md_5.bungee.api.ChatColor.BOLD);
+        if (Boolean.TRUE.equals(bc.isItalicRaw()))        sb.append(net.md_5.bungee.api.ChatColor.ITALIC);
+        if (Boolean.TRUE.equals(bc.isUnderlinedRaw()))    sb.append(net.md_5.bungee.api.ChatColor.UNDERLINE);
+        if (Boolean.TRUE.equals(bc.isStrikethroughRaw())) sb.append(net.md_5.bungee.api.ChatColor.STRIKETHROUGH);
+        if (Boolean.TRUE.equals(bc.isObfuscatedRaw()))    sb.append(net.md_5.bungee.api.ChatColor.MAGIC);
+        return sb.toString();
+    }
+
+    /**
+     * Returns a plain-text representation of the message for Discord relay.
+     * Replaces item/inv/ender keywords using the IC config text templates
+     * (ItemDisplay.Item.Text / SingularText, Inventory.Text, EnderChest.Text),
+     * then strips Minecraft colour codes — matching IC dsrv's approach.
      */
     public String buildDiscordLine(Player player, String rawMessage) {
-        Matcher matcher = KEYWORD_PATTERN.matcher(rawMessage);
-        StringBuffer sb = new StringBuffer();
+        // Process each keyword type sequentially (IC processes item → inv → ender in order)
+        String result = replaceKeywordInText(rawMessage, itemPattern,  getItemDiscordText(player));
+        result        = replaceKeywordInText(result,    invPattern,   getInvDiscordText(player));
+        result        = replaceKeywordInText(result,    enderPattern, getEnderDiscordText(player));
+        return result;
+    }
 
-        while (matcher.find()) {
-            String keyword = matcher.group(1).toLowerCase();
-            String replacement;
-            switch (keyword) {
-                case "item":
-                    replacement = getItemDiscordText(player);
-                    break;
-                case "inv":
-                case "inventory":
-                    replacement = "\uD83C\uDF92 [Inventory]";
-                    break;
-                case "enderchest":
-                case "ec":
-                    replacement = "\uD83D\uDC9C [Ender Chest]";
-                    break;
-                default:
-                    replacement = matcher.group(0);
-                    break;
-            }
-            matcher.appendReplacement(sb, Matcher.quoteReplacement(replacement));
-        }
-        matcher.appendTail(sb);
-        return sb.toString();
+    /** Replace all occurrences of a Pattern in text with a fixed replacement string. */
+    private static String replaceKeywordInText(String text, Pattern pattern, String replacement) {
+        return pattern.matcher(text).replaceAll(Matcher.quoteReplacement(replacement));
     }
 
     /**
@@ -208,27 +298,21 @@ public class ItemDisplayManager {
      */
     public List<ItemDisplayData> buildDiscordData(Player player, String rawMessage) {
         List<ItemDisplayData> results = new ArrayList<>();
-        Matcher matcher = KEYWORD_PATTERN.matcher(rawMessage);
 
-        // Build "surrounding text" = message with keywords replaced by nothing
-        String surrounding = KEYWORD_PATTERN.matcher(rawMessage).replaceAll("").trim();
+        // Build "surrounding text" = message with all keywords replaced by nothing
+        String surrounding = combinedPattern.matcher(rawMessage).replaceAll("").trim();
 
-        while (matcher.find()) {
-            String keyword = matcher.group(1).toLowerCase();
-            switch (keyword) {
-                case "item":
-                    results.add(buildItemDisplayData(player, surrounding));
-                    break;
-                case "inv":
-                case "inventory":
-                    results.add(buildInventoryDisplayData(player, false, surrounding));
-                    break;
-                case "enderchest":
-                case "ec":
-                    results.add(buildInventoryDisplayData(player, true, surrounding));
-                    break;
-            }
+        // Process item, inv, ender in order (matches IC dsrv ordering)
+        if (itemPattern.matcher(rawMessage).find()) {
+            results.add(buildItemDisplayData(player, surrounding));
         }
+        if (invPattern.matcher(rawMessage).find()) {
+            results.add(buildInventoryDisplayData(player, false, surrounding));
+        }
+        if (enderPattern.matcher(rawMessage).find()) {
+            results.add(buildInventoryDisplayData(player, true, surrounding));
+        }
+
         return results;
     }
 
@@ -243,7 +327,9 @@ public class ItemDisplayManager {
                     .build();
         }
 
-        String displayName = org.bukkit.ChatColor.stripColor(getItemDisplayName(item));
+        // Keep § colour codes — TooltipImageRenderer.parseLegacyLine() uses them to render
+        // the name with its actual formatting.  Discord embed uses stripSectionCodes() on use.
+        String displayName = getItemDisplayName(item);
         ItemMeta meta = item.hasItemMeta() ? item.getItemMeta() : null;
         boolean hasMeta = meta != null;
 
@@ -271,11 +357,11 @@ public class ItemDisplayManager {
             }
         }
 
-        // ── Lore (colour stripped) ────────────────────────────────────────────
+        // ── Lore (§ colour codes preserved for tooltip rendering) ────────────
         List<String> lore = new ArrayList<>();
         if (hasMeta && meta.hasLore()) {
             for (String line : meta.getLore()) {
-                lore.add(org.bukkit.ChatColor.stripColor(line));
+                lore.add(line); // keep § codes — TooltipImageRenderer parses them for colours
             }
         }
 
@@ -585,74 +671,127 @@ public class ItemDisplayManager {
     private BaseComponent[] buildItemComponent(Player player) {
         ItemStack item = player.getInventory().getItemInMainHand();
         if (item == null || item.getType() == Material.AIR) {
-            // Nothing in hand — show placeholder
-            TextComponent comp = new TextComponent("[Nothing]");
-            comp.setColor(ChatColor.GRAY);
-            comp.setItalic(true);
+            // IC's itemAirAllow path — show using singular text with "Air"
+            String singular = plugin.getConfig().getString(
+                    "ItemDisplay.Item.SingularText", "&f[&f{Item}&f]");
+            String raw = singular.replace("{Item}", "Air").replace("{Amount}", "0");
+            TextComponent comp = new TextComponent(TextComponent.fromLegacyText(
+                    org.bukkit.ChatColor.translateAlternateColorCodes('&', raw)));
             return new BaseComponent[]{comp};
         }
 
-        String displayName = getItemDisplayName(item);
         int amount = item.getAmount();
 
-        // Build the visible text: [Item Name x64]
-        String label = org.bukkit.ChatColor.AQUA + "[" + displayName;
-        if (amount > 1) {
-            label += " x" + amount;
+        // Get the display name as an Adventure Component (with rarity color + italic for custom
+        // names), mirroring IC's ItemStackUtils.getDisplayName() approach.
+        net.kyori.adventure.text.Component nameComponent = getItemDisplayNameComponent(item);
+
+        // Build the label from the config template.
+        // Replace {Amount} as a plain string first (just a number), then parse the whole
+        // template as a legacy-ampersand Adventure Component.
+        String templateRaw;
+        if (amount <= 1) {
+            templateRaw = plugin.getConfig().getString(
+                    "ItemDisplay.Item.SingularText", "&f[&f{Item}&f]");
+        } else {
+            templateRaw = plugin.getConfig().getString(
+                    "ItemDisplay.Item.Text", "&f[&f{Item} &bx{Amount}&f]");
         }
-        label += "]";
+        String templateWithAmount = templateRaw.replace("{Amount}", String.valueOf(amount));
+        net.kyori.adventure.text.Component labelTemplate =
+                LegacyComponentSerializer.legacyAmpersand().deserialize(templateWithAmount);
 
-        TextComponent comp = new TextComponent(TextComponent.fromLegacyText(label));
+        // Replace the literal "{Item}" token in the component tree with the name component,
+        // matching IC's itemDisplayComponent.replaceText({Item} → itemDisplayNameComponent).
+        net.kyori.adventure.text.Component labelComponent = labelTemplate.replaceText(
+                net.kyori.adventure.text.TextReplacementConfig.builder()
+                        .matchLiteral("{Item}")
+                        .replacement(nameComponent)
+                        .build());
 
-        // Hover: use SHOW_ITEM so the client renders the exact vanilla tooltip
-        comp.setHoverEvent(buildShowItemHover(item));
-
-        // Click: open a 1-slot inventory showing the item
+        // Attach hover and click, then convert to BungeeCord via the Adventure→Bungee
+        // serialiser (BungeeComponentSerializer).  We intentionally avoid the two-step
+        // GsonComponentSerializer.serialize() + ComponentSerializer.parse() round-trip
+        // because Adventure 4.14+ emits SHOW_ITEM hover events with a "contents" key
+        // while BungeeCord's parser only understands the older "value" key — meaning the
+        // item hover (and therefore all enchants) would be silently dropped.
         UUID snapId = createItemSnapshot(player, item);
-        comp.setClickEvent(new ClickEvent(ClickEvent.Action.RUN_COMMAND,
-                "/qol:viewsnapshot " + snapId));
+        net.kyori.adventure.text.event.HoverEvent<?> itemHover = buildNativeItemHover(item);
+        labelComponent = labelComponent
+                .hoverEvent(itemHover)
+                .clickEvent(net.kyori.adventure.text.event.ClickEvent.runCommand(
+                        "/qol:viewsnapshot " + snapId));
 
-        return new BaseComponent[]{comp};
+        return net.kyori.adventure.text.serializer.bungeecord.BungeeComponentSerializer
+                .get().serialize(labelComponent);
     }
 
     /**
-     * Creates a SHOW_ITEM HoverEvent using the item's actual NBT data.
-     * The client renders the exact vanilla tooltip from this — no manual
-     * tooltip building needed.  Uses reflection to access CraftBukkit's
-     * NMS item serialisation, falling back to a SHOW_TEXT hover if reflection fails.
+     * Calls {@code ItemStack.asHoverEvent()} via reflection — a Paper-only API that
+     * returns a fully-populated {@code SHOW_ITEM} hover event including all data
+     * components (1.20.5+) or NBT tags (1.16–1.20.4), exactly matching vanilla.
+     * Falls back to a minimal text hover when the method is unavailable.
      */
-    private HoverEvent buildShowItemHover(ItemStack item) {
+    @SuppressWarnings("unchecked")
+    private net.kyori.adventure.text.event.HoverEvent<?> buildNativeItemHover(ItemStack item) {
         try {
-            // Get the NMS NBT tag via reflection:
-            // Object nmsItem = CraftItemStack.asNMSCopy(item);
-            // Object tag = nmsItem.getTag();   // NBTTagCompound (may be null)
-            String cbPkg = Bukkit.getServer().getClass().getPackage().getName(); // org.bukkit.craftbukkit.v1_16_R3
-            Class<?> craftItemStackClass = Class.forName(cbPkg + ".inventory.CraftItemStack");
-            java.lang.reflect.Method asNMSCopy = craftItemStackClass.getMethod("asNMSCopy", ItemStack.class);
-            Object nmsItem = asNMSCopy.invoke(null, item);
-
-            // getTag() returns the NBT compound (may be null for items with no extra data)
-            java.lang.reflect.Method getTag = nmsItem.getClass().getMethod("getTag");
-            Object tag = getTag.invoke(nmsItem);
-
-            String itemId = item.getType().getKey().toString(); // "minecraft:diamond_sword"
-            int count = item.getAmount();
-
-            ItemTag itemTag = tag != null ? ItemTag.ofNbt(tag.toString()) : null;
-            return new HoverEvent(HoverEvent.Action.SHOW_ITEM,
-                    new Item(itemId, count, itemTag));
-
+            java.lang.reflect.Method m = item.getClass().getMethod("asHoverEvent");
+            return (net.kyori.adventure.text.event.HoverEvent<?>) m.invoke(item);
         } catch (Exception e) {
-            // Reflection failed — fall back to a basic text tooltip
-            plugin.getLogger().warning("SHOW_ITEM reflection failed, using text fallback: " + e.getMessage());
-            return new HoverEvent(HoverEvent.Action.SHOW_TEXT,
-                    new Text(buildItemHoverTextFallback(item)));
+            // Non-Paper server or old version — plain text fallback
+            return net.kyori.adventure.text.event.HoverEvent.showText(
+                    net.kyori.adventure.text.Component.text(getItemDisplayName(item)));
         }
+    }
+
+    /**
+     * Returns the item's display name as an Adventure {@link net.kyori.adventure.text.Component},
+     * mirroring IC's {@code ItemStackUtils.getDisplayName()} approach:
+     * <ul>
+     *   <li>Custom-named items: their display name deserialized, wrapped in italic</li>
+     *   <li>Default names: rarity-coloured plain text</li>
+     * </ul>
+     * <p>
+     * We intentionally do NOT call {@code item.displayName()} here because on Paper 1.20.5+
+     * that method returns the "item pick-up component" which wraps the name in {@code [...]},
+     * causing double brackets when combined with the {@code [{Item}]} label template.
+     * Instead we call {@code ItemMeta.displayName()} (Paper API on the meta object) which
+     * gives back only the raw custom name component without any bracket decoration.
+     */
+    @SuppressWarnings("unchecked")
+    private net.kyori.adventure.text.Component getItemDisplayNameComponent(ItemStack item) {
+        ItemMeta meta = item.hasItemMeta() ? item.getItemMeta() : null;
+        if (meta != null && meta.hasDisplayName()) {
+            // Try Paper's ItemMeta.displayName() — returns the custom name component, no brackets
+            try {
+                java.lang.reflect.Method m = meta.getClass().getMethod("displayName");
+                Object result = m.invoke(meta);
+                if (result instanceof net.kyori.adventure.text.Component) {
+                    return (net.kyori.adventure.text.Component) result;
+                }
+            } catch (Exception ignored) {}
+            // Fallback: deserialize the legacy string + enforce italic (custom names are italic in vanilla)
+            return LegacyComponentSerializer.legacySection()
+                    .deserialize(meta.getDisplayName())
+                    .decoration(net.kyori.adventure.text.format.TextDecoration.ITALIC,
+                                net.kyori.adventure.text.format.TextDecoration.State.TRUE);
+        }
+        // No custom name — rarity-coloured plain text component
+        ItemDisplayData.Rarity rarity = determineRarity(item, meta != null && meta.hasEnchants());
+        net.kyori.adventure.text.format.TextColor color;
+        switch (rarity) {
+            case UNCOMMON: color = net.kyori.adventure.text.format.TextColor.color(0xFFFF55); break;
+            case RARE:     color = net.kyori.adventure.text.format.TextColor.color(0x55FFFF); break;
+            case EPIC:     color = net.kyori.adventure.text.format.TextColor.color(0xFF55FF); break;
+            default:       color = net.kyori.adventure.text.format.NamedTextColor.WHITE;      break;
+        }
+        return net.kyori.adventure.text.Component.text(getItemDisplayName(item)).color(color);
     }
 
     /**
      * Builds a hover tooltip that closely mirrors the vanilla 1.16.5 advanced
-     * tooltip (F3+H mode):
+     * tooltip (F3+H mode).  Still used by the Discord data builder and
+     * inventory display path; kept as a text-only fallback.
      * <ol>
      *   <li>Item name — white (normal) or italic aqua (custom renamed)</li>
      *   <li>Enchantments — gray; curses in red</li>
@@ -1036,26 +1175,38 @@ public class ItemDisplayManager {
     //  Inventory / Ender Chest component 
 
     private BaseComponent[] buildInventoryComponent(Player player, boolean enderChest) {
-        String label;
+        String rawLabel;
         String title;
         Inventory source;
 
         if (enderChest) {
-            label = org.bukkit.ChatColor.LIGHT_PURPLE + "[Ender Chest]";
-            title = player.getName() + "'s Ender Chest";
+            // Use IC's EnderChest.Text with %player_name% substituted
+            String template = plugin.getConfig().getString(
+                    "ItemDisplay.EnderChest.Text", "&f[&d%player_name%'s Ender Chest&f]");
+            rawLabel = template.replace("%player_name%", player.getDisplayName());
+            title = plugin.getConfig().getString(
+                    "ItemDisplay.EnderChest.InventoryTitle", "%player_name%'s Ender Chest")
+                    .replace("%player_name%", player.getName());
             source = player.getEnderChest();
         } else {
-            label = org.bukkit.ChatColor.GREEN + "[Inventory]";
-            title = player.getName() + "'s Inventory";
+            // Use IC's Inventory.Text with %player_name% substituted
+            String template = plugin.getConfig().getString(
+                    "ItemDisplay.Inventory.Text", "&f[&b%player_name%'s Inventory&f]");
+            rawLabel = template.replace("%player_name%", player.getDisplayName());
+            title = plugin.getConfig().getString(
+                    "ItemDisplay.Inventory.InventoryTitle", "%player_name%'s Inventory")
+                    .replace("%player_name%", player.getName());
             source = player.getInventory();
         }
+
+        String label = org.bukkit.ChatColor.translateAlternateColorCodes('&', rawLabel);
 
         // Create a frozen snapshot
         UUID snapId = createInventorySnapshot(source, title);
 
         TextComponent comp = new TextComponent(TextComponent.fromLegacyText(label));
 
-        // Hover: summary of contents
+        // Hover: summary of contents (with IC HoverMessage from config)
         comp.setHoverEvent(new HoverEvent(HoverEvent.Action.SHOW_TEXT,
                 new Text(buildInventoryHoverText(source, enderChest, player.getName()))));
 
@@ -1180,14 +1331,61 @@ public class ItemDisplayManager {
         return sb.toString();
     }
 
+    /**
+     * Builds the Discord replacement text for the [item] keyword.
+     * Uses ItemDisplay.Item.SingularText (amount=1) or ItemDisplay.Item.Text (amount>1),
+     * substitutes {Item} and {Amount}, then strips colour codes — matching IC dsrv.
+     */
     private String getItemDiscordText(Player player) {
         ItemStack item = player.getInventory().getItemInMainHand();
         if (item == null || item.getType() == Material.AIR) {
-            return "[Nothing]";
+            // IC's itemAirAllow path: use singular text with "Air" as item name
+            String singular = plugin.getConfig().getString(
+                    "ItemDisplay.Item.SingularText", "&f[&f{Item}&f]");
+            return org.bukkit.ChatColor.stripColor(
+                    org.bukkit.ChatColor.translateAlternateColorCodes('&',
+                            singular.replace("{Item}", "Air").replace("{Amount}", "0")));
         }
-        String name = org.bukkit.ChatColor.stripColor(getItemDisplayName(item));
+        String displayName = org.bukkit.ChatColor.stripColor(getItemDisplayName(item));
         int amount = item.getAmount();
-        return "\uD83D\uDFEB [" + name + (amount > 1 ? " x" + amount : "") + "]";
+
+        String template;
+        if (amount <= 1) {
+            template = plugin.getConfig().getString(
+                    "ItemDisplay.Item.SingularText", "&f[&f{Item}&f]");
+        } else {
+            template = plugin.getConfig().getString(
+                    "ItemDisplay.Item.Text", "&f[&f{Item} &bx{Amount}&f]");
+        }
+        String replaced = template
+                .replace("{Item}", displayName)
+                .replace("{Amount}", String.valueOf(amount));
+        return org.bukkit.ChatColor.stripColor(
+                org.bukkit.ChatColor.translateAlternateColorCodes('&', replaced));
+    }
+
+    /**
+     * Builds the Discord replacement text for the [inv] keyword.
+     * Uses ItemDisplay.Inventory.Text, substitutes %player_name%, then strips colour codes.
+     */
+    private String getInvDiscordText(Player player) {
+        String template = plugin.getConfig().getString(
+                "ItemDisplay.Inventory.Text", "&f[&b%player_name%'s Inventory&f]");
+        String replaced = template.replace("%player_name%", player.getName());
+        return org.bukkit.ChatColor.stripColor(
+                org.bukkit.ChatColor.translateAlternateColorCodes('&', replaced));
+    }
+
+    /**
+     * Builds the Discord replacement text for the [ender] keyword.
+     * Uses ItemDisplay.EnderChest.Text, substitutes %player_name%, then strips colour codes.
+     */
+    private String getEnderDiscordText(Player player) {
+        String template = plugin.getConfig().getString(
+                "ItemDisplay.EnderChest.Text", "&f[&d%player_name%'s Ender Chest&f]");
+        String replaced = template.replace("%player_name%", player.getName());
+        return org.bukkit.ChatColor.stripColor(
+                org.bukkit.ChatColor.translateAlternateColorCodes('&', replaced));
     }
 
     private static String formatEnchantmentName(Enchantment ench) {

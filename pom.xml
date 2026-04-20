@@ -125,6 +125,42 @@
             <version>2.17.1</version>
             <scope>provided</scope>
         </dependency>
+
+        <!-- Adventure API — text components, serializers (legacy §, legacy &, plain text) -->
+        <!-- Marked 'provided': Paper bundles a newer Adventure at runtime (4.17+, with           -->
+        <!-- DataComponentValue support). Using provided ensures the server's copy is used        -->
+        <!-- so that GsonComponentSerializer correctly serialises 1.20.5+ SHOW_ITEM components.   -->
+        <dependency>
+            <groupId>net.kyori</groupId>
+            <artifactId>adventure-api</artifactId>
+            <version>4.14.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.kyori</groupId>
+            <artifactId>adventure-text-serializer-legacy</artifactId>
+            <version>4.14.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.kyori</groupId>
+            <artifactId>adventure-text-serializer-plain</artifactId>
+            <version>4.14.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>net.kyori</groupId>
+            <artifactId>adventure-text-serializer-gson</artifactId>
+            <version>4.14.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- Apache Commons Text — UnicodeUnescaper used by CustomStringUtils -->
+        <dependency>
+            <groupId>org.apache.commons</groupId>
+            <artifactId>commons-text</artifactId>
+            <version>1.11.0</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -138,6 +174,25 @@
                     <target>17</target>
                     <fork>true</fork>
                     <executable>${JAVA_HOME}/bin/javac</executable>
+                    <excludes>
+                        <!-- Excluded: ChatUtils is superseded by ChatListener/ChatFormatUtils -->
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/ChatUtils.java</exclude>
+                        <!-- Excluded: heavy IC-NMS files — not yet adapted, kept for reference -->
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/modules/ItemDisplay.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/modules/InventoryDisplay.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/modules/EnderchestDisplay.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/utils/DiscordItemStackUtils.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/utils/DiscordContentUtils.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/objectholders/ImageDisplayData.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/graphics/ImageGeneration.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/graphics/ImageUtils.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/graphics/BannerGraphics.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/graphics/BlendingUtils.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/graphics/GifReader.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/graphics/GifWriter.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/graphics/ImageFrame.java</exclude>
+                        <exclude>com/kelpwing/kelpylandiaplugin/chat/graphics/NineSliceImage.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
             

@@ -67,11 +67,11 @@ public class ReloadCommand implements CommandExecutor {
             }
             
             // Send success message
-            sender.sendMessage(ChatColor.WHITE + "[" + ChatColor.GREEN + "QoLPlugin" + ChatColor.WHITE + "]" +ChatColor.GREEN + " Configuration has been reloaded successfully!");
+            sender.sendMessage(ChatColor.GRAY + "[" + ChatColor.AQUA + "QoLPlugin" + ChatColor.GRAY + "]" +ChatColor.GREEN + " Configuration has been reloaded successfully!");
             
         } catch (Exception e) {
             // Send error message if reload fails
-            sender.sendMessage(ChatColor.WHITE + "[" + ChatColor.GREEN + "QoLPlugin" + ChatColor.WHITE + "]" + ChatColor.RED + " Failed to reload configuration: " + e.getMessage());
+            sender.sendMessage(ChatColor.GRAY + "[" + ChatColor.AQUA + "QoLPlugin" + ChatColor.GRAY + "]" + ChatColor.RED + " Failed to reload configuration: " + e.getMessage());
             e.printStackTrace();
         }
 

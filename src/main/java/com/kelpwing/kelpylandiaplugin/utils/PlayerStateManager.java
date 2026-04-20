@@ -117,6 +117,15 @@ public class PlayerStateManager {
             cfg.set("whisper-target", wt != null ? wt.toString() : null);
         }
 
+        // Chat channel
+        if (plugin.getChannelManager() != null) {
+            com.kelpwing.kelpylandiaplugin.chat.Channel playerChannel =
+                    plugin.getChannelManager().getPlayerChannel(player);
+            if (playerChannel != null) {
+                cfg.set("channel", playerChannel.getName());
+            }
+        }
+
         try {
             cfg.save(file);
             plugin.getLogger().info("[StateManager] saveState for " + player.getName()
@@ -217,6 +226,22 @@ public class PlayerStateManager {
                     UUID targetUUID = UUID.fromString(targetStr);
                     plugin.getMsgCommand().setWhisperTarget(uuid, targetUUID);
                 } catch (IllegalArgumentException ignored) {}
+            }
+        }
+
+        // Chat channel — restored after setPlayerToDefaultChannel so this overrides it
+        if (plugin.getConfig().getBoolean("state-persistence.channel", true)
+                && plugin.getChannelManager() != null) {
+            String savedChannel = cfg.getString("channel");
+            if (savedChannel != null) {
+                com.kelpwing.kelpylandiaplugin.chat.Channel ch =
+                        plugin.getChannelManager().getChannel(savedChannel);
+                if (ch != null && com.kelpwing.kelpylandiaplugin.chat.ChatFormatUtils
+                        .hasPermission(player, ch.getPermission())) {
+                    plugin.getChannelManager().setPlayerChannel(uuid, ch.getName());
+                    plugin.getLogger().info("[StateManager] Restored channel '"
+                            + ch.getName() + "' for " + player.getName());
+                }
             }
         }
     }

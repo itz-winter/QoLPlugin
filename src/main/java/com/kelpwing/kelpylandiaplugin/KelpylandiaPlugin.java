@@ -44,6 +44,7 @@ import com.kelpwing.kelpylandiaplugin.commands.LoreCommand;
 import com.kelpwing.kelpylandiaplugin.commands.HatCommand;
 import com.kelpwing.kelpylandiaplugin.commands.UngodCommand;
 import com.kelpwing.kelpylandiaplugin.listeners.SpyListener;
+import com.kelpwing.kelpylandiaplugin.listeners.NametagListener;
 import com.kelpwing.kelpylandiaplugin.listeners.WorkbenchListener;
 import com.kelpwing.kelpylandiaplugin.homes.HomeGUI;
 import com.kelpwing.kelpylandiaplugin.homes.HomeManager;
@@ -357,6 +358,9 @@ public class KelpylandiaPlugin extends JavaPlugin {
             registerCommand("loom", wbCmd, "Open a virtual loom.", "/loom [player]", "qol.workbench.loom");
             getLogger().info("Workbench commands enabled!");
         }
+
+        // Register nametag prefix listener
+        getServer().getPluginManager().registerEvents(new NametagListener(this), this);
         
         // Register nickname command
         if (getConfig().getBoolean("nickname.enabled", true)) {

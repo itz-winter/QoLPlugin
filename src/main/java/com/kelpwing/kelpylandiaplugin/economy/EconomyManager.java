@@ -356,11 +356,13 @@ public class EconomyManager {
                     if (excludeOps && op.isOp()) return false;
                     String name = op.getName();
                     if (name != null && excludedPlayers.contains(name)) return false;
+                    // Permission-based exclusion overrides config (online players only)
+                    org.bukkit.entity.Player onlineP = Bukkit.getPlayer(e.getKey());
+                    if (onlineP != null && onlineP.hasPermission("qol.economy.baltop.exclude")) return false;
                     // LuckPerms group exclusion (only for online players)
                     if (!excludedGroups.isEmpty() && plugin.getLuckPermsIntegration() != null) {
-                        org.bukkit.entity.Player onlinePlayer = Bukkit.getPlayer(e.getKey());
-                        if (onlinePlayer != null) {
-                            String group = plugin.getLuckPermsIntegration().getPrimaryGroup(onlinePlayer);
+                        if (onlineP != null) {
+                            String group = plugin.getLuckPermsIntegration().getPrimaryGroup(onlineP);
                             if (group != null && excludedGroups.contains(group)) return false;
                         }
                     }
@@ -384,6 +386,9 @@ public class EconomyManager {
 
         Set<String> excludedPlayers = new HashSet<>(economyConfig.getStringList("baltop.exclude-players"));
         if (player.getName() != null && excludedPlayers.contains(player.getName())) return true;
+
+        // Permission-based exclusion — overrides config
+        if (player.hasPermission("qol.economy.baltop.exclude")) return true;
 
         Set<String> excludedGroups = new HashSet<>(economyConfig.getStringList("baltop.exclude-groups"));
         if (!excludedGroups.isEmpty() && plugin.getLuckPermsIntegration() != null) {

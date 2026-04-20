@@ -2,7 +2,7 @@ package com.kelpwing.kelpylandiaplugin.chat.commands;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.chat.Channel;
-import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
+import com.kelpwing.kelpylandiaplugin.chat.ChatFormatUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -36,13 +36,27 @@ public class ChannelAliasCommand implements CommandExecutor {
             return true;
         }
 
-        if (!ChatUtils.hasPermission(player, channel.getPermission())) {
+        if (!ChatFormatUtils.hasPermission(player, channel.getPermission())) {
             player.sendMessage(ChatColor.RED + "You don't have permission to join this channel.");
             return true;
         }
 
-        plugin.getChannelManager().setPlayerChannel(player.getUniqueId(), channel.getName());
-        player.sendMessage(ChatColor.GREEN + "Switched to channel: " + channel.getFormattedDisplayName());
+        if (args.length > 0) {
+            // Quick-send: send message to this channel without changing the player's active channel.
+            String message = String.join(" ", args);
+            String previousChannel = plugin.getChannelManager().getPlayerChannel(player.getUniqueId());
+            plugin.getChannelManager().setPlayerChannel(player.getUniqueId(), channel.getName());
+            try {
+                player.chat(message);
+            } finally {
+                // Always restore, even if chat() threw
+                plugin.getChannelManager().setPlayerChannel(player.getUniqueId(), previousChannel);
+            }
+        } else {
+            // No message — toggle to this channel
+            plugin.getChannelManager().setPlayerChannel(player.getUniqueId(), channel.getName());
+            player.sendMessage(ChatColor.GREEN + "Switched to channel: " + channel.getFormattedDisplayName());
+        }
         return true;
     }
 }

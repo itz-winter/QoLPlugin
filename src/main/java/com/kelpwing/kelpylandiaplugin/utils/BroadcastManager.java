@@ -1,7 +1,7 @@
 package com.kelpwing.kelpylandiaplugin.utils;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
-import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
+import com.kelpwing.kelpylandiaplugin.chat.CommandsDisplay;
 import net.md_5.bungee.api.chat.BaseComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
@@ -122,8 +122,9 @@ public class BroadcastManager {
         String formatted = formatMessage(prefix + template);
 
         // If the message contains [/command] patterns, send as clickable components
-        if (ChatUtils.containsCommand(formatted)) {
-            BaseComponent[] components = ChatUtils.parseClickableCommands(formatted);
+        // (click and hover events are preserved via the Adventure → JSON → BungeeCord path).
+        if (CommandsDisplay.containsCommand(plugin, formatted)) {
+            BaseComponent[] components = CommandsDisplay.process(plugin, formatted);
             for (Player player : Bukkit.getOnlinePlayers()) {
                 player.spigot().sendMessage(components);
             }

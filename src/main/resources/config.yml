@@ -64,41 +64,6 @@ discord:
   admin-role-id: "your-admin-role-id"
   # Role to ping when server starts
   server-start-ping-role-id: "your-server-start-role-id"
-  
-  # ===== CHAT ITEM DISPLAY =====
-  # Built-in [item], [inv], and [enderchest] keywords in chat.
-  # When a player types these keywords, they are replaced with interactive
-  # components: hover to see details, click to view a snapshot.
-  # No external plugin (InteractiveChat) is required.
-
-# Chat Item Display Settings
-chat-items:
-  # Master toggle for [item], [inv], [enderchest] chat keywords
-  enabled: true
-  # How long (seconds) a snapshot stays clickable before expiring
-  snapshot-ttl-seconds: 300
-
-# ===== CLICKABLE COMMAND BOXES =====
-# Cherry-picked from InteractiveChat's CommandsDisplay module.
-# When a player wraps a command in the configured format (e.g. [/spawn]),
-# it is replaced with a styled, clickable component in chat.
-clickable-commands:
-  # Master toggle
-  enabled: true
-  # Pattern that triggers the command box.  Use {Command} as the placeholder
-  # for the command text (must start with /).
-  # Examples:  "[{Command}]"   "({Command})"   "<{Command}>"
-  format: "[{Command}]"
-  # How the box is displayed.  Use {Command} for the command text.
-  # Supports legacy & colour codes.
-  text: "&b[&e{Command}&b]"
-  # What happens when the player clicks the box.
-  # Options: SUGGEST_COMMAND  (fills command bar without running)
-  #          RUN_COMMAND       (runs the command immediately)
-  action: SUGGEST_COMMAND
-  # Tooltip shown when hovering over the command box.
-  # Leave empty to show no tooltip.
-  hover-message: "&eClick to use command!"
 
   # Webhook Configuration
   webhooks:
@@ -210,6 +175,81 @@ clickable-commands:
       **Reason:** {reason}
       **Duration:** {duration}
       **Server:** {server_name}
+
+# ===== CHAT ITEM DISPLAY =====
+# Built-in [item], [inv], and [enderchest] keywords in chat.
+# When a player types these keywords, they are replaced with interactive
+# components: hover to see details, click to view a snapshot.
+ItemDisplay:
+  Settings:
+    # How long (minutes) a snapshot inventory view stays in memory after creation
+    Timeout: 5
+
+  Item:
+    # Enable players to show their held item in chat
+    Enabled: true
+    # Regex keyword that triggers the item display (IC default)
+    Keyword: "(?i)\\[item\\]|\\[i\\]"
+    # Text to replace the keyword when the player holds more than one item.
+    # {Item} = item display name, {Amount} = stack size
+    Text: "&f[&f{Item} &bx{Amount}&f]"
+    # Text to replace the keyword when the player holds exactly one item
+    SingularText: "&f[&f{Item}&f]"
+    # Title of the inventory view GUI
+    InventoryTitle: "%player_name%'s Item"
+    # Hover text shown over the item component in chat
+    HoverMessage:
+      - "&bClick to view!"
+
+  Inventory:
+    # Enable players to show their inventory in chat
+    Enabled: true
+    # Regex keyword that triggers the inventory display (IC default)
+    Keyword: "(?i)\\[inv\\]|\\[inventory\\]"
+    # Text to replace the keyword.  %player_name% is substituted at runtime.
+    Text: "&f[&b%player_name%'s Inventory&f]"
+    # Title of the inventory view GUI
+    InventoryTitle: "%player_name%'s Inventory"
+    # Hover text shown over the inventory component in chat
+    HoverMessage:
+      - "&bClick to view!"
+
+  EnderChest:
+    # Enable players to show their ender chest in chat
+    Enabled: true
+    # Regex keyword that triggers the ender chest display (IC default)
+    Keyword: "(?i)\\[ender\\]|\\[e\\]"
+    # Text to replace the keyword.  %player_name% is substituted at runtime.
+    Text: "&f[&d%player_name%'s Ender Chest&f]"
+    # Title of the ender chest view GUI
+    InventoryTitle: "%player_name%'s Ender Chest"
+    # Hover text shown over the ender chest component in chat
+    HoverMessage:
+      - "&bClick to view!"
+
+# ===== CLICKABLE COMMAND BOXES =====
+# Cherry-picked from InteractiveChat's CommandsDisplay module.
+# When a player wraps a command in the configured format (e.g. [/spawn]),
+# it is replaced with a styled, clickable component in chat.
+# Key names match IC exactly (Commands.Enabled, Commands.Format, etc.)
+Commands:
+  # Master toggle
+  Enabled: true
+  # Pattern that triggers the command box.  Use {Command} as the placeholder
+  # for the command text (must start with /).
+  # Examples:  "[{Command}]"   "({Command})"   "<{Command}>"
+  Format: "[{Command}]"
+  # How the box is displayed.  Use {Command} for the command text.
+  # Supports legacy & colour codes.
+  Text: "&b[&e{Command}&b]"
+  # What happens when the player clicks the box.
+  # Options: SUGGEST_COMMAND  (fills command bar without running)
+  #          RUN_COMMAND       (runs the command immediately)
+  Action: SUGGEST_COMMAND
+  # Tooltip lines shown when hovering over the command box.
+  # Remove all lines (empty list) to show no tooltip.
+  HoverMessage:
+    - "&eClick to use command!"
 
 # Join/Leave Message Configuration
 join-leave:
@@ -389,6 +429,9 @@ state-persistence:
   commandspy: true
   god: true
   fly: true
+  # Restore the chat channel a player was in when they last logged off.
+  # false = always start in the default channel on login.
+  channel: true
 
 # ===== SPY COMMANDS =====
 # /ss /socialspy - Toggle social spy (see all private messages and channel chat)
@@ -450,6 +493,15 @@ workbenches:
   loom: true
   # Allow players with kelpylandia.anvil.color to use & color codes in anvil renames
   anvil-color: true
+
+# ===== NAMETAG =====
+nametag:
+  # When true, the using player's rank prefix (from LuckPerms via PlaceholderAPI) is
+  # prepended to the entity's custom name when a nametag is applied to it.
+  # false (default) = disabled — vanilla behaviour, no prefix is added.
+  # true            = enabled  — prefix is prepended to the pet/entity name.
+  # Null / missing key is treated the same as false.
+  add-owner-prefix: false
 
 # ===== TRASH COMMAND =====
 # /trash - Opens a disposable inventory. Items left inside are permanently destroyed on close.

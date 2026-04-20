@@ -2,7 +2,7 @@ package com.kelpwing.kelpylandiaplugin.chat.commands;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.chat.Channel;
-import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
+import com.kelpwing.kelpylandiaplugin.chat.ChatFormatUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
@@ -74,7 +74,7 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
     }
     
     private boolean handleDirectChannelSwitch(Player player, Channel channel) {
-        if (!ChatUtils.hasPermission(player, channel.getPermission())) {
+        if (!ChatFormatUtils.hasPermission(player, channel.getPermission())) {
             player.sendMessage(ChatColor.RED + "You don't have permission to join this channel.");
             return true;
         }
@@ -111,7 +111,7 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!ChatUtils.hasPermission(player, channel.getPermission())) {
+        if (!ChatFormatUtils.hasPermission(player, channel.getPermission())) {
             player.sendMessage(ChatColor.RED + "You don't have permission to join this channel.");
             return true;
         }
@@ -228,7 +228,7 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        if (!ChatUtils.hasPermission(player, channel.getPermission())) {
+        if (!ChatFormatUtils.hasPermission(player, channel.getPermission())) {
             player.sendMessage(ChatColor.RED + "You don't have permission to send messages to this channel.");
             return true;
         }
@@ -241,7 +241,7 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
         }
 
         String message = messageBuilder.toString();
-        String formattedMessage = ChatUtils.formatMessage(plugin, player, channel, message);
+        String formattedMessage = ChatFormatUtils.formatMessage(plugin, player, channel, message);
 
         // Send message to all players who should receive it
         for (Player onlinePlayer : plugin.getServer().getOnlinePlayers()) {
@@ -259,7 +259,7 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
     }
 
     private boolean shouldReceiveChannelMessage(Player recipient, Player sender, Channel channel) {
-        if (!ChatUtils.hasPermission(recipient, channel.getPermission())) {
+        if (!ChatFormatUtils.hasPermission(recipient, channel.getPermission())) {
             return false;
         }
         

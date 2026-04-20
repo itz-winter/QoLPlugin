@@ -134,6 +134,17 @@ public class EnchantCommand implements CommandExecutor, TabCompleter {
                 sender.sendMessage(ChatColor.RED + "Maximum level for " + formatName(enchantment) + " is " + enchantment.getMaxLevel() + ".");
                 return true;
             }
+            // Check for conflicts with enchantments already on the item.
+            // Bukkit's addEnchantment() calls addUnsafeEnchantment() internally, which can
+            // silently replace/drop a conflicting enchantment — we catch it here first.
+            for (Map.Entry<Enchantment, Integer> existing : item.getEnchantments().entrySet()) {
+                if (enchantment.conflictsWith(existing.getKey())) {
+                    sender.sendMessage(ChatColor.RED + formatName(enchantment)
+                            + " conflicts with " + formatName(existing.getKey())
+                            + " already on this item. Use a higher-permission level to force.");
+                    return true;
+                }
+            }
             item.addEnchantment(enchantment, level);
         }
 

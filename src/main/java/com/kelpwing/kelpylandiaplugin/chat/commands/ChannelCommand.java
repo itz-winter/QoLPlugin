@@ -2,7 +2,6 @@ package com.kelpwing.kelpylandiaplugin.chat.commands;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.chat.Channel;
-import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
 import org.bukkit.ChatColor;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;

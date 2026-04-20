@@ -2,7 +2,6 @@ package com.kelpwing.kelpylandiaplugin.chat.listeners;
 
 import com.kelpwing.kelpylandiaplugin.KelpylandiaPlugin;
 import com.kelpwing.kelpylandiaplugin.chat.Channel;
-import com.kelpwing.kelpylandiaplugin.chat.ChatUtils;
 import com.kelpwing.kelpylandiaplugin.moderation.commands.VanishCommand;
 import com.kelpwing.kelpylandiaplugin.utils.PlayerStateManager;
 import org.bukkit.Bukkit;
