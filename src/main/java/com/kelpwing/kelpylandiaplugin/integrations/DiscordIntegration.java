@@ -60,17 +60,25 @@ public class DiscordIntegration extends ListenerAdapter {
     private String consoleChannelId;
     private final ConcurrentHashMap<String, String> webhookUrls = new ConcurrentHashMap<>();
 
-    // ── Rolling console log (DiscordSRV-style edit-in-place) ─────────────────
-    /** Lines accumulated in the current rolling message, in order. */
-    private final Deque<String> consoleLineBuffer = new ArrayDeque<>();
-    /** Current total character length of all buffered lines (including newlines). */
-    private int consoleBufferLen = 0;
+    // ── Rolling console log (DiscordSRV-style queue + drain thread) ──────────
+    /**
+     * Non-blocking queue of formatted lines waiting to be flushed to Discord.
+     * The log4j appender / JUL handler offer() lines here without ever blocking
+     * the logging thread.  A single background thread drains this queue every
+     * ~1 second and batches all pending lines into a single message edit.
+     */
+    private final java.util.concurrent.LinkedBlockingQueue<String> pendingConsoleLines
+            = new java.util.concurrent.LinkedBlockingQueue<>();
     /** The Discord message that is currently being edited with new lines. */
     private final AtomicReference<Message> consoleCurrentMessage = new AtomicReference<>(null);
-    /** Lock for the rolling buffer so concurrent async tasks don't corrupt it. */
-    private final Object consoleLock = new Object();
+    /** Lines accumulated in the current rolling message (used by the drain thread only). */
+    private final Deque<String> consoleLineBuffer = new ArrayDeque<>();
+    /** Current character length of the rolling message body. */
+    private int consoleBufferLen = 0;
     /** Max characters kept in the rolling message before starting a new one. */
     private static final int CONSOLE_MAX_CHARS = 1900;
+    /** Background drain thread — null when Discord is disabled. */
+    private volatile Thread consoleFlushThread = null;
 
     // ── Per-command output capture (for c! prefix replies) ───────────────────
     /** Lines captured during the active command window, to be replied to the invoker. */
@@ -112,6 +120,10 @@ public class DiscordIntegration extends ListenerAdapter {
                 
                 // Start channel topic updater
                 startChannelTopicUpdater();
+
+                // Start the console flush thread (DiscordSRV-style: one thread drains
+                // the queue every ~1s, so the logging thread never blocks on REST calls)
+                startConsoleFlushThread();
                 
                 this.enabled = true;
                 plugin.getLogger().info("Discord bot connected successfully!");
@@ -1097,6 +1109,9 @@ public class DiscordIntegration extends ListenerAdapter {
     }
     
     public void disable() {
+        // Stop the console flush thread first so it doesn't race with shutdown
+        stopConsoleFlushThread();
+
         if (enabled && jda != null) {
             jda.shutdown();
         }
@@ -1104,12 +1119,112 @@ public class DiscordIntegration extends ListenerAdapter {
         // (they can be reused on restart)
         webhookUrls.clear();
         // Reset the rolling console buffer so the next session starts fresh
-        synchronized (consoleLock) {
-            consoleLineBuffer.clear();
-            consoleBufferLen = 0;
-            consoleCurrentMessage.set(null);
-        }
+        consoleLineBuffer.clear();
+        consoleBufferLen = 0;
+        consoleCurrentMessage.set(null);
+        pendingConsoleLines.clear();
         enabled = false;
+    }
+
+    /**
+     * Starts the single background thread that drains {@link #pendingConsoleLines}
+     * and batches them into Discord edits/sends at most once per second.
+     * This is DiscordSRV's approach: never block the logging thread, never spawn
+     * a new task per line — one steady thread does all the REST work.
+     */
+    private void startConsoleFlushThread() {
+        if (consoleChannelId == null || consoleChannelId.isEmpty()
+                || consoleChannelId.equals("your-console-channel-id")) return;
+
+        consoleFlushThread = new Thread(() -> {
+            while (!Thread.currentThread().isInterrupted()) {
+                try {
+                    // Block until at least one line is available (avoids spin-waiting)
+                    String first = pendingConsoleLines.poll(2, java.util.concurrent.TimeUnit.SECONDS);
+                    if (first == null) continue; // timeout — nothing to flush
+
+                    // Drain ALL currently queued lines so we batch as many as possible
+                    java.util.List<String> batch = new java.util.ArrayList<>();
+                    batch.add(first);
+                    pendingConsoleLines.drainTo(batch);
+
+                    flushBatchToDiscord(batch);
+
+                    // Sleep 1 second between flushes to stay well under Discord's
+                    // 5 edits/sec per-message rate limit.
+                    Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                } catch (Exception e) {
+                    // Never let an uncaught exception kill the flush thread
+                    plugin.getLogger().warning("[Console] Flush thread error: " + e.getMessage());
+                }
+            }
+            // Final drain on shutdown so no lines are lost
+            if (!pendingConsoleLines.isEmpty()) {
+                java.util.List<String> remaining = new java.util.ArrayList<>();
+                pendingConsoleLines.drainTo(remaining);
+                if (!remaining.isEmpty()) flushBatchToDiscord(remaining);
+            }
+        }, "KelpylandiaConsoleFlush");
+        consoleFlushThread.setDaemon(true);
+        consoleFlushThread.start();
+    }
+
+    private void stopConsoleFlushThread() {
+        Thread t = consoleFlushThread;
+        if (t != null) {
+            t.interrupt();
+            consoleFlushThread = null;
+        }
+    }
+
+    /**
+     * Takes a batch of already-formatted lines and appends them to the rolling
+     * Discord message (editing it), or starts a new message when the 1 900-char
+     * limit would be exceeded.  Called exclusively from the flush thread.
+     */
+    private void flushBatchToDiscord(java.util.List<String> batch) {
+        TextChannel channel = jda.getTextChannelById(consoleChannelId);
+        if (channel == null) return;
+
+        for (String line : batch) {
+            int addedLen = line.length() + 1; // +1 for '\n'
+
+            if (consoleBufferLen + addedLen > CONSOLE_MAX_CHARS
+                    || consoleCurrentMessage.get() == null) {
+                // Start a fresh message
+                consoleLineBuffer.clear();
+                consoleBufferLen = 0;
+                consoleLineBuffer.add(line);
+                consoleBufferLen = line.length();
+
+                String block = "```\n" + line + "\n```";
+                try {
+                    Message sent = channel.sendMessage(block).complete();
+                    consoleCurrentMessage.set(sent);
+                } catch (Exception e) {
+                    plugin.getLogger().warning("[Console] Failed to send message: " + e.getMessage());
+                }
+            } else {
+                consoleLineBuffer.add(line);
+                consoleBufferLen += addedLen;
+            }
+        }
+
+        // One edit for the entire batch
+        Message current = consoleCurrentMessage.get();
+        if (current != null && !consoleLineBuffer.isEmpty()) {
+            StringBuilder sb = new StringBuilder("```\n");
+            for (String l : consoleLineBuffer) sb.append(l).append("\n");
+            sb.append("```");
+            try {
+                Message updated = current.editMessage(sb.toString()).complete();
+                consoleCurrentMessage.set(updated);
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Console] Failed to edit message: " + e.getMessage());
+            }
+        }
     }
     
     public void initialize() {
@@ -1139,6 +1254,9 @@ public class DiscordIntegration extends ListenerAdapter {
             
             // Initialize webhooks for configured channels to reuse existing ones
             initializeExistingWebhooks();
+
+            // Start the console flush thread for the re-initialized session
+            startConsoleFlushThread();
             
             plugin.getLogger().info("Discord integration enabled successfully!");
         } catch (Exception e) {
@@ -2526,66 +2644,23 @@ public class DiscordIntegration extends ListenerAdapter {
         List<String> blockedLevels = plugin.getConfig().getStringList("discord.console-logging.blocked-levels");
         if (blockedLevels.contains(level.toUpperCase())) return;
 
-        // Build the new line first (outside the lock — no blocking calls here)
+        // Format the line — no blocking I/O here.  The logging thread must never block.
         String timestamp = DateTimeFormatter.ofPattern("HH:mm:ss").format(LocalTime.now());
         String normalizedLevel = level.toUpperCase();
         if (normalizedLevel.equals("SEVERE")) normalizedLevel = "ERROR";
         if (normalizedLevel.equals("WARNING")) normalizedLevel = "WARN";
 
         String cleanMsg = stripSectionCodes(message);
-        // Truncate a single line that is unreasonably long
         if (cleanMsg.length() > 400) cleanMsg = cleanMsg.substring(0, 397) + "...";
         String newLine = "[" + timestamp + " " + normalizedLevel + "]: " + cleanMsg;
 
-        // Feed the active per-command capture buffer immediately, before the async hop,
-        // so lines are never lost due to the flush firing while the async task is queued.
+        // Feed the per-command capture buffer immediately (before the async flush)
+        // so command output is never lost even at high log rates.
         if (cmdCaptureActive) {
             cmdCaptureLines.add(newLine);
         }
 
-        final String finalLine = newLine;
-        Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-            try {
-                TextChannel channel = jda.getTextChannelById(consoleChannelId);
-                if (channel == null) return;
-
-                synchronized (consoleLock) {
-                    // Will the buffer overflow if we add this line?
-                    int addedLen = finalLine.length() + 1; // +1 for newline
-                    if (consoleBufferLen + addedLen > CONSOLE_MAX_CHARS || consoleCurrentMessage.get() == null) {
-                        // Start a fresh message
-                        consoleLineBuffer.clear();
-                        consoleBufferLen = 0;
-                        consoleLineBuffer.add(finalLine);
-                        consoleBufferLen = finalLine.length();
-
-                        String block = "```\n" + finalLine + "\n```";
-                        // Send and store the message reference so future lines edit it
-                        Message sent = channel.sendMessage(block).complete();
-                        consoleCurrentMessage.set(sent);
-                    } else {
-                        // Append to existing message via edit
-                        consoleLineBuffer.add(finalLine);
-                        consoleBufferLen += addedLen;
-
-                        StringBuilder sb = new StringBuilder("```\n");
-                        for (String l : consoleLineBuffer) {
-                            sb.append(l).append("\n");
-                        }
-                        sb.append("```");
-
-                        Message current = consoleCurrentMessage.get();
-                        if (current != null) {
-                            current.editMessage(sb.toString()).queue(
-                                    updated -> consoleCurrentMessage.set(updated),
-                                    err -> plugin.getLogger().warning("Failed to edit console message: " + err.getMessage())
-                            );
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                plugin.getLogger().warning("Failed to send console message to Discord: " + e.getMessage());
-            }
-        });
+        // Enqueue for the background flush thread — offer() never blocks the caller.
+        pendingConsoleLines.offer(newLine);
     }
 }

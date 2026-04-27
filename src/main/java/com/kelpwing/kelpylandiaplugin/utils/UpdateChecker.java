@@ -171,30 +171,66 @@ public class UpdateChecker {
 
     /**
      * Returns true if {@code remote} is strictly newer than {@code local}.
-     * Compares dot-separated numeric segments; pre-release suffixes (-beta, -SNAPSHOT, etc.)
-     * cause that component to be treated as 0 for ordering purposes.
+     *
+     * Each dot-separated segment is split into a numeric part and an optional
+     * alphabetic suffix (e.g. "1b" → num=1, suffix="b").
+     *
+     * Ordering rules per segment:
+     *   1. Higher numeric value wins (2 > 1).
+     *   2. If the numeric values are equal, a segment WITH a letter suffix is
+     *      considered newer than one without  ("1b" > "1", "1b" > "1a").
+     *      Pre-release tags like "-SNAPSHOT" or "-beta" (which appear after a
+     *      hyphen) are stripped before parsing — they do not bump the version.
      */
     static boolean isNewer(String remote, String local) {
-        int[] r = parseVersion(remote);
-        int[] l = parseVersion(local);
-        int len = Math.max(r.length, l.length);
+        String[] rParts = splitDots(remote);
+        String[] lParts = splitDots(local);
+        int len = Math.max(rParts.length, lParts.length);
         for (int i = 0; i < len; i++) {
-            int rv = i < r.length ? r[i] : 0;
-            int lv = i < l.length ? l[i] : 0;
-            if (rv > lv) return true;
-            if (rv < lv) return false;
+            String rSeg = i < rParts.length ? rParts[i] : "0";
+            String lSeg = i < lParts.length ? lParts[i] : "0";
+            int cmp = compareSegment(rSeg, lSeg);
+            if (cmp > 0) return true;
+            if (cmp < 0) return false;
         }
         return false;
     }
 
-    private static int[] parseVersion(String v) {
+    /** Split on dots, stripping pre-release tags after a hyphen in each segment. */
+    private static String[] splitDots(String v) {
         String[] parts = v.split("\\.");
-        int[] nums = new int[parts.length];
         for (int i = 0; i < parts.length; i++) {
-            // Strip any non-numeric suffix (e.g. "3-SNAPSHOT" → 3)
-            String p = parts[i].replaceAll("[^0-9].*", "");
-            try { nums[i] = Integer.parseInt(p); } catch (NumberFormatException ignored) {}
+            // Remove pre-release markers like "-SNAPSHOT", "-beta", "-RC1"
+            int hyphen = parts[i].indexOf('-');
+            if (hyphen >= 0) parts[i] = parts[i].substring(0, hyphen);
         }
-        return nums;
+        return parts;
+    }
+
+    /**
+     * Compares two version segments that may each have the form {@code \d+[a-z]?}.
+     * Returns positive if {@code a} > {@code b}, negative if {@code a} < {@code b}, 0 if equal.
+     * A letter suffix makes the segment higher than the same number without one
+     * ("1b" > "1", "1b" > "1a").
+     */
+    private static int compareSegment(String a, String b) {
+        // Split each segment into numeric prefix + optional letter suffix
+        int aNum = 0; String aSuf = "";
+        int bNum = 0; String bSuf = "";
+
+        java.util.regex.Matcher mA = java.util.regex.Pattern.compile("^(\\d+)([a-zA-Z]*)$").matcher(a.trim());
+        java.util.regex.Matcher mB = java.util.regex.Pattern.compile("^(\\d+)([a-zA-Z]*)$").matcher(b.trim());
+
+        if (mA.matches()) { aNum = Integer.parseInt(mA.group(1)); aSuf = mA.group(2).toLowerCase(); }
+        if (mB.matches()) { bNum = Integer.parseInt(mB.group(1)); bSuf = mB.group(2).toLowerCase(); }
+
+        if (aNum != bNum) return Integer.compare(aNum, bNum);
+        // Same numeric value — a segment with any suffix is newer than one without.
+        // Between two non-empty suffixes, compare alphabetically ("b" > "a").
+        boolean aHas = !aSuf.isEmpty();
+        boolean bHas = !bSuf.isEmpty();
+        if (aHas && !bHas) return 1;   // "1b" > "1"
+        if (!aHas && bHas) return -1;  // "1"  < "1b"
+        return aSuf.compareTo(bSuf);   // "1b" vs "1a"
     }
 }
