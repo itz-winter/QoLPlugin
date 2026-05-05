@@ -5,7 +5,7 @@ api-version: '1.16'
 author: Kelpwing
 description: A collection of quality-of-life features and commands for Minecraft servers, including chat channels, moderation tools, teleportation commands, and more!!
 depend: [LuckPerms]
-softdepend: [PlaceholderAPI, Vault]
+softdepend: [PlaceholderAPI, Vault, ProtocolLib, XMaterial]
 
 commands:
   # Chat Commands
@@ -124,13 +124,8 @@ commands:
     aliases: [thaw]
     permission-message: "You don't have permission to use this command."
 
-  # Economy commands are registered dynamically when the economy system
-  # is enabled in economy.yml.  They are NOT listed here to avoid
-  # registering placeholder command entries that IC would process.
-
-  # Home, TPA, Back, and Workbench commands are registered dynamically
-  # based on config settings. They will not appear here to avoid
-  # conflicting with other plugins when disabled.
+  # Economy commands registered dynamically 
+  # Home, TPA, Back, and Workbench commands registered dynamically
 
 permissions:
   qol.*:
@@ -815,13 +810,12 @@ permissions:
     description: Allows viewing item price history
     default: true
 
-  # ─────────────────────────────────────────────────────────────
   # Legacy permission aliases — backward-compat for servers that
   # already granted the old "kelpylandia.*" nodes.
-  # Granting any of these automatically grants the matching qol.*
-  # node via Bukkit's children mechanism, so no re-configuration
+  # Granting any of these automatically nhjmugrants the matching qol.*
+  # node via Bukkit's children mechanism, so no reconfiguration
   # is needed after updating to QoLPlugin.
-  # ─────────────────────────────────────────────────────────────
+
   kelpylandia.*:
     description: "[Legacy] Grants all permissions (alias for qol.*)"
     default: false
