@@ -215,7 +215,7 @@ public class ChannelCommand implements CommandExecutor, TabCompleter {
             case "default":
                 boolean defaultChannel = Boolean.parseBoolean(value);
                 if (defaultChannel) {
-                    // Remove default from other channels
+                    // remove default from other channels
                     for (Channel c : plugin.getChannelManager().getAllChannels()) {
                         c.setDefaultChannel(false);
                     }

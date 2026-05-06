@@ -9,10 +9,7 @@ import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 
-/**
- * Handles channel alias commands (e.g. /l switches to the local channel).
- * Each instance is bound to a specific channel name.
- */
+// channel alias commands (e.g. /l for local channel)
 public class ChannelAliasCommand implements CommandExecutor {
 
     private final KelpylandiaPlugin plugin;
@@ -42,18 +39,18 @@ public class ChannelAliasCommand implements CommandExecutor {
         }
 
         if (args.length > 0) {
-            // Quick-send: send message to this channel without changing the player's active channel.
+            // quicksend: send message to channel w/o changing active channel
             String message = String.join(" ", args);
             String previousChannel = plugin.getChannelManager().getPlayerChannel(player.getUniqueId());
             plugin.getChannelManager().setPlayerChannel(player.getUniqueId(), channel.getName());
             try {
                 player.chat(message);
             } finally {
-                // Always restore, even if chat() threw
+                // always restore, even if chat() threw
                 plugin.getChannelManager().setPlayerChannel(player.getUniqueId(), previousChannel);
             }
         } else {
-            // No message — toggle to this channel
+            // no message -> toggle to this channel
             plugin.getChannelManager().setPlayerChannel(player.getUniqueId(), channel.getName());
             player.sendMessage(ChatColor.GREEN + "Switched to channel: " + channel.getFormattedDisplayName());
         }

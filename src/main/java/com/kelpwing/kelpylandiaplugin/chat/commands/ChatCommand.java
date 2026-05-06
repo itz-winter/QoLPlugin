@@ -31,7 +31,7 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
         Player player = (Player) sender;
 
         if (args.length == 0) {
-            // Show current channel
+            // show current channel
             Channel currentChannel = plugin.getChannelManager().getPlayerChannel(player);
             if (currentChannel != null) {
                 player.sendMessage(ChatColor.GREEN + "You are currently in channel: " + currentChannel.getFormattedDisplayName());
@@ -43,13 +43,13 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
 
         String subCommand = args[0].toLowerCase();
 
-        // Check if the first argument is a channel name (direct channel switching)
+        // check if the first arg is channel name
         Channel directChannel = plugin.getChannelManager().getChannel(subCommand);
         if (directChannel != null) {
             return handleDirectChannelSwitch(player, directChannel);
         }
 
-        // Handle subcommands
+        // handle subcommands
         switch (subCommand) {
             case "join":
                 return handleJoinCommand(player, args);
@@ -233,7 +233,7 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
             return true;
         }
 
-        // Build the message from remaining args
+        // build the message from remaining args
         StringBuilder messageBuilder = new StringBuilder();
         for (int i = 2; i < args.length; i++) {
             if (i > 2) messageBuilder.append(" ");
@@ -243,14 +243,14 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
         String message = messageBuilder.toString();
         String formattedMessage = ChatFormatUtils.formatMessage(plugin, player, channel, message);
 
-        // Send message to all players who should receive it
+        // send message to channel recipients
         for (Player onlinePlayer : plugin.getServer().getOnlinePlayers()) {
             if (shouldReceiveChannelMessage(onlinePlayer, player, channel)) {
                 onlinePlayer.sendMessage(formattedMessage);
             }
         }
 
-        // Send to Discord if enabled
+        // send to Discord (if enabled)
         if (channel.isDiscordEnabled()) {
             plugin.getDiscordIntegration().sendChatMessage(player, message, channel.getDiscordChannel());
         }
@@ -280,7 +280,7 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
         List<String> completions = new ArrayList<>();
 
         if (args.length == 1) {
-            // Add subcommands
+            // add subcommands (yay how fun)
             completions.add("join");
             completions.add("leave");
             completions.add("list");
@@ -289,7 +289,7 @@ public class ChatCommand implements CommandExecutor, TabCompleter {
             completions.add("msg");
             completions.add("help");
             
-            // Add channel names for direct switching
+            // add channel names for direct switching...cause some ppl just wanna type /chat local instead of /L
             if (sender instanceof Player) {
                 Player player = (Player) sender;
                 for (Channel channel : plugin.getChannelManager().getAvailableChannels(player)) {

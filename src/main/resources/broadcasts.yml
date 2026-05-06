@@ -11,7 +11,7 @@ max-interval: 120
 
 # Prefix prepended to every broadcast message
 # Set to "" to disable the prefix
-prefix: "&6[Broadcast] &r"
+prefix: "&7[&bBroadcast&7] &r"
 
 # Whether to randomize message order (true) or cycle sequentially (false)
 random-order: true

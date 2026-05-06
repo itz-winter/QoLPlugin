@@ -1,6 +1,6 @@
+# =============================
 # QoLPlugin Configuration File
-# Combined chat and moderation system for Kelpylandia
-# (Formerly KelpylandiaPlugin — old folder is auto-migrated)
+# =============================
 
 # ===== UPDATE CHECKER =====
 update-checker:

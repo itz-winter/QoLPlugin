@@ -1,6 +1,6 @@
-# ═══════════════════════════════════════════════════
-# KelpylandiaPlugin — Kits Configuration
-# ═══════════════════════════════════════════════════
+# ============================
+# QoLPlugin Kits Configuration
+# ============================
 # Each kit is defined under the "kits" section.
 #
 # Kit properties:
@@ -14,7 +14,7 @@
 #                       when you /kit create or /kit edit in-game)
 #
 # Cooldown data is stored under "cooldowns" and managed automatically.
-# ═══════════════════════════════════════════════════
+# ===========================
 
 kits:
   starter:
@@ -70,6 +70,7 @@ kits:
         v: 2230
         type: SHIELD
 
+# ===================================================================
 # Player cooldown data (managed automatically — do not edit manually)
 # cooldowns:
 #   <uuid>:

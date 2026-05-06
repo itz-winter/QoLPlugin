@@ -1,14 +1,7 @@
-# ===== CUSTOM DEATH MESSAGES =====
+# ============== CUSTOM DEATH MESSAGES ==============
 # These messages are used when a player uses /suicide.
 # A random message is picked from this list each time.
-#
-# Placeholders:
-#   {player}       - The player's display name
-#   {player_name}  - The player's raw username
-#   {world}        - The world the player died in
-#
-# PlaceholderAPI placeholders are also supported if PlaceholderAPI is installed.
-# Example: %player_health%, %player_level%, etc.
+# ===================================================
 
 messages:
   - "{player_name} exploded"
@@ -26,3 +19,12 @@ messages:
   - "{player_name} spontaneously combusted"
   - "{player_name} thought fall damage was a myth"
   - "{player_name} uninstalled themselves"
+
+# ===================================================
+# Placeholders:
+#   {player}       - The player's display name
+#   {player_name}  - The player's raw username
+#   {world}        - The world the player died in
+#
+# PlaceholderAPI placeholders are also supported if PlaceholderAPI is installed.
+# Example: %player_health%, %player_level%, etc.
