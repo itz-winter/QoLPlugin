@@ -13,8 +13,6 @@ update-checker:
   # Use /kpupdate download — to download the latest jar to plugins/
 
 # ===== CHAT SYSTEM CONFIGURATION =====
-
-# Channel Configurations
 channels:
   global:
     display-name: "Global"
@@ -49,7 +47,7 @@ channels:
     default: false
     alias: "at"
 
-# Discord Bot Integration Settings
+# ===== DISCORD CONFIGURATION =====
 discord:
   enabled: true
   bot-token: "your-bot-token-here"
@@ -176,10 +174,74 @@ discord:
       **Duration:** {duration}
       **Server:** {server_name}
 
+# /skull [username] - Get a player's head as an item
+skull:
+  enabled: true
+
+# /repair [hand|helmet|chestplate|pants|boots|offhand|all] [user] - Repair item durability
+repair:
+  enabled: true
+
+# /sudo <user> <command or message> - Force a player to run a command or say something
+sudo:
+  enabled: true
+
+# /runat <player|Console> <command> - Run a command as another player with full permission bypass.
+# The target is temporarily granted all permissions so the command always succeeds.
+# Use "Console" as the target to execute commands as the server console.
+# Console can always use /runat. Players need the kelpylandia.runat permission (unset by default).
+# Alias: /forcecmd
+runat:
+  enabled: true
+
+# Toggle states (vanish, socialspy, commandspy, god, fly) are saved to disk
+# immediately when toggled and restored on rejoin. Enabled by default.
+state-persistence:
+  enabled: true
+  vanish: true
+  socialspy: true
+  commandspy: true
+  god: true
+  fly: true
+  # Restore the chat channel a player was in when they last logged off.
+  # false = always start in the default channel on login.
+  channel: true
+
+# /ss /socialspy - Toggle social spy (see all private messages and channel chat)
+# /cs /commandspy - Toggle command spy (see all commands other players run)
+spy:
+  enabled: true
+
+# /fly [user] - Toggle flight mode (use * to target all players)
+fly:
+  enabled: true
+
+# /god [user] - Toggle god mode / invincibility (use * to target all players)
+god:
+  enabled: true
+
+# /heal [user] - Heal a player to full health (use * to target all players)
+heal:
+  enabled: true
+
+# /starve [user] - Set a player's hunger to zero (use * to target all players)
+starve:
+  enabled: true
+
+# /feed [user] - Fill a player's food bar (use * to target all players)
+feed:
+  enabled: true
+
+# /flyspeed <speed> [user] - Set fly speed (0-10, default 1)
+# /walkspeed <speed> [user] - Set walk speed (0-10, default 2)
+flyspeed:
+  enabled: true
+
 # ===== CHAT ITEM DISPLAY =====
 # Built-in [item], [inv], and [enderchest] keywords in chat.
 # When a player types these keywords, they are replaced with interactive
 # components: hover to see details, click to view a snapshot.
+# Inspired by InteractiveChat
 ItemDisplay:
   Settings:
     # How long (minutes) a snapshot inventory view stays in memory after creation
@@ -228,10 +290,9 @@ ItemDisplay:
       - "&bClick to view!"
 
 # ===== CLICKABLE COMMAND BOXES =====
-# Cherry-picked from InteractiveChat's CommandsDisplay module.
 # When a player wraps a command in the configured format (e.g. [/spawn]),
 # it is replaced with a styled, clickable component in chat.
-# Key names match IC exactly (Commands.Enabled, Commands.Format, etc.)
+# Inspired by InteractiveChat
 Commands:
   # Master toggle
   Enabled: true
@@ -263,7 +324,7 @@ join-leave:
   hide-default: true
   # Join/leave messages are broadcast to all players regardless of channel
 
-# ===== MODERATION SYSTEM CONFIGURATION =====
+# ===== MODERATION CONFIGURATION =====
 
 # Broadcast Configuration for moderation actions
 broadcast:
@@ -391,92 +452,6 @@ messaging:
 suicide:
   enabled: true
 
-# ===== SKULL COMMAND =====
-# /skull [username] - Get a player's head as an item
-# Set enabled to false to disable the skull command
-skull:
-  enabled: true
-
-# ===== REPAIR COMMAND =====
-# /repair [hand|helmet|chestplate|pants|boots|offhand|all] [user] - Repair item durability
-# Set enabled to false to disable the repair command
-repair:
-  enabled: true
-
-# ===== SUDO COMMAND =====
-# /sudo <user> <command or message> - Force a player to run a command or say something
-# Set enabled to false to disable the sudo command
-sudo:
-  enabled: true
-
-# ===== RUNAT COMMAND =====
-# /runat <player|Console> <command> - Run a command as another player with full permission bypass.
-# The target is temporarily granted all permissions so the command always succeeds.
-# Use "Console" as the target to execute commands as the server console.
-# Console can always use /runat. Players need the kelpylandia.runat permission (unset by default).
-# Alias: /forcecmd
-runat:
-  enabled: true
-
-# ===== STATE PERSISTENCE =====
-# Toggle states (vanish, socialspy, commandspy, god, fly) are saved to disk
-# immediately when toggled and restored on rejoin. Enabled by default.
-# Set to false to disable persistence for a specific toggle.
-state-persistence:
-  enabled: true
-  vanish: true
-  socialspy: true
-  commandspy: true
-  god: true
-  fly: true
-  # Restore the chat channel a player was in when they last logged off.
-  # false = always start in the default channel on login.
-  channel: true
-
-# ===== SPY COMMANDS =====
-# /ss /socialspy - Toggle social spy (see all private messages and channel chat)
-# /cs /commandspy - Toggle command spy (see all commands other players run)
-# Set enabled to false to disable both spy commands
-spy:
-  enabled: true
-
-# ===== FLY COMMAND =====
-# /fly [user] - Toggle flight mode (use * to target all players)
-# Set enabled to false to disable the fly command
-fly:
-  enabled: true
-
-# ===== GOD COMMAND =====
-# /god [user] - Toggle god mode / invincibility (use * to target all players)
-# Set enabled to false to disable the god command
-god:
-  enabled: true
-
-# ===== HEAL COMMAND =====
-# /heal [user] - Heal a player to full health (use * to target all players)
-# Set enabled to false to disable the heal command
-heal:
-  enabled: true
-
-# ===== STARVE COMMAND =====
-# /starve [user] - Set a player's hunger to zero (use * to target all players)
-# Set enabled to false to disable the starve command
-starve:
-  enabled: true
-
-# ===== FEED COMMAND =====
-# /feed [user] - Fill a player's food bar (use * to target all players)
-# Set enabled to false to disable the feed command
-feed:
-  enabled: true
-
-# ===== FLY/WALK SPEED COMMANDS =====
-# /flyspeed <speed> [user] - Set fly speed (0-10, default 1)
-# /walkspeed <speed> [user] - Set walk speed (0-10, default 2)
-# Set enabled to false to disable both speed commands
-flyspeed:
-  enabled: true
-
 # ===== WORKBENCH COMMANDS =====
 # Open virtual workbench inventories via commands (like EssentialsX)
 # Set enabled to false to disable all workbench commands (avoids conflicts)
@@ -576,7 +551,8 @@ stuck:
   enabled: false
 
 # ===== NOCLIP COMMAND =====
-# /noclip [player] - Toggle spectator mode while flying to clip through blocks
+# /noclip [player] - Toggle spectator mode to clip through blocks
+# Double shift to toggle between both
 noclip:
   enabled: true
 

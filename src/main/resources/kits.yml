@@ -14,7 +14,7 @@
 #                       when you /kit create or /kit edit in-game)
 #
 # Cooldown data is stored under "cooldowns" and managed automatically.
-# ===========================
+# ═══════════════════════════════════════════════════
 
 kits:
   starter:
