@@ -60,7 +60,7 @@ public class DiscordIntegration extends ListenerAdapter {
     private String consoleChannelId;
     private final ConcurrentHashMap<String, String> webhookUrls = new ConcurrentHashMap<>();
 
-    // ── Rolling console log (DiscordSRV-style queue + drain thread) ──────────
+    //  Rolling console log (DiscordSRV-style queue + drain thread) 
     /**
      * Non-blocking queue of formatted lines waiting to be flushed to Discord.
      * The log4j appender / JUL handler offer() lines here without ever blocking
@@ -80,7 +80,7 @@ public class DiscordIntegration extends ListenerAdapter {
     /** Background drain thread — null when Discord is disabled. */
     private volatile Thread consoleFlushThread = null;
 
-    // ── Per-command output capture (for c! prefix replies) ───────────────────
+    //  Per-command output capture (for c! prefix replies) 
     /** Lines captured during the active command window, to be replied to the invoker. */
     private final java.util.concurrent.ConcurrentLinkedQueue<String> cmdCaptureLines
             = new java.util.concurrent.ConcurrentLinkedQueue<>();
@@ -236,7 +236,7 @@ public class DiscordIntegration extends ListenerAdapter {
 
         Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
             try {
-                // ── Render tooltip images for each item ──────────────
+                //  Render tooltip images for each item 
                 java.util.List<java.io.InputStream> tooltipImages = new java.util.ArrayList<>();
                 java.util.List<String> tooltipFilenames = new java.util.ArrayList<>();
                 int imgIdx = 0;
@@ -255,7 +255,7 @@ public class DiscordIntegration extends ListenerAdapter {
                     imgIdx++;
                 }
 
-                // ── Try JDA-based send with tooltip image attachments ──
+                //  Try JDA-based send with tooltip image attachments 
                 if (!tooltipImages.isEmpty()) {
                     TextChannel ch = jda.getTextChannelById(channelId);
                     if (ch != null) {
@@ -311,7 +311,7 @@ public class DiscordIntegration extends ListenerAdapter {
                     }
                 }
 
-                // ── Fallback: webhook without tooltip images ─────────
+                //  Fallback: webhook without tooltip images 
                 String webhookUrl = getWebhookUrl(channelId);
                 if (webhookUrl == null) {
                     TextChannel ch = jda.getTextChannelById(channelId);
@@ -655,7 +655,7 @@ public class DiscordIntegration extends ListenerAdapter {
         String content = event.getMessage().getContentDisplay().trim();
         String username = event.getAuthor().getEffectiveName();
 
-        // ── c! prefix command (any channel) ─────────────────────────────────
+        //  c! prefix command (any channel) 
         String cmdPrefix = plugin.getConfig().getString("discord.console.commands.prefix", "c!");
         boolean prefixEnabled = plugin.getConfig().getBoolean("discord.console.commands.prefix-command-enabled", true);
 
@@ -671,7 +671,7 @@ public class DiscordIntegration extends ListenerAdapter {
             return;
         }
 
-        // ── Console channel: full message = command ──────────────────────────
+        //  Console channel: full message = command 
         if (channelId.equals(consoleChannelId)) {
             boolean consoleCommandsEnabled = plugin.getConfig().getBoolean("discord.console.commands.enabled", true);
             if (consoleCommandsEnabled) {
@@ -686,7 +686,7 @@ public class DiscordIntegration extends ListenerAdapter {
             return;
         }
 
-        // ── Chat channel: relay to Minecraft ────────────────────────────────
+        //  Chat channel: relay to Minecraft 
         if (channelId.equals(chatChannelId)) {
             if (debugRelay) {
                 plugin.getLogger().info("Relaying Discord message to Minecraft: " + username + ": " + content);
@@ -2210,7 +2210,7 @@ public class DiscordIntegration extends ListenerAdapter {
         event.reply("✅ Test unmute message sent!").setEphemeral(true).queue();
     }
     
-    // ── Economy: /price command ──────────────────────────────────────
+    //  Economy: /price command 
     
     private void handlePriceCommand(SlashCommandInteractionEvent event) {
         EconomyManager eco = plugin.getEconomyManager();

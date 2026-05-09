@@ -6,11 +6,11 @@
 update-checker:
   # Set to false to completely disable the update checker.
   enabled: true
-  # Players/operators with kelpylandia.update.notify will see a
-  # clickable notification in chat when they join, if a newer
-  # version is available on Modrinth.
-  # Use /kpupdate check  — to see current vs. latest version
-  # Use /kpupdate download — to download the latest jar to plugins/
+  # Players with the "qol.update.notify" permission will see
+  # a clickable chat notification when a newer version is available on Modrinth.
+  # Use the admin command to check or download updates:
+  # - /kpupdate check   - show current vs. latest version
+  # - /kpupdate download - download the latest jar to plugins/
 
 # ===== CHAT SYSTEM CONFIGURATION =====
 channels:
@@ -21,10 +21,10 @@ channels:
     proximity: false
     proximity-distance: 0.0
     discord-enabled: true
-    discord-channel: '123456789012345678'  # Set to your Discord channel ID for global chat
+    discord-channel: '123456789012345678'  # Discord channel ID for global chat
     default: true
     alias: "g"
-    
+
   local:
     display-name: "Local"
     format: "&e[L]&r {prefix}{displayname}&r: {message}"
@@ -35,7 +35,7 @@ channels:
     discord-channel: ''
     default: false
     alias: "l"
-    
+
   admin:
     display-name: "Admin"
     format: "&9[A]&r {prefix}{displayname}&r: {message}"
@@ -43,7 +43,7 @@ channels:
     proximity: false
     proximity-distance: 0.0
     discord-enabled: true
-    discord-channel: '123456789012345678'  # Set to your Discord channel ID for admin chat
+    discord-channel: '123456789012345678'  # Discord channel ID for admin chat
     default: false
     alias: "at"
 
@@ -53,119 +53,85 @@ discord:
   bot-token: "your-bot-token-here"
   # Channel for moderation actions
   moderation-channel-id: "your-moderation-channel-id"
-  # Channel for server events: join/leave messages, deaths, advancements, server start/stop.
-  # Leave blank (or omit) to use the default channel's discord-channel (channels.global.discord-channel).
+  # Channel for server events (join/leave, deaths, advancements, server lifecycle).
+  # Leave blank to use the channel configured per-chat (channels.global.discord-channel).
   server-channel-id: ""
-  # Role ID required to use Discord slash moderation commands
+  # Role IDs used by Discord integration
   moderator-role-id: "your-moderator-role-id"
-  # Role ID for admin commands (rules, echo, restart, etc.)
   admin-role-id: "your-admin-role-id"
-  # Role to ping when server starts
   server-start-ping-role-id: "your-server-start-role-id"
 
-  # Webhook Configuration
+  # Webhook configuration
   webhooks:
-    # Whether to reuse existing webhooks instead of creating new ones
-    reuse-existing: true
-    # Delete webhooks when plugin disables (not recommended)
+    reuse-existing: true   # reuse existing webhooks when possible
     cleanup-on-disable: false
-  
-  # Console command execution settings
+
+  # Console bridge settings (allows running console commands from Discord)
   console:
-    # Channel for console logs and commands
     console-channel-id: "your-console-channel-id"
     commands:
-      # Allow messages sent in the console channel to be executed as server commands.
-      # Only users with the configured console-role-id can do this.
       enabled: true
-      # Also allow the c!<command> prefix to run console commands from ANY channel
-      # the bot can see (requires console-role-id permission).
       prefix-command-enabled: true
-      # The prefix used for the cross-channel command shortcut.
       prefix: "c!"
-      # Discord role ID whose members are allowed to run console commands.
-      # Set to your staff/admin role. Leave as default to disable role check (not recommended).
       console-role-id: "your-console-role-id"
 
-  # Server Event Broadcasting
+  # Event broadcasting settings
   events:
-    # Broadcast join/leave messages to global chat
     broadcast-joins: true
     broadcast-leaves: true
     broadcast-deaths: true
     broadcast-advancements: true
     broadcast-achievements: true
-    # Send server events to console channel
     console-logging: true
-    
-    # Use embeds for events (like DiscordSRV)
     use-embeds: true
-
-    # When DiscordSRV is installed, skip this plugin's own join/leave/advancement
-    # Discord messages to avoid duplicates. Set to false if you want both.
+    # Skip plugin event messages when DiscordSRV is present (avoid duplicates)
     skip-if-discordsrv: true
-    
-    # Server lifecycle events
     server-start: true
     server-stop: true
     server-restart: true
-  
-  # Channel topic updates (updates every 10 minutes)
+
+  # Channel topics (updated periodically)
   channel-topics:
     enabled: true
-    update-interval: 600  # 10 minutes in seconds
+    update-interval: 600  # seconds
     channels:
-      # Example: "channel-id": "Server: {server_name} | Players: {online_players}/{max_players} | TPS: {tps}"
+      # Example mapping (channel id): "Server: {server_name} | Players: {online_players}/{max_players} | TPS: {tps}"
       # "123456789012345678": "Kelpylandia | Online: {online_players} | TPS: {tps} | Memory: {memory_used}MB/{memory_max}MB"
-    
-    # Console channel topic (special case - includes server info)
     console-channel-topic: "TPS: {tps} | Memory: {memory_used}MB/{memory_max}MB | Version: {server_version}"
-  
-  # Embed styling (colors in hex format)
+
+  # Embed color settings (hex values)
   embeds:
-    join-color: "#00FF00"      # Green
-    leave-color: "#FF0000"     # Red  
-    death-color: "#8B0000"     # Dark red
-    advancement-color: "#FFFF00"  # Yellow
-    achievement-color: "#FFA500"  # Orange
-    punishment-color: "#FF4500"   # Red-Orange
-    server-start-color: "#00FF00"  # Green
-    server-stop-color: "#FF0000"   # Red
-    server-restart-color: "#FFA500" # Orange
-  
+    join-color: "#00FF00"
+    leave-color: "#FF0000"
+    death-color: "#8B0000"
+    advancement-color: "#FFFF00"
+    achievement-color: "#FFA500"
+    punishment-color: "#FF4500"
+    server-start-color: "#00FF00"
+    server-stop-color: "#FF0000"
+    server-restart-color: "#FFA500"
+
   formats:
-    # How Minecraft messages appear in Discord
+    # How Minecraft messages are sent to Discord
     minecraft-to-discord: "{message}"
-    
-    # How Discord messages appear in Minecraft  
+    # How Discord messages appear in Minecraft
     discord-to-minecraft: "&b[Discord] &r{user}&r: {message}"
-    
-    # Enable debug logging for Discord relay issues
     debug-relay: true
-    
-    # Username format for webhook messages
     username-format: "{displayname}"
-    # Avatar URL template (uses player UUID)
     avatar-url: "https://mc-heads.net/avatar/{uuid}/64"
-    
-    # Event formats for Discord
+    # Event templates
     join: "{player} joined the game"
     leave: "{player} left the game"
     death: "{death_message}"
     advancement: "**{player}** has made the advancement **{advancement}**!"
     achievement: "**{player}** has completed the achievement **{achievement}**!"
-    
-    # Server lifecycle event formats
+    # Server lifecycle templates
     server-start: ":white_check_mark: **Server has started**"
     server-stop: ":warning: **Server restarting...**"
     server-restart: ":warning: **Server restarting...**"
-    
-    # Server lifecycle event descriptions
     server-start-description: ""
     server-stop-description: ""
     server-restart-description: ""
-    
-    # Moderation action format for Discord
     moderation-format: |
       **Action:** {action}
       **Staff:** {staff_name}

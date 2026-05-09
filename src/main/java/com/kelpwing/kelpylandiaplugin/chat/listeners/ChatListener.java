@@ -45,7 +45,7 @@ public class ChatListener implements Listener {
         Player player = event.getPlayer();
         String message = event.getMessage();
 
-        // ── Whisper redirect ────────────────────────────────────────────────
+        //  Whisper redirect 
         MsgCommand msgCmd = plugin.getMsgCommand();
         if (msgCmd != null) {
             UUID targetUUID = msgCmd.getWhisperTarget(player.getUniqueId());
@@ -69,27 +69,27 @@ public class ChatListener implements Listener {
             }
         }
 
-        // ── Mute check ─────────────────────────────────────────────────────
+        //  Mute check 
         if (ChatFormatUtils.isPlayerMuted(player)) {
             player.sendMessage(ChatColor.RED + "You are currently muted and cannot speak.");
             event.setCancelled(true);
             return;
         }
 
-        // ── Channel resolution ──────────────────────────────────────────────
+        //  Channel resolution 
         Channel playerChannel = plugin.getChannelManager().getPlayerChannel(player);
         if (playerChannel == null) {
             playerChannel = plugin.getChannelManager().getDefaultChannel();
         }
 
-        // ── Permission check ────────────────────────────────────────────────
+        //  Permission check 
         if (!ChatFormatUtils.hasPermission(player, playerChannel.getPermission())) {
             player.sendMessage(ChatColor.RED + "You don't have permission to speak in this channel.");
             event.setCancelled(true);
             return;
         }
 
-        // ── Determine recipients ────────────────────────────────────────────
+        //  Determine recipients 
         Set<Player> recipients;
         if (!playerChannel.isGlobal()) {
             recipients = new HashSet<>();
@@ -102,7 +102,7 @@ public class ChatListener implements Listener {
             recipients = new HashSet<>(event.getRecipients());
         }
 
-        // ── SocialSpy for non-global channels ──────────────────────────────
+        //  SocialSpy for non-global channels 
         if (!playerChannel.isGlobal()) {
             SpyManager spyManager = plugin.getSpyManager();
             if (spyManager != null) {
@@ -120,7 +120,7 @@ public class ChatListener implements Listener {
             }
         }
 
-        // ── Check for item-display keywords ─────────────────────────────────
+        //  Check for item-display keywords 
         ItemDisplayManager idm = plugin.getItemDisplayManager();
         boolean hasKeywords = idm != null && idm.containsKeyword(message);
 
@@ -212,7 +212,7 @@ public class ChatListener implements Listener {
         }
     }
 
-    // ── Discord relay helper ────────────────────────────────────────────────
+    //  Discord relay helper 
 
     private void relayToDiscord(Player player, String rawMessage, Channel channel, boolean hasKeywords) {
         if (!channel.isDiscordEnabled()) return;
@@ -236,7 +236,7 @@ public class ChatListener implements Listener {
         discord.sendChatMessage(player, rawMessage, channel.getDiscordChannel());
     }
 
-    // ── Recipient filter ────────────────────────────────────────────────────
+    //  Recipient filter 
 
     private boolean shouldReceiveMessage(Player recipient, Player sender, Channel channel) {
         if (!ChatFormatUtils.hasPermission(recipient, channel.getPermission())) {

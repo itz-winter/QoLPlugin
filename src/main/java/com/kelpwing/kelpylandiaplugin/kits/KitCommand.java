@@ -94,7 +94,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    // ─── Claim ─────────────────────────────────────────────────────
+    //  Claim 
 
     private boolean handleClaim(CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -115,7 +115,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── List ──────────────────────────────────────────────────────
+    //  List 
 
     private boolean handleList(CommandSender sender) {
         KitManager km = plugin.getKitManager();
@@ -166,7 +166,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Preview ───────────────────────────────────────────────────
+    //  Preview 
 
     private boolean handlePreview(CommandSender sender, String[] args) {
         if (!(sender instanceof Player)) {
@@ -188,7 +188,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Give ──────────────────────────────────────────────────────
+    //  Give 
 
     private boolean handleGive(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -228,7 +228,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Create ────────────────────────────────────────────────────
+    //  Create 
 
     private boolean handleCreate(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -283,7 +283,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Edit ──────────────────────────────────────────────────────
+    //  Edit 
 
     private boolean handleEdit(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -309,7 +309,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Delete ────────────────────────────────────────────────────
+    //  Delete 
 
     private boolean handleDelete(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -333,7 +333,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Reload ────────────────────────────────────────────────────
+    //  Reload 
 
     private boolean handleReload(CommandSender sender) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -345,7 +345,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Info ──────────────────────────────────────────────────────
+    //  Info 
 
     private boolean handleInfo(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -374,7 +374,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Set Cooldown ──────────────────────────────────────────────
+    //  Set Cooldown 
 
     private boolean handleSetCooldown(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -404,7 +404,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Set Icon ──────────────────────────────────────────────────
+    //  Set Icon 
 
     private boolean handleSetIcon(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -447,7 +447,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Set Description ───────────────────────────────────────────
+    //  Set Description 
 
     private boolean handleSetDesc(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -472,7 +472,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Set Permission ────────────────────────────────────────────
+    //  Set Permission 
 
     private boolean handleSetPerm(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -498,7 +498,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Set First Join ────────────────────────────────────────────
+    //  Set First Join 
 
     private boolean handleSetFirstJoin(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -523,7 +523,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Set One-Time ──────────────────────────────────────────────
+    //  Set One-Time 
 
     private boolean handleSetOneTime(CommandSender sender, String[] args) {
         if (!sender.hasPermission("qol.kit.admin")) {
@@ -548,7 +548,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── Usage ─────────────────────────────────────────────────────
+    //  Usage 
 
     private void sendUsage(CommandSender sender) {
         sender.sendMessage(ChatColor.GOLD + "═══ Kit Commands ═══");
@@ -571,7 +571,7 @@ public class KitCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    // ─── Tab completion ────────────────────────────────────────────
+    //  Tab completion 
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {

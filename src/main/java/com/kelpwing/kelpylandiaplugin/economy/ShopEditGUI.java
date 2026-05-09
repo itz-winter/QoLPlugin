@@ -93,7 +93,7 @@ public class ShopEditGUI implements Listener {
             gui.setItem(slot, createPriceItem(eco, entry.getKey(), entry.getValue(), mode));
         }
 
-        // ── Navigation row ───────────────────────────────────────
+        //  Navigation row 
         // Previous page
         if (page > 0) {
             gui.setItem(SLOT_PREV, createNavItem(Material.ARROW, ChatColor.YELLOW + "← Previous Page"));
@@ -149,7 +149,7 @@ public class ShopEditGUI implements Listener {
         int slot = event.getRawSlot();
         if (slot < 0 || slot >= GUI_SIZE) return;
 
-        // ── Navigation clicks ────────────────────────────────────
+        //  Navigation clicks 
         if (slot == SLOT_PREV) {
             int page = playerPages.getOrDefault(player.getUniqueId(), 0);
             if (page > 0) openGUI(player, page - 1);
@@ -188,7 +188,7 @@ public class ShopEditGUI implements Listener {
             return;
         }
 
-        // ── Price item clicks ────────────────────────────────────
+        //  Price item clicks 
         if (slot < ITEMS_PER_PAGE) {
             ItemStack clicked = event.getCurrentItem();
             if (clicked == null || clicked.getType() == Material.AIR) return;

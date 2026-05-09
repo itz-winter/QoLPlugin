@@ -585,7 +585,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
             getLogger().info("Kits system enabled! (" + kitManager.getAllKits().size() + " kit(s) loaded)");
         }
         
-        // ── Economy system ───────────────────────────────────────
+        //  Economy system 
         {
             // Always save default economy.yml so loadConfig() can read it
             File ecoFile = new File(getDataFolder(), "economy.yml");
@@ -986,7 +986,7 @@ public class KelpylandiaPlugin extends JavaPlugin {
         return vaultEconomyProvider;
     }
 
-    // ─── Data folder migration ─────────────────────────────────────
+    //  Data folder migration 
 
     /**
      * If the old "KelpylandiaPlugin" data folder exists and the new

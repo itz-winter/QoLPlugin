@@ -1,4 +1,4 @@
-# ===============================
+﻿# ===============================
 # QoLPlugin Economy Configuration
 # ===============================
 
@@ -118,9 +118,9 @@ messages:
   no-permission: "&cYou don't have permission to do that."
 
 # ===== CUSTOM CATEGORIES =====
-# Define arbitrary groups of materials that can be priced together.
-# Use the group name in the "sellable" section with a # prefix, e.g. "#minecraft_spawners: 250.00"
-# Unlike Bukkit Tags (e.g. #minecraft:planks), these are fully custom.
+# Define custom groups of materials that can be priced together.
+# These are referenced in the "sellable" and "buying" sections using
+# the group name prefixed with # (for example: "#minecraft_spawners: 250.00").
 categories:
   minecraft_spawners:
     items:
@@ -130,30 +130,55 @@ categories:
       - CAVE_SPIDER_SPAWNER
       - MAGMA_CUBE_SPAWNER
       - SILVERFISH_SPAWNER
+
   minecraft_hostile_mob_drops:
     items:
-      # Overworld
       - ROTTEN_FLESH
       - BONE
       - STRING
       - ARROW
       - GUNPOWDER
-      # Nether
       - MAGMA_CREAM
       - BLAZE_ROD
-  minecraft_stone: # naturally occurring variants
+      - GHAST_TEAR
+
+  minecraft_ores:
     items:
-      - STONE
-      - ANDESITE
-      - DIORITE
-      - GRANITE
-      - COBBLESTONE
-      - MOSSY_COBBLESTONE
-      # Following are disabled since this plugin can be used in older versions that don't have them
-      #- COBBLED_DEEPSLATE
-      #- DEEPSLATE
-      #- TUFF
-      #- CALCITE
+      - COAL
+      - IRON_ORE
+      - GOLD_ORE
+      - DIAMOND_ORE
+      - EMERALD_ORE
+      - REDSTONE_ORE
+      - NETHER_GOLD_ORE
+      - NETHER_QUARTZ_ORE
+
+  minecraft_ingots:
+    items:
+      - IRON_INGOT
+      - GOLD_INGOT
+      - COPPER_INGOT
+
+  minecraft_foods:
+    items:
+      - BREAD
+      - APPLE
+      - COOKED_BEEF
+      - COOKED_CHICKEN
+      - COOKED_PORKCHOP
+      - BAKED_POTATO
+      - SWEET_BERRIES
+
+  minecraft_wood:
+    items:
+      - OAK_LOG
+      - SPRUCE_LOG
+      - BIRCH_LOG
+      - JUNGLE_LOG
+      - ACACIA_LOG
+      - DARK_OAK_LOG
+      - MANGROVE_LOG
+      - CHERRY_LOG
 
 # ===== SELLABLE ITEMS =====
 # Define which items players can sell and for how much.
@@ -170,46 +195,64 @@ sellable:
   "#minecraft_hostile_mob_drops": 1.25
 
   # Per-item overrides (these take priority over category prices)
-  ender_pearl: 0.50
-  blaze_rod: 0.75
-  ghast_tear: 1.50
-  shulker_shell: 5.00
-  wither_skeleton_skull: 10.00
+  ender_pearl: 0.75
+  blaze_rod: 1.00
+  ghast_tear: 2.50
+  shulker_shell: 7.50
+  wither_skeleton_skull: 15.00
+  gunpowder: 0.75
+  string: 0.25
+  bone: 0.20
+  leather: 0.50
+  feather: 0.10
+  chorus_fruit: 2.00
+  nautilus_shell: 8.00
+  rabbit_hide: 0.15
+  slime_ball: 1.50
 
   # Earthy blocks
-  cobblestone: 0.01
+  cobblestone: 0.02
   dirt: 0.01
+  gravel: 0.02
+  sand: 0.03
+  clay: 0.05
 
   # Silk-touch blocks
   stone: 0.02
   grass_block: 0.02
   mycelium: 0.02
   podzol: 0.02
+  moss_block: 0.05
+  rooted_dirt: 0.05
 
   # Ores and ingots
-  coal: 0.25
-  iron_ingot: 0.75
-  gold_ingot: 0.75
-  diamond: 2.25
-  emerald: 0.95
-  redstone: 0.35
-  quartz: 0.50
-  ancient_debris: 10.00
-  netherite_scrap: 10.25
-  netherite_ingot: 43.25
+  coal: 0.50
+  iron_ingot: 1.00
+  gold_ingot: 1.25
+  copper_ingot: 0.40
+  diamond: 4.00
+  emerald: 2.50
+  redstone: 0.50
+  quartz: 0.60
+  ancient_debris: 25.00
+  netherite_scrap: 15.00
+  netherite_ingot: 60.00
 
   # Ore blocks (silk touch)
-  coal_ore: 0.10
-  iron_ore: 0.50
-  gold_ore: 0.50
-  diamond_ore: 3.50
-  emerald_ore: 4.75
-  redstone_ore: 0.25
-  nether_gold_ore: 0.75
-  nether_quartz_ore: 0.50
+  coal_ore: 0.25
+  iron_ore: 0.80
+  gold_ore: 0.90
+  diamond_ore: 8.00
+  emerald_ore: 6.00
+  redstone_ore: 0.60
+  nether_gold_ore: 1.25
+  nether_quartz_ore: 0.75
 
   # Category prices (Bukkit Tags)
   "#minecraft:planks": 0.25
+  "#minecraft:logs": 0.40
+  "#minecraft:flowers": 0.10
+  "#minecraft:bees": 0.50
 
 # ===== UNSELLABLE ITEMS =====
 # Items listed here cannot be sold regardless of any category prices.
@@ -234,56 +277,69 @@ unsellable:
 #   - Categories use Bukkit Tag names prefixed with # (e.g. "#minecraft:planks": 0.25).
 #   - Per-item prices always take priority over category prices.
 #   - Items not listed here cannot be bought and will not appear in /shop.
-# Note: buy prices are intentionally much higher than sell prices to prevent too many items from entering the economy and encourage player trading.
+# Note: buy prices are intentionally much higher than sell prices to prevent too many
+#   items from entering the economy and encourage player trading.
 buying:
-  # Master toggle for the buy system. Disabled by default since it's more complex and can cause balance issues if not configured carefully.
+  # Master toggle. Disabled by default - enable only after carefully reviewing buy prices.
   enabled: false
 
   items:
-    # Per-item overrides (these take priority over category prices)
-    ender_pearl: 10
-    blaze_rod: 7.50
-    shulker_shell: 50.00
+    # Mob drops
+    ender_pearl: 15
+    blaze_rod: 12.50
+    shulker_shell: 75.00
+    gunpowder: 5
+    string: 2
+    bone: 1
+    leather: 5
+    feather: 1
+    slime_ball: 20
+    chorus_fruit: 30
+    nautilus_shell: 120
+    rabbit_hide: 2
 
     # Earthy blocks
-    cobblestone: 5
+    cobblestone: 10
     dirt: 5
+    gravel: 8
+    sand: 10
+    clay: 20
 
     # Silk-touch blocks
-    stone: 8
-    grass_block: 8
-    mycelium: 8
-    podzol: 8
+    stone: 12
+    grass_block: 15
+    mycelium: 18
+    podzol: 18
 
     # Ores and ingots
-    coal: 25
-    iron_ingot: 75
-    gold_ingot: 75
-    diamond: 125
-    emerald: 95
-    redstone: 35
-    quartz: 50
-    ancient_debris: 1000
-    netherite_scrap: 1025
-    netherite_ingot: 3500
+    coal: 60
+    iron_ingot: 150
+    gold_ingot: 150
+    copper_ingot: 40
+    diamond: 200
+    emerald: 180
+    redstone: 90
+    quartz: 120
+    ancient_debris: 4000
+    netherite_scrap: 2500
+    netherite_ingot: 10000
 
     # Ore blocks (silk touch)
-    coal_ore: 50
-    iron_ore: 100
-    gold_ore: 100
-    diamond_ore: 350
-    emerald_ore: 135
-    redstone_ore: 55
-    nether_gold_ore: 100
-    nether_quartz_ore: 75
+    coal_ore: 120
+    iron_ore: 200
+    gold_ore: 200
+    diamond_ore: 800
+    emerald_ore: 300
+    redstone_ore: 140
+    nether_gold_ore: 200
+    nether_quartz_ore: 180
 
     # Category prices (Bukkit Tags)
-    "#minecraft:planks": 25
+    "#minecraft:planks": 40
     "#minecraft:logs": 100
-    "#minecraft:walls": 50
-    "#minecraft:fences": 50
-    "#minecraft:stone": 10
-
+    "#minecraft:walls": 80
+    "#minecraft:fences": 60
+    "#minecraft:stone": 30
 # ===== DYNAMIC PRICING (EXPERIMENTAL) =====
 # When enabled, sell prices fluctuate based on supply and demand.
 # Prices above are treated as base prices; a multiplier is applied based on recent sales.
@@ -319,7 +375,7 @@ dynamic-pricing:
   decay-exponent: 1.5
   increase-exponent: 1.5
 
-  # ─── ADVANCED FEATURES ─────────────────────────────────────────────────────
+  #  ADVANCED FEATURES 
   # Each feature below has its own toggle. Servers can choose their realism level
   # by enabling/disabling individual features. All default to sensible values.
 

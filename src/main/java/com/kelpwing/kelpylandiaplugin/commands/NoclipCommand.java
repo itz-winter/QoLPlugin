@@ -106,7 +106,7 @@ public class NoclipCommand implements CommandExecutor, TabCompleter, Listener {
         return noclipEnabled.contains(uuid);
     }
 
-    // ─── Double-shift listener ────────────────────────────
+    //  Double-shift listener 
 
     @EventHandler(priority = EventPriority.MONITOR)
     public void onPlayerToggleSneak(PlayerToggleSneakEvent event) {

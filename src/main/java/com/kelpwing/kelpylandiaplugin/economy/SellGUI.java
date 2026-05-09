@@ -72,7 +72,7 @@ public class SellGUI implements Listener {
         Player player = (Player) event.getPlayer();
         UUID uuid = player.getUniqueId();
 
-        // ── Sell GUI closed ──────────────────────────────────────
+        //  Sell GUI closed 
         if (openGUIs.remove(uuid)) {
             if (!event.getView().getTitle().equals(GUI_TITLE)) return;
 
@@ -83,7 +83,7 @@ public class SellGUI implements Listener {
             return;
         }
 
-        // ── Confirmation GUI closed (without clicking a button) ──
+        //  Confirmation GUI closed (without clicking a button) 
         if (pendingConfirmations.containsKey(uuid) && !transitioning.contains(uuid)) {
             // Player closed the confirm GUI without clicking — treat as cancel
             PendingSale pending = pendingConfirmations.remove(uuid);
@@ -109,7 +109,7 @@ public class SellGUI implements Listener {
             ItemStack item = gui.getItem(slot);
             if (item == null || item.getType() == Material.AIR) continue;
 
-            // ── Shulker box handling ─────────────────────────────
+            //  Shulker box handling 
             if (EconomyManager.isShulkerBox(item.getType()) && item.hasItemMeta()
                     && item.getItemMeta() instanceof BlockStateMeta) {
 
@@ -139,7 +139,7 @@ public class SellGUI implements Listener {
                 continue;
             }
 
-            // ── Normal item ──────────────────────────────────────
+            //  Normal item 
             EconomyManager.PriceResult priceResult = eco.getPrice(item.getType());
             if (priceResult.sellable) {
                 BigDecimal value = priceResult.price.multiply(BigDecimal.valueOf(item.getAmount()));
@@ -248,13 +248,13 @@ public class SellGUI implements Listener {
         if (eco == null) return;
 
         if (slot == 2) {
-            // ── Confirm: sell the empty shulkers ─────────────────
+            //  Confirm: sell the empty shulkers 
             transitioning.add(uuid);
             player.closeInventory();
             Bukkit.getScheduler().runTaskLater(plugin, () -> transitioning.remove(uuid), 2L);
             finaliseSale(player, eco, pending, true);
         } else if (slot == 6) {
-            // ── Cancel: return the empty shulkers ────────────────
+            //  Cancel: return the empty shulkers 
             transitioning.add(uuid);
             player.closeInventory();
             Bukkit.getScheduler().runTaskLater(plugin, () -> transitioning.remove(uuid), 2L);

@@ -60,7 +60,7 @@ public class UpdateCommand implements CommandExecutor, TabCompleter {
         return true;
     }
 
-    // ─── /kpupdate check ───────────────────────────────────────────────────────
+    //  /kpupdate check 
 
     private void runCheck(CommandSender sender) {
         UpdateChecker checker = plugin.getUpdateChecker();
@@ -89,7 +89,7 @@ public class UpdateCommand implements CommandExecutor, TabCompleter {
         });
     }
 
-    // ─── /kpupdate download ────────────────────────────────────────────────────
+    //  /kpupdate download 
 
     private void runDownload(CommandSender sender) {
         UpdateChecker checker = plugin.getUpdateChecker();
@@ -156,7 +156,7 @@ public class UpdateCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    // ─── Tab completion ────────────────────────────────────────────────────────
+    //  Tab completion 
 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {

@@ -36,7 +36,7 @@ public class UpdateChecker {
         this.currentVersion = plugin.getDescription().getVersion();
     }
 
-    // ─── Public API ────────────────────────────────────────────────────────────
+    //  Public API 
 
     public boolean isUpdateAvailable()  { return updateAvailable; }
     public boolean hasChecked()         { return checkCompleted;  }
@@ -45,7 +45,7 @@ public class UpdateChecker {
     public String  getDownloadUrl()     { return downloadUrl;      }
     public String  getVersionName()     { return versionName != null ? versionName : latestVersion; }
 
-    // ─── Async check ───────────────────────────────────────────────────────────
+    //  Async check 
 
     /**
      * Schedules an async check. Results are available via the getters above
@@ -112,7 +112,7 @@ public class UpdateChecker {
         checkCompleted = true;
     }
 
-    // ─── Helpers ───────────────────────────────────────────────────────────────
+    //  Helpers 
 
     private HttpURLConnection openConnection(String urlStr) throws Exception {
         URL url = new URL(urlStr);

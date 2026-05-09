@@ -22,7 +22,7 @@ public class SpyManager {
         this.plugin = plugin;
     }
 
-    // ─── SocialSpy ─────────────────────────────────────────────────
+    //  SocialSpy 
 
     public boolean toggleSocialSpy(UUID uuid) {
         if (socialSpies.contains(uuid)) {
@@ -49,7 +49,7 @@ public class SpyManager {
         return Collections.unmodifiableSet(socialSpies);
     }
 
-    // ─── CommandSpy ────────────────────────────────────────────────
+    //  CommandSpy 
 
     public boolean toggleCommandSpy(UUID uuid) {
         if (commandSpies.contains(uuid)) {
@@ -76,7 +76,7 @@ public class SpyManager {
         return Collections.unmodifiableSet(commandSpies);
     }
 
-    // ─── Cleanup ───────────────────────────────────────────────────
+    //  Cleanup 
 
     /** Remove in-memory state only. The file-based state is NOT cleared
      *  so that the persisted toggle survives relog. */
@@ -85,7 +85,7 @@ public class SpyManager {
         commandSpies.remove(uuid);
     }
 
-    // ─── Persistence helper ────────────────────────────────────────
+    //  Persistence helper 
 
     private void persistToggle(UUID uuid, String key, boolean value) {
         PlayerStateManager stateManager = plugin.getPlayerStateManager();

@@ -55,7 +55,7 @@ public class ConsoleListener extends Handler implements Listener {
         }
     }
 
-    // ── log4j2 appender ──────────────────────────────────────────────────────
+    //  log4j2 appender 
 
     private class Log4jAppender extends AbstractAppender {
         Log4jAppender() {
@@ -114,7 +114,7 @@ public class ConsoleListener extends Handler implements Listener {
         }
     }
 
-    // ── JUL handler ──────────────────────────────────────────────────────────
+    //  JUL handler 
 
     @Override
     public void publish(LogRecord record) {

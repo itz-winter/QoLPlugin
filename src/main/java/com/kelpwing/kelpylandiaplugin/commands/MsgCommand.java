@@ -43,7 +43,7 @@ public class MsgCommand implements CommandExecutor, TabCompleter {
         this.plugin = plugin;
     }
 
-    // ─── /w <player> <message>  OR  /w <message> (when target locked) ───
+    //  /w <player> <message>  OR  /w <message> (when target locked) 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         // Console: /w <player> <message>
@@ -175,7 +175,7 @@ public class MsgCommand implements CommandExecutor, TabCompleter {
         }
     }
 
-    // ─── Whisper target ─────────────────────────────────────────────────
+    //  Whisper target 
 
     /** Set a whisper target for a player. Returns the target. */
     public void setWhisperTarget(UUID player, UUID target) {
@@ -192,18 +192,18 @@ public class MsgCommand implements CommandExecutor, TabCompleter {
         return whisperTarget.get(player);
     }
 
-    // ─── Reply helper ───────────────────────────────────────────────────
+    //  Reply helper 
     public UUID getLastConversation(UUID uuid) {
         return lastConversation.get(uuid);
     }
 
-    // ─── Cleanup on quit ────────────────────────────────────────────────
+    //  Cleanup on quit 
     public void removePlayer(UUID uuid) {
         lastConversation.remove(uuid);
         whisperTarget.remove(uuid);
     }
 
-    // ─── Tab complete ───────────────────────────────────────────────────
+    //  Tab complete 
     @Override
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         if (args.length == 1) {

@@ -197,7 +197,7 @@ public class HomeGUI implements Listener {
 
         if (page > 0) {
             gui.setItem(45, makeNavItem(Material.ARROW,
-                ChatColor.YELLOW + "< Previous Page",
+                ChatColor.YELLOW + "← Previous Page",
                 ChatColor.GRAY + "Page " + page + " of " + totalPages));
         }
         gui.setItem(49, makeNavItem(Material.BOOK,
@@ -210,7 +210,7 @@ public class HomeGUI implements Listener {
             ChatColor.GRAY   + "Tip: /renhome <old> <new>"));
         if (page < totalPages - 1) {
             gui.setItem(53, makeNavItem(Material.ARROW,
-                ChatColor.YELLOW + "Next Page >",
+                ChatColor.YELLOW + "Next Page →",
                 ChatColor.GRAY + "Page " + (page + 2) + " of " + totalPages));
         }
 
@@ -241,11 +241,11 @@ public class HomeGUI implements Listener {
 
         // Nav: 45=Back, 46=Prev, 49=Info, 52=Next, 53=Use Held Item
         gui.setItem(45, makeNavItem(Material.BARRIER,
-            ChatColor.RED + "< Back",
+            ChatColor.RED + "Back",
             ChatColor.GRAY + "Return to homes list"));
         if (iconPage > 0) {
             gui.setItem(46, makeNavItem(Material.ARROW,
-                ChatColor.YELLOW + "< Previous Icons",
+                ChatColor.YELLOW + "← Previous Page",
                 ChatColor.GRAY + "Page " + iconPage + " of " + totalPages));
         }
         gui.setItem(49, makeNavItem(Material.COMPASS,
@@ -257,7 +257,7 @@ public class HomeGUI implements Listener {
             ChatColor.YELLOW + "Slot 53"  + ChatColor.GRAY + " = Use your held item"));
         if ((iconPage + 1) * ICONS_PER_PAGE < totalIcons) {
             gui.setItem(52, makeNavItem(Material.ARROW,
-                ChatColor.YELLOW + "Next Icons >",
+                ChatColor.YELLOW + "Next Page →",
                 ChatColor.GRAY + "Page " + (iconPage + 2) + " of " + totalPages));
         }
         gui.setItem(53, makeNavItem(Material.STICK,

@@ -34,19 +34,19 @@ public class EconomyManager {
 
     private final KelpylandiaPlugin plugin;
 
-    // ── Dynamic pricing engine ──────────────────────────────────
+    //  Dynamic pricing engine 
     private DynamicPricingEngine dynamicPricing;
 
-    // ── Config (loaded from economy.yml) ─────────────────────────
+    //  Config (loaded from economy.yml) 
     private File economyFile;
     private FileConfiguration economyConfig;
 
-    // ── Balance storage (YAML backend) ──────────────────────────
+    //  Balance storage (YAML backend) 
     private File balancesFile;
     private FileConfiguration balancesConfig;
     private final Map<UUID, BigDecimal> balanceCache = new ConcurrentHashMap<>();
 
-    // ── Price caches (built from economy.yml on load) ───────────
+    //  Price caches (built from economy.yml on load) 
     /** Exact material -> price */
     private final Map<Material, BigDecimal> itemPrices = new LinkedHashMap<>();
     /** Tag-based category -> price (lower priority than item prices) */
@@ -60,7 +60,7 @@ public class EconomyManager {
     /** Explicit unsellable items with reason suffixes */
     private final Map<Material, String> unsellableItems = new LinkedHashMap<>();
 
-    // ── Buy price caches ─────────────────────────────────────────
+    //  Buy price caches 
     /** Exact material -> buy price */
     private final Map<Material, BigDecimal> buyItemPrices = new LinkedHashMap<>();
     /** Tag-based category -> buy price */
@@ -68,7 +68,7 @@ public class EconomyManager {
     /** Custom category buy prices */
     private final Map<String, BigDecimal> buyCustomCategoryPrices = new LinkedHashMap<>();
 
-    // ── Derived settings ─────────────────────────────────────────
+    //  Derived settings 
     private boolean enabled;
     private boolean useVault;
     private String unit;
@@ -103,11 +103,37 @@ public class EconomyManager {
         enabled = economyConfig.getBoolean("enabled", true);
         useVault = economyConfig.getBoolean("use-vault", true);
         unit = economyConfig.getString("unit", "$");
-        decimals = economyConfig.getInt("decimals", 2);
-        startingBalance = BigDecimal.valueOf(economyConfig.getDouble("starting-balance", 100));
+        if (unit == null || unit.isEmpty()) {
+            plugin.getLogger().warning("[Economy] 'unit' is blank in economy.yml, defaulting to '$'.");
+            unit = "$";
+        }
+
+        // Clamp decimals to a valid range (0-10).
+        int rawDecimals = economyConfig.getInt("decimals", 2);
+        if (rawDecimals < 0 || rawDecimals > 10) {
+            plugin.getLogger().warning("[Economy] 'decimals' value (" + rawDecimals + ") is out of range (0-10), defaulting to 2.");
+            rawDecimals = 2;
+        }
+        decimals = rawDecimals;
+
+        // Starting balance must be non-negative.
+        double rawStarting = economyConfig.getDouble("starting-balance", 100);
+        if (Double.isNaN(rawStarting) || Double.isInfinite(rawStarting) || rawStarting < 0) {
+            plugin.getLogger().warning("[Economy] 'starting-balance' value (" + rawStarting + ") is invalid, defaulting to 100.");
+            rawStarting = 100;
+        }
+        startingBalance = BigDecimal.valueOf(rawStarting);
 
         taxEnabled = economyConfig.getBoolean("tax.enabled", false);
-        taxRate = BigDecimal.valueOf(economyConfig.getDouble("tax.rate", 9.25));
+
+        // Tax rate must be between 0 and 100.
+        double rawTaxRate = economyConfig.getDouble("tax.rate", 9.25);
+        if (Double.isNaN(rawTaxRate) || Double.isInfinite(rawTaxRate) || rawTaxRate < 0 || rawTaxRate > 100) {
+            plugin.getLogger().warning("[Economy] 'tax.rate' value (" + rawTaxRate + ") is out of range (0-100), defaulting to 9.25.");
+            rawTaxRate = 9.25;
+        }
+        taxRate = BigDecimal.valueOf(rawTaxRate);
+
         taxOnServerSell = economyConfig.getBoolean("tax.apply-when-selling-to-server", false);
         buyingEnabled = economyConfig.getBoolean("buying.enabled", false);
     }
@@ -147,7 +173,7 @@ public class EconomyManager {
         buyCategoryPrices.clear();
         buyCustomCategoryPrices.clear();
 
-        // ── Custom categories section ────────────────────────────
+        //  Custom categories section 
         // Defines groups of materials under arbitrary names.
         // Format:  categories:
         //            minecraft_spawners:
@@ -172,12 +198,15 @@ public class EconomyManager {
             plugin.getLogger().info("[Economy] Loaded " + customCategories.size() + " custom category/ies.");
         }
 
-        // ── Sellable section ─────────────────────────────────────
+        //  Sellable section 
         ConfigurationSection sellable = economyConfig.getConfigurationSection("sellable");
         if (sellable != null) {
             for (String key : sellable.getKeys(false)) {
                 double price = sellable.getDouble(key, -1);
-                if (price < 0) continue;
+                if (!isValidPrice(price)) {
+                    plugin.getLogger().warning("[Economy] Skipping '" + key + "' in sellable: invalid or negative price (" + price + ").");
+                    continue;
+                }
 
                 if (key.startsWith("#")) {
                     String catRef = key.substring(1); // e.g. "minecraft:planks" or "minecraft_spawners"
@@ -209,7 +238,7 @@ public class EconomyManager {
             }
         }
 
-        // ── Unsellable section ───────────────────────────────────
+        //  Unsellable section 
         ConfigurationSection unsellableSection = economyConfig.getConfigurationSection("unsellable");
         if (unsellableSection != null) {
             for (String key : unsellableSection.getKeys(false)) {
@@ -225,12 +254,15 @@ public class EconomyManager {
         plugin.getLogger().info("[Economy] Loaded " + itemPrices.size() + " item price(s) and "
                 + totalCats + " category price(s).");
 
-        // ── Buyable section ──────────────────────────────────────
+        //  Buyable section 
         ConfigurationSection buyable = economyConfig.getConfigurationSection("buying.items");
         if (buyable != null) {
             for (String key : buyable.getKeys(false)) {
                 double price = buyable.getDouble(key, -1);
-                if (price < 0) continue;
+                if (!isValidPrice(price)) {
+                    plugin.getLogger().warning("[Economy] Skipping '" + key + "' in buying.items: invalid or negative price (" + price + ").");
+                    continue;
+                }
 
                 if (key.startsWith("#")) {
                     String catRef = key.substring(1);
@@ -705,7 +737,7 @@ public class EconomyManager {
         return false;
     }
 
-    // ── Buy price management ─────────────────────────────────────
+    //  Buy price management 
 
     public void setBuyPrice(String key, double price) {
         economyConfig.set("buying.items." + key, price);
@@ -808,13 +840,22 @@ public class EconomyManager {
 
     /** Parse a material name (case-insensitive, optional minecraft: prefix). */
     public static Material parseMaterial(String name) {
-        if (name == null) return null;
+        if (name == null || name.isBlank()) return null;
         name = name.trim().toUpperCase().replace("MINECRAFT:", "").replace(" ", "_");
         try {
             return Material.valueOf(name);
         } catch (IllegalArgumentException e) {
             return null;
         }
+    }
+
+    /**
+     * Returns true if {@code price} is a finite, non-negative number that is safe
+     * to use as a price. NaN, Infinity, and values below zero are rejected.
+     * A price of exactly 0.0 is allowed (means "sellable for free").
+     */
+    private static boolean isValidPrice(double price) {
+        return !Double.isNaN(price) && !Double.isInfinite(price) && price >= 0;
     }
 
     /** Resolve a Bukkit Tag from a string like "minecraft:planks". */
@@ -865,7 +906,7 @@ public class EconomyManager {
                 economyConfig.getString("messages." + key, "&cMissing message: " + key));
     }
 
-    // ── Getters ──────────────────────────────────────────────────
+    //  Getters 
 
     public boolean isEnabled() { return enabled; }
     public boolean isUseVault() { return useVault; }

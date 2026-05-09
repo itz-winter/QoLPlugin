@@ -33,7 +33,7 @@ public class PlayerEventListener implements Listener {
         return plugin.getDiscordIntegration();
     }
 
-    // ─── DiscordSRV silent-event metadata ───────────────────────────────
+    //  DiscordSRV silent-event metadata 
     // DiscordSRV checks for player metadata "DiscordSRV:silentjoin" and
     // "DiscordSRV:silentquit" to decide whether to skip its own join/leave
     // messages.  We tag vanished players before DiscordSRV's MONITOR listener
@@ -59,7 +59,7 @@ public class PlayerEventListener implements Listener {
         }
     }
 
-    // ────────────────────────────────────────────────────────────────────
+    // 
 
     @EventHandler(priority = EventPriority.HIGHEST)
     public void onPlayerJoin(PlayerJoinEvent event) {

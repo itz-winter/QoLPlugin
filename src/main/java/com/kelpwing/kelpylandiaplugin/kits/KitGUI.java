@@ -36,7 +36,7 @@ public class KitGUI implements Listener {
         this.plugin = plugin;
     }
 
-    // ─── Open preview ──────────────────────────────────────────────
+    //  Open preview 
 
     public void openPreview(Player player, Kit kit) {
         int size = roundUpRows(kit.getItems().size());
@@ -51,7 +51,7 @@ public class KitGUI implements Listener {
         player.openInventory(gui);
     }
 
-    // ─── Open editor ───────────────────────────────────────────────
+    //  Open editor 
 
     public void openEditor(Player player, Kit kit) {
         // Editor is always 54 slots (6 rows) — the last row has a save indicator
@@ -86,7 +86,7 @@ public class KitGUI implements Listener {
         player.openInventory(gui);
     }
 
-    // ─── Events ────────────────────────────────────────────────────
+    //  Events 
 
     @EventHandler
     public void onInventoryClick(InventoryClickEvent event) {
@@ -147,7 +147,7 @@ public class KitGUI implements Listener {
         }
     }
 
-    // ─── Helpers ───────────────────────────────────────────────────
+    //  Helpers 
 
     /**
      * Round item count up to the next multiple of 9 (inventory row size),

@@ -22,7 +22,7 @@ import java.util.Map;
  */
 public class TooltipImageRenderer {
 
-    // ── Colour palette (Minecraft tooltip colours) ───────────────
+    //  Colour palette (Minecraft tooltip colours) 
     private static final Color BG_FILL             = new Color(16, 0, 16, 240);
     private static final Color BORDER_OUTER        = new Color(16, 0, 16, 255);
     private static final Color BORDER_INNER_TOP    = new Color(80, 0, 255, 80);
@@ -38,7 +38,7 @@ public class TooltipImageRenderer {
     private static final Color TEXT_DARK_GREEN     = new Color(0, 170, 0);
     private static final Color TEXT_BLUE           = new Color(85, 85, 255);
 
-    // ── Layout constants ─────────────────────────────────────────
+    //  Layout constants 
     private static final int PADDING_X   = 10;
     private static final int PADDING_Y   = 8;
     private static final int LINE_HEIGHT = 18;
@@ -46,7 +46,7 @@ public class TooltipImageRenderer {
     private static final String FONT_NAME = "Consolas";
     private static final int FONT_SIZE    = 14;
 
-    // ── Fonts (created once) ──────────────────────────────────────
+    //  Fonts (created once) 
     private static final Font FONT_BASE        = new Font(FONT_NAME, Font.PLAIN,        FONT_SIZE);
     private static final Font FONT_ITALIC      = new Font(FONT_NAME, Font.ITALIC,       FONT_SIZE);
     private static final Font FONT_BOLD        = new Font(FONT_NAME, Font.BOLD,         FONT_SIZE);
@@ -336,7 +336,7 @@ public class TooltipImageRenderer {
     // ════════════════════════════════════════════════════════════════
 
     private static BufferedImage renderLines(List<TooltipLine> lines) {
-        // ── First pass: measure maximum line width ────────────────
+        //  First pass: measure maximum line width 
         BufferedImage measure = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         Graphics2D mg = measure.createGraphics();
         mg.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
@@ -357,7 +357,7 @@ public class TooltipImageRenderer {
         int imgWidth  = Math.max(100, maxWidth + PADDING_X * 2 + BORDER_WIDTH * 2 + 4);
         int imgHeight = Math.max(30,  lines.size() * LINE_HEIGHT + PADDING_Y * 2 + BORDER_WIDTH * 2);
 
-        // ── Second pass: render ───────────────────────────────────
+        //  Second pass: render 
         BufferedImage image = new BufferedImage(imgWidth, imgHeight, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g = image.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);

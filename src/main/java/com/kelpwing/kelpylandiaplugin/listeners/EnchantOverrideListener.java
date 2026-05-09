@@ -300,7 +300,7 @@ public class EnchantOverrideListener implements Listener {
         return item.getEnchantments();
     }
 
-    // ─── Material helpers ───────────────────────────────────
+    //  Material helpers 
 
     private boolean isBow(Material m) {
         return m == Material.BOW;

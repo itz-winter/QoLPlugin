@@ -54,7 +54,7 @@ import java.util.regex.Pattern;
  */
 public class ItemDisplayManager {
 
-    // ── Keyword patterns — loaded from config, matching IC's ItemDisplay.*.Keyword ──
+    //  Keyword patterns — loaded from config, matching IC's ItemDisplay.*.Keyword 
     // Defaults mirror IC's config.yml verbatim.
     private final Pattern itemPattern;
     private final Pattern invPattern;
@@ -333,13 +333,13 @@ public class ItemDisplayManager {
         ItemMeta meta = item.hasItemMeta() ? item.getItemMeta() : null;
         boolean hasMeta = meta != null;
 
-        // ── ItemFlags ────────────────────────────────────────────────────────
+        //  ItemFlags 
         boolean hideEnchants   = hasMeta && meta.hasItemFlag(ItemFlag.HIDE_ENCHANTS);
         boolean hideAttributes = hasMeta && meta.hasItemFlag(ItemFlag.HIDE_ATTRIBUTES);
         // HIDE_UNBREAKABLE covers the Unbreakable tag; we reuse the flag for the durability line too
         boolean hideDurability = hasMeta && meta.hasItemFlag(ItemFlag.HIDE_UNBREAKABLE);
 
-        // ── Enchantments ─────────────────────────────────────────────────────
+        //  Enchantments 
         Map<String, Integer> enchants = new java.util.LinkedHashMap<>();
         if (!hideEnchants) {
             // EnchantmentStorageMeta for enchanted books — stored enchants, not applied
@@ -357,7 +357,7 @@ public class ItemDisplayManager {
             }
         }
 
-        // ── Lore (§ colour codes preserved for tooltip rendering) ────────────
+        //  Lore (§ colour codes preserved for tooltip rendering) 
         List<String> lore = new ArrayList<>();
         if (hasMeta && meta.hasLore()) {
             for (String line : meta.getLore()) {
@@ -365,7 +365,7 @@ public class ItemDisplayManager {
             }
         }
 
-        // ── Durability (cherry-picked from IC DiscordItemStackUtils) ──────────
+        //  Durability (cherry-picked from IC DiscordItemStackUtils) 
         int durability = 0;
         int maxDurability = 0;
         boolean unbreakable = hasMeta && meta.isUnbreakable();
@@ -378,7 +378,7 @@ public class ItemDisplayManager {
             }
         }
 
-        // ── Potion effects (cherry-picked from IC DiscordItemStackUtils) ───────
+        //  Potion effects (cherry-picked from IC DiscordItemStackUtils) 
         List<String> potionEffects = new ArrayList<>();
         if (hasMeta && meta instanceof PotionMeta) {
             PotionMeta potionMeta = (PotionMeta) meta;
@@ -402,13 +402,13 @@ public class ItemDisplayManager {
             }
         }
 
-        // ── Attribute modifiers grouped by slot (cherry-picked from IC) ────────
+        //  Attribute modifiers grouped by slot (cherry-picked from IC) 
         List<String> attributeLines = new ArrayList<>();
         if (!hideAttributes) {
             buildAttributeLines(item, meta, attributeLines);
         }
 
-        // ── Rarity (cherry-picked from IC) ────────────────────────────────────
+        //  Rarity (cherry-picked from IC) 
         // In 1.16: COMMON = no enchant, UNCOMMON = enchanted book / golden items,
         // RARE = most enchanted tools/weapons, EPIC = enchanted netherite / rare items.
         // Simple heuristic matching IC's approach: check enchantment count and material.

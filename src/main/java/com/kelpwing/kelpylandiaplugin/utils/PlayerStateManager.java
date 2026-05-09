@@ -37,7 +37,7 @@ public class PlayerStateManager {
         return new File(dataFolder, uuid.toString() + ".yml");
     }
 
-    // ─── Immediate per-key save (called from toggle commands) ──────
+    //  Immediate per-key save (called from toggle commands) 
 
     /**
      * Immediately persist a single boolean toggle to the player's data file.
@@ -74,7 +74,7 @@ public class PlayerStateManager {
         return cfg.getBoolean(key, fallback);
     }
 
-    // ─── Full save on quit (safety net) ────────────────────────────
+    //  Full save on quit (safety net) 
 
     /**
      * Save all relevant toggle states for a player. Called on quit as a
@@ -137,7 +137,7 @@ public class PlayerStateManager {
         }
     }
 
-    // ─── Restore on join ───────────────────────────────────────────
+    //  Restore on join 
 
     /**
      * Restore all relevant toggle states for a player on join.

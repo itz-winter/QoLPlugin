@@ -87,7 +87,7 @@ public class NametagListener implements Listener {
         });
     }
 
-    // ── Prefix helper (mirrors ChatFormatUtils.getPlayerPrefix) ──────────────
+    //  Prefix helper (mirrors ChatFormatUtils.getPlayerPrefix) 
 
     private static String getPlayerPrefix(Player player) {
         try {

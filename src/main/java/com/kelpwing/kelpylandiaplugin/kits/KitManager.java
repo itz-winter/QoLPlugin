@@ -38,7 +38,7 @@ public class KitManager {
         loadCooldowns();
     }
 
-    // ─── File setup ────────────────────────────────────────────────
+    //  File setup 
 
     private void setupFile() {
         kitsFile = new File(plugin.getDataFolder(), "kits.yml");
@@ -59,7 +59,7 @@ public class KitManager {
         kitsConfig = YamlConfiguration.loadConfiguration(kitsFile);
     }
 
-    // ─── Load / Save kits ──────────────────────────────────────────
+    //  Load / Save kits 
 
     private void loadKits() {
         kits.clear();
@@ -144,7 +144,7 @@ public class KitManager {
         loadCooldowns();
     }
 
-    // ─── Cooldown management ───────────────────────────────────────
+    //  Cooldown management 
 
     private void loadCooldowns() {
         cooldowns.clear();
@@ -216,7 +216,7 @@ public class KitManager {
         return sb.toString().trim();
     }
 
-    // ─── Give kit to player ────────────────────────────────────────
+    //  Give kit to player 
 
     /**
      * Attempts to give a kit to a player.
@@ -258,7 +258,7 @@ public class KitManager {
         return new GiveResult(true, "Kit " + kit.getName() + " claimed!" + extra);
     }
 
-    // ─── Queries ───────────────────────────────────────────────────
+    //  Queries 
 
     public Kit getKit(String name) {
         return kits.get(name.toLowerCase());
@@ -330,7 +330,7 @@ public class KitManager {
         return available;
     }
 
-    // ─── Utility ───────────────────────────────────────────────────
+    //  Utility 
 
     private void saveFile() {
         try {
@@ -349,7 +349,7 @@ public class KitManager {
         return result;
     }
 
-    // ─── Result wrapper ────────────────────────────────────────────
+    //  Result wrapper 
 
     public static class GiveResult {
         private final boolean success;
